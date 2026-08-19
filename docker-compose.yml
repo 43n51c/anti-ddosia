@@ -12,8 +12,6 @@ services:
       FEED_URL: ${FEED_URL:-https://witha.name/data/last.json}
       POLL_MINUTES: ${POLL_MINUTES:-5}
     volumes:
-      # Persist GeoIP cache + history across restarts/rebuilds.
-      - ddosia-data:/app/data
-
-volumes:
-  ddosia-data:
+      # Persist GeoIP cache + history. Bind-mounted so `node backfill.js` run
+      # on the host is visible to the container (and vice versa).
+      - ./data:/app/data

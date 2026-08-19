@@ -116,7 +116,8 @@ h2 { margin: 0; font-size: 16px; font-weight: 600; }
 /* panels */
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.chip-select { background: var(--panel2); border: 1px solid var(--border); color: var(--muted); font-size: 12px; padding: 5px 12px; border-radius: 10px; }
+.chip-select { background: var(--panel2); border: 1px solid var(--border); color: var(--muted); font-size: 12px; padding: 5px 12px; border-radius: 10px; white-space: nowrap; }
+.sub-note { display: block; color: var(--muted2); font-size: 11.5px; margin-top: 4px; }
 .dots { color: var(--muted); cursor: default; }
 .view { animation: fade 0.25s ease; }
 @keyframes fade { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }

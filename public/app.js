@@ -124,6 +124,11 @@ function renderOverview() {
   renderGauge($('#gauge'), s.totals);
   // trend
   renderTrend($('#trendChart'), s.trend || []);
+  const days = s.historyDays || (s.trend || []).length;
+  $('#trendRange').textContent = days > 40 ? `${days}-day` : `${days || 30}-day`;
+  if (s.trendPeak && s.trendPeak.day) {
+    $('#trendNote').textContent = `peak ${s.trendPeak.count} on ${s.trendPeak.day} · avg ${s.trendAvg}/day`;
+  }
   // donut by type
   renderDonut(s.byType);
   // top hosts rail
@@ -226,25 +231,44 @@ function renderThreatDetails() {
     </tr>`).join('') : '<tr><td colspan="6" class="empty">No targets match your filters</td></tr>';
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function renderTrend(el, trend) {
   if (!trend.length) { el.innerHTML = '<div class="empty">History builds as the monitor runs…</div>'; return; }
-  const W = 700, H = 230, pad = 38;
+  const W = 700, H = 230, pad = 38, botPad = 26;
   const max = Math.max(...trend.map((d) => d.count)) * 1.15 || 1;
+  const many = trend.length > 40;
   const x = (i) => pad + (i / Math.max(1, trend.length - 1)) * (W - pad * 2);
-  const y = (v) => H - pad - (v / max) * (H - pad * 2);
+  const y = (v) => H - botPad - (v / max) * (H - pad - botPad);
   const pts = trend.map((d, i) => `${x(i)},${y(d.count)}`).join(' ');
-  const area = `${pad},${H - pad} ${pts} ${x(trend.length - 1)},${H - pad}`;
-  const ticks = [0, 0.5, 1].map((f) => { const v = Math.round(max * f); return `<line x1="${pad}" y1="${y(v)}" x2="${W - pad}" y2="${y(v)}" stroke="#20202f" stroke-dasharray="3 4"/><text x="6" y="${y(v) + 4}" fill="#5d5e78" font-size="10">${v}</text>`; }).join('');
+  const area = `${pad},${H - botPad} ${pts} ${x(trend.length - 1)},${H - botPad}`;
+  const yticks = [0, 0.5, 1].map((f) => { const v = Math.round(max * f); return `<line x1="${pad}" y1="${y(v)}" x2="${W - pad}" y2="${y(v)}" stroke="#20202f" stroke-dasharray="3 4"/><text x="6" y="${y(v) + 4}" fill="#5d5e78" font-size="10">${v}</text>`; }).join('');
+
+  // x-axis labels: month boundaries when there's a lot of data, else first/last day.
+  let xlabels = '';
+  if (many) {
+    let lastMonth = -1;
+    xlabels = trend.map((d, i) => {
+      const m = Number(d.day.slice(5, 7)) - 1;
+      if (m !== lastMonth) { lastMonth = m; return `<line x1="${x(i)}" y1="${pad - 8}" x2="${x(i)}" y2="${H - botPad}" stroke="#1c1c2b"/><text x="${x(i) + 3}" y="${H - 9}" fill="#5d5e78" font-size="10">${MONTHS[m]}</text>`; }
+      return '';
+    }).join('');
+  } else {
+    xlabels = `<text x="${pad}" y="${H - 9}" fill="#5d5e78" font-size="10">${trend[0].day}</text>
+      <text x="${W - pad}" y="${H - 9}" text-anchor="end" fill="#5d5e78" font-size="10">${trend[trend.length - 1].day}</text>`;
+  }
+
   const last = trend[trend.length - 1];
+  const peak = trend.reduce((m, d) => (d.count > m.count ? d : m), trend[0]);
+  const peakX = x(trend.indexOf(peak));
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
     <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a855f7" stop-opacity="0.4"/><stop offset="100%" stop-color="#a855f7" stop-opacity="0"/></linearGradient></defs>
-    ${ticks}
+    ${yticks}${xlabels}
     <polygon points="${area}" fill="url(#tg)"/>
-    <polyline points="${pts}" fill="none" stroke="#c084fc" stroke-width="2.5"/>
-    ${trend.map((d, i) => `<circle cx="${x(i)}" cy="${y(d.count)}" r="3" fill="#c084fc"><title>${d.day}: ${d.count} targets</title></circle>`).join('')}
+    <polyline points="${pts}" fill="none" stroke="#c084fc" stroke-width="${many ? 1.8 : 2.5}"/>
+    ${many ? '' : trend.map((d, i) => `<circle cx="${x(i)}" cy="${y(d.count)}" r="3" fill="#c084fc"><title>${d.day}: ${d.count} targets</title></circle>`).join('')}
+    <circle cx="${peakX}" cy="${y(peak.count)}" r="3.5" fill="#f43f5e"><title>Peak ${peak.day}: ${peak.count}</title></circle>
+    <text x="${peakX}" y="${y(peak.count) - 8}" text-anchor="middle" fill="#f43f5e" font-size="10">peak ${peak.count}</text>
     <text x="${W - pad}" y="14" text-anchor="end" fill="#f2f3fa" font-size="11">latest: ${last.count}</text>
-    <text x="${pad}" y="${H - 8}" fill="#5d5e78" font-size="10">${trend[0].day}</text>
-    <text x="${W - pad}" y="${H - 8}" text-anchor="end" fill="#5d5e78" font-size="10">${last.day}</text>
   </svg>`;
 }
 

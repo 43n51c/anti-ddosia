@@ -10,7 +10,7 @@ WORKDIR /app
 COPY package.json ./
 
 # Application code.
-COPY server.js ./
+COPY server.js backfill.js ./
 COPY public ./public
 
 # Runtime state (GeoIP cache + history) lives here; mount a volume to persist it.

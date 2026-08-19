@@ -21,13 +21,28 @@ Under the hood:
 - **History & first-seen tracking** — persisted to `data/state.json`, so the trend chart and NEW badges survive restarts.
 - **Zero dependencies** — pure Node.js (`>=18`) + vanilla HTML/CSS/JS.
 
+## Backfill history (optional but recommended)
+
+By default the trend chart starts empty and fills as the monitor runs. To populate it with **real history from the start of 2026**, run the backfill — it downloads one archived snapshot per day from witha.name, computes daily target counts, and records each host's true first-seen date:
+
+```bash
+node backfill.js          # backfill 2026 (the default)
+node backfill.js 2025     # or any other year present in the archive
+```
+
+It merges into `data/state.json` (safe to re-run) and takes ~20s for a full year. After it finishes, start/restart the app and the "Targets Over Time" chart shows the whole year. To run it against a running container instead:
+
+```bash
+docker compose exec anti-ddosia node backfill.js
+```
+
 ## Run with Docker (recommended)
 
 ```bash
 docker compose up -d --build
 ```
 
-Then open <http://localhost:3000>. State (GeoIP cache + history) is persisted in the `ddosia-data` volume.
+Then open <http://localhost:3000>. State (GeoIP cache + history) is persisted in `./data` (bind-mounted), so a host-side `node backfill.js` is picked up by the container.
 
 ```bash
 docker compose logs -f      # follow logs
@@ -71,6 +86,7 @@ PORT=8080 POLL_MINUTES=10 npm start
 
 ```
 server.js            # feed poller + GeoIP enrichment + JSON API + static server
+backfill.js          # one-off: backfill daily history for a year from the archive
 public/
   index.html         # dashboard shell
   styles.css         # dark theme

@@ -240,7 +240,7 @@ function buildStats() {
     .filter((x) => new Date(x.hostFirstSeen).getTime() >= dayCutoff)
     .map((x) => x.host))];
 
-  // Daily trend: last count seen per calendar day.
+  // Daily trend: last count seen per calendar day (full available range).
   const perDay = new Map();
   for (const h of state.history) {
     const day = h.t.slice(0, 10);
@@ -248,8 +248,12 @@ function buildStats() {
   }
   const trend = [...perDay.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .slice(-30)
+    .slice(-400)
     .map(([day, h]) => ({ day, count: h.count, hosts: h.hosts, ips: h.ips }));
+
+  // Peak / average across the shown range (for the overview headline stats).
+  const peak = trend.reduce((m, d) => (d.count > m.count ? d : m), { count: 0, day: null });
+  const avg = trend.length ? Math.round(trend.reduce((s, d) => s + d.count, 0) / trend.length) : 0;
 
   return {
     ok: current.ok,
@@ -270,6 +274,9 @@ function buildStats() {
     topPaths: topPaths(t),
     newHosts,
     trend,
+    trendPeak: peak,
+    trendAvg: avg,
+    historyDays: trend.length,
   };
 }
 
