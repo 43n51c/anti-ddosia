@@ -1,0 +1,19 @@
+services:
+  anti-ddosia:
+    build: .
+    image: anti-ddosia:latest
+    container_name: anti-ddosia
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      # Override any of these in a local .env file (see .env.example).
+      PORT: 3000
+      FEED_URL: ${FEED_URL:-https://witha.name/data/last.json}
+      POLL_MINUTES: ${POLL_MINUTES:-5}
+    volumes:
+      # Persist GeoIP cache + history across restarts/rebuilds.
+      - ddosia-data:/app/data
+
+volumes:
+  ddosia-data:

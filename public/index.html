@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>anti-DDoSia — NoName057(16) Target Monitor</title>
+  <meta name="description" content="Live tracking of DDoSia Project (NoName057(16)) DDoS targets from the public feed." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🛡️</span>
+      <div>
+        <h1>anti-DDoSia</h1>
+        <p class="subtitle">NoName057(16) / DDoSia Project — live target monitor</p>
+      </div>
+    </div>
+    <div class="status" id="status">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">connecting…</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Stat cards -->
+    <section class="cards" id="cards"></section>
+
+    <!-- Charts -->
+    <section class="charts">
+      <div class="panel">
+        <h2>Targets over time <span class="hint">(last 30 days)</span></h2>
+        <div id="trendChart" class="chart-body"></div>
+      </div>
+      <div class="panel">
+        <h2>Attack types</h2>
+        <div id="typeChart" class="chart-body"></div>
+      </div>
+      <div class="panel">
+        <h2>Top countries</h2>
+        <div id="countryChart" class="chart-body"></div>
+      </div>
+      <div class="panel">
+        <h2>Top ports</h2>
+        <div id="portChart" class="chart-body"></div>
+      </div>
+    </section>
+
+    <!-- Targets table -->
+    <section class="panel table-panel">
+      <div class="table-head">
+        <h2>Targets <span class="hint" id="tableCount"></span></h2>
+        <div class="controls">
+          <input type="search" id="search" placeholder="Search host, IP, path, org…" />
+          <select id="filterType"><option value="">All types</option></select>
+          <select id="filterCountry"><option value="">All countries</option></select>
+          <label class="chk"><input type="checkbox" id="filterNew" /> New (24h)</label>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="targetsTable">
+          <thead>
+            <tr>
+              <th data-sort="host">Host</th>
+              <th data-sort="ip">IP</th>
+              <th data-sort="country">Country</th>
+              <th data-sort="type">Type</th>
+              <th data-sort="method">Method</th>
+              <th data-sort="port">Port</th>
+              <th data-sort="use_ssl">SSL</th>
+              <th data-sort="path">Path</th>
+            </tr>
+          </thead>
+          <tbody id="targetsBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Data source: <a href="https://witha.name/data/last.json" target="_blank" rel="noopener">witha.name/data/last.json</a>
+      · Auto-refreshes every 60s · GeoIP by ip-api.com
+    </p>
+    <p class="disclaimer">
+      Defensive threat-intelligence tool. This dashboard <strong>visualizes a publicly published target list</strong>
+      so potential victims and defenders can prepare. It does not perform, facilitate, or coordinate any attack.
+    </p>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

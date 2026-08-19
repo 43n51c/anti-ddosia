@@ -1,0 +1,14 @@
+{
+  "name": "anti-ddosia",
+  "version": "1.0.0",
+  "description": "Web platform for tracking DDoSia Project (NoName057(16)) DDoS targets from the public feed at witha.name",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
