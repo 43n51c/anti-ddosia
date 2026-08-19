@@ -246,11 +246,21 @@ function renderTrend(el, trend) {
   // x-axis labels: month boundaries when there's a lot of data, else first/last day.
   let xlabels = '';
   if (many) {
+    const years = new Set(trend.map((d) => d.day.slice(0, 4)));
+    const multiYear = years.size > 1;
+    // With several years, label quarterly (Jan/Apr/Jul/Oct) to avoid crowding; else every month.
+    const labelEvery = trend.length > 500 ? 3 : 1;
     let lastMonth = -1;
     xlabels = trend.map((d, i) => {
       const m = Number(d.day.slice(5, 7)) - 1;
-      if (m !== lastMonth) { lastMonth = m; return `<line x1="${x(i)}" y1="${pad - 8}" x2="${x(i)}" y2="${H - botPad}" stroke="#1c1c2b"/><text x="${x(i) + 3}" y="${H - 9}" fill="#5d5e78" font-size="10">${MONTHS[m]}</text>`; }
-      return '';
+      if (m === lastMonth) return '';
+      lastMonth = m;
+      const isYearStart = m === 0;
+      const showText = m % labelEvery === 0;
+      const label = multiYear ? `${MONTHS[m]} '${d.day.slice(2, 4)}` : MONTHS[m];
+      const line = `<line x1="${x(i)}" y1="${pad - 8}" x2="${x(i)}" y2="${H - botPad}" stroke="${isYearStart ? '#2a2a40' : '#1c1c2b'}"/>`;
+      const text = showText ? `<text x="${x(i) + 3}" y="${H - 9}" fill="#5d5e78" font-size="10">${label}</text>` : '';
+      return line + text;
     }).join('');
   } else {
     xlabels = `<text x="${pad}" y="${H - 9}" fill="#5d5e78" font-size="10">${trend[0].day}</text>

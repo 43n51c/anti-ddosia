@@ -7,6 +7,7 @@
 //
 //   node backfill.js            # backfill 2026
 //   node backfill.js 2025       # backfill a different year
+//   node backfill.js all        # backfill the entire archive (every year)
 //
 // Safe to re-run: it merges (earliest-wins for first-seen, overwrites the
 // day's history point).
@@ -19,8 +20,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, 'data');
 const STATE_FILE = join(DATA_DIR, 'state.json');
 const BASE = 'https://witha.name/data/';
-const YEAR = process.argv[2] || '2026';
-const CONCURRENCY = 8;
+const YEAR = process.argv[2] || '2026'; // a 4-digit year, or "all" for the whole archive
+const ALL = /^all$/i.test(YEAR);
+const CONCURRENCY = 10;
 
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 
@@ -60,12 +62,12 @@ async function pool(items, worker, size) {
 }
 
 async function main() {
-  console.log(`Backfilling ${YEAR} from ${BASE}\n`);
+  console.log(`Backfilling ${ALL ? 'the entire archive' : YEAR} from ${BASE}\n`);
 
   console.log('Fetching archive index…');
   const html = await fetchText(BASE);
   const files = [...html.matchAll(/href="(\d{4}-\d{2}-\d{2}_[\d-]+_DDoSia-target-list-full\.json)"/g)].map((m) => m[1]);
-  const yearFiles = files.filter((f) => f.startsWith(`${YEAR}-`));
+  const yearFiles = ALL ? files : files.filter((f) => f.startsWith(`${YEAR}-`));
 
   // One file per day: the earliest snapshot that day.
   const perDay = new Map();
@@ -74,7 +76,8 @@ async function main() {
     if (!perDay.has(day)) perDay.set(day, f); // files are listed chronologically
   }
   const days = [...perDay.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  console.log(`Found ${yearFiles.length} snapshots across ${days.length} days in ${YEAR}.\n`);
+  const range = days.length ? `${days[0][0]} … ${days[days.length - 1][0]}` : '—';
+  console.log(`Found ${yearFiles.length} snapshots across ${days.length} days (${range}).\n`);
   if (!days.length) { console.log('Nothing to backfill.'); return; }
 
   const firstSeenHost = {}; // host -> earliest day ISO
@@ -123,7 +126,7 @@ async function main() {
   const totalTargets = history.reduce((s, h) => s + h.count, 0);
   const peak = history.reduce((m, h) => (h.count > m.count ? h : m), history[0]);
   console.log(`\nDone. Merged ${history.length} daily points into ${STATE_FILE}`);
-  console.log(`  Hosts tracked in ${YEAR}: ${Object.keys(firstSeenHost).length}`);
+  console.log(`  Distinct hosts tracked: ${Object.keys(firstSeenHost).length}`);
   console.log(`  Peak day: ${peak.t.slice(0, 10)} with ${peak.count} targets`);
   console.log(`  Avg targets/day: ${Math.round(totalTargets / history.length)}`);
 }

@@ -28,9 +28,10 @@ By default the trend chart starts empty and fills as the monitor runs. To popula
 ```bash
 node backfill.js          # backfill 2026 (the default)
 node backfill.js 2025     # or any other year present in the archive
+node backfill.js all      # the entire archive (2023-06 → today)
 ```
 
-It merges into `data/state.json` (safe to re-run) and takes ~20s for a full year. After it finishes, start/restart the app and the "Targets Over Time" chart shows the whole year. To run it against a running container instead:
+It merges into `data/state.json` (safe to re-run): ~20s for a single year, ~1 min for the whole archive (~1140 days, one snapshot per day). After it finishes, start/restart the app and the "Targets Over Time" chart shows the whole year. To run it against a running container instead:
 
 ```bash
 docker compose exec anti-ddosia node backfill.js

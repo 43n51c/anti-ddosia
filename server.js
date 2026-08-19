@@ -248,7 +248,7 @@ function buildStats() {
   }
   const trend = [...perDay.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .slice(-400)
+    .slice(-2000) // effectively the whole archive
     .map(([day, h]) => ({ day, count: h.count, hosts: h.hosts, ips: h.ips }));
 
   // Peak / average across the shown range (for the overview headline stats).
