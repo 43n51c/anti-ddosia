@@ -173,6 +173,66 @@ function tally(items, key) {
   return [...m.entries()].map(([k, v]) => ({ key: k, count: v })).sort((a, b) => b.count - a.count);
 }
 
+function topPaths(items, limit = 20) {
+  const m = new Map();
+  for (const x of items) {
+    if (!x.path) continue;
+    let e = m.get(x.path);
+    if (!e) { e = { path: x.path, count: 0, hosts: new Set() }; m.set(x.path, e); }
+    e.count++;
+    e.hosts.add(x.host);
+  }
+  return [...m.values()]
+    .map((e) => ({ path: e.path, count: e.count, hosts: e.hosts.size }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+// Host-centric aggregation: one entry per host with its full attack surface.
+function buildHosts() {
+  const map = new Map();
+  for (const t of current.targets) {
+    let h = map.get(t.host);
+    if (!h) {
+      h = {
+        host: t.host,
+        country: t.country,
+        countryCode: t.countryCode,
+        city: t.city,
+        org: t.org,
+        ips: new Set(),
+        types: {},
+        methods: new Set(),
+        ports: new Set(),
+        paths: new Set(),
+        ssl: false,
+        targetCount: 0,
+        firstSeen: t.hostFirstSeen,
+        vectors: [],
+      };
+      map.set(t.host, h);
+    }
+    if (t.ip) h.ips.add(t.ip);
+    h.types[t.type] = (h.types[t.type] || 0) + 1;
+    if (t.method) h.methods.add(t.method);
+    if (t.port != null) h.ports.add(t.port);
+    if (t.path) h.paths.add(t.path);
+    if (t.use_ssl) h.ssl = true;
+    h.targetCount++;
+    h.vectors.push({ type: t.type, method: t.method, port: t.port, use_ssl: t.use_ssl, path: t.path, ip: t.ip });
+    if (t.hostFirstSeen && new Date(t.hostFirstSeen) < new Date(h.firstSeen)) h.firstSeen = t.hostFirstSeen;
+  }
+  return [...map.values()]
+    .map((h) => ({
+      ...h,
+      ips: [...h.ips],
+      methods: [...h.methods],
+      ports: [...h.ports].sort((a, b) => a - b),
+      paths: [...h.paths],
+    }))
+    .sort((a, b) => b.targetCount - a.targetCount);
+}
+
 function buildStats() {
   const t = current.targets;
   const dayCutoff = Date.now() - 24 * 3600 * 1000;
@@ -205,7 +265,9 @@ function buildStats() {
     byType: tally(t, 'type'),
     byCountry: tally(t, 'country'),
     byPort: tally(t, 'port'),
+    byMethod: tally(t, 'method'),
     topHosts: tally(t, 'host').slice(0, 15),
+    topPaths: topPaths(t),
     newHosts,
     trend,
   };
@@ -250,6 +312,9 @@ const server = http.createServer(async (req, res) => {
   }
   if (pathname === '/api/stats') {
     return sendJson(res, buildStats());
+  }
+  if (pathname === '/api/hosts') {
+    return sendJson(res, { ok: current.ok, fetchedAt: current.fetchedAt, hosts: buildHosts() });
   }
   if (pathname === '/api/health') {
     return sendJson(res, { ok: current.ok, fetchedAt: current.fetchedAt, error: current.error });

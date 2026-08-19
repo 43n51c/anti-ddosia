@@ -6,11 +6,18 @@ It **visualizes a publicly published target list** so potential victims and defe
 
 ## Features
 
+The dashboard has three views plus a per-host detail drawer, built around what a defender actually needs: *is my host targeted, and how exactly?*
+
+- **Overview** — stat cards (targets, hosts, IPs, countries, attacked paths, new hosts 24h), a targets-over-time trend, and breakdowns by attack type, country, port, and method. Includes **Top attacked paths** (WAF-relevant) and clickable **Most-targeted hosts**.
+- **Hosts** (the primary view) — one card per host showing its full attack surface: vector count, per-type breakdown, unique IPs, ports, paths, and SSL. Sortable by targets / name / newest / attack surface.
+- **Host detail drawer** — click any host to see all its attack vectors in a table, plus **copy-ready IOCs**: all IPs and all targeted paths, individually or in bulk, for pasting into WAF/firewall rules.
+- **Targets** — the raw flat table (host, IP, country, type, method, port, SSL, path) with sortable columns, for power users.
+- **Global toolbar** — live search, filters by type / country / port, "new 24h" toggle, and **export** the current filtered set as CSV or JSON, or copy all IPs / paths. Hotkeys: `/` focuses search, `Esc` closes the drawer.
+
+Under the hood:
+
 - **Live polling** of the target feed (every 5 min, configurable) — server-side, since the feed sends no CORS headers.
 - **GeoIP enrichment** — each target IP is resolved to country / city / ASN-org via [ip-api.com](https://ip-api.com) (cached to disk; only ~40 unique IPs).
-- **Stat cards** — total targets, unique hosts, unique IPs, countries, new hosts in the last 24h.
-- **Charts** (inline SVG, no external libs) — targets-over-time trend, attack types, top countries, top ports.
-- **Targets table** — host, IP, country (flag), attack type, method, port, SSL, path; with live search, type/country filters, "new in 24h" filter, and sortable columns.
 - **History & first-seen tracking** — persisted to `data/state.json`, so the trend chart and NEW badges survive restarts.
 - **Zero dependencies** — pure Node.js (`>=18`) + vanilla HTML/CSS/JS.
 
@@ -53,11 +60,12 @@ PORT=8080 POLL_MINUTES=10 npm start
 
 ## API
 
-| Endpoint        | Description                                                        |
-| --------------- | ----------------------------------------------------------------- |
-| `GET /api/targets` | Current enriched target list + fetch metadata.                 |
-| `GET /api/stats`   | Aggregations: totals, by type/country/port, top hosts, trend.  |
-| `GET /api/health`  | Poll status.                                                   |
+| Endpoint        | Description                                                                        |
+| --------------- | --------------------------------------------------------------------------------- |
+| `GET /api/targets` | Current enriched target list + fetch metadata.                                 |
+| `GET /api/hosts`   | Targets grouped by host: IPs, ports, paths, methods, per-type counts, vectors. |
+| `GET /api/stats`   | Aggregations: totals, by type/country/port/method, top hosts, top paths, trend.|
+| `GET /api/health`  | Poll status.                                                                   |
 
 ## Layout
 

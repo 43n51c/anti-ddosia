@@ -17,66 +17,132 @@
         <p class="subtitle">NoName057(16) / DDoSia Project — live target monitor</p>
       </div>
     </div>
-    <div class="status" id="status">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="overview">Overview</button>
+      <button class="tab" data-view="hosts">Hosts <span class="tab-badge" id="badgeHosts"></span></button>
+      <button class="tab" data-view="targets">Targets <span class="tab-badge" id="badgeTargets"></span></button>
+    </nav>
+    <div class="status" id="status" title="Feed status">
       <span class="dot" id="statusDot"></span>
       <span id="statusText">connecting…</span>
     </div>
   </header>
 
-  <main>
-    <!-- Stat cards -->
-    <section class="cards" id="cards"></section>
+  <!-- Global toolbar -->
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-ico">🔎</span>
+      <input type="search" id="search" placeholder="Search host, IP, path, org, country…  ( / )" autocomplete="off" />
+      <button class="clear-btn" id="searchClear" title="Clear" hidden>✕</button>
+    </div>
+    <select id="filterType" class="sel"><option value="">All types</option></select>
+    <select id="filterCountry" class="sel"><option value="">All countries</option></select>
+    <select id="filterPort" class="sel"><option value="">All ports</option></select>
+    <label class="chk"><input type="checkbox" id="filterNew" /> New 24h</label>
+    <span class="toolbar-spacer"></span>
+    <span class="result-count" id="resultCount"></span>
+    <div class="menu">
+      <button class="btn" id="exportBtn">Export ▾</button>
+      <div class="menu-list" id="exportMenu" hidden>
+        <button data-export="csv">Download CSV</button>
+        <button data-export="json">Download JSON</button>
+        <button data-export="ips">Copy all IPs</button>
+        <button data-export="paths">Copy all paths</button>
+      </div>
+    </div>
+  </div>
 
-    <!-- Charts -->
-    <section class="charts">
-      <div class="panel">
-        <h2>Targets over time <span class="hint">(last 30 days)</span></h2>
-        <div id="trendChart" class="chart-body"></div>
+  <main>
+    <!-- ============ OVERVIEW ============ -->
+    <section id="view-overview" class="view">
+      <div class="cards" id="cards"></div>
+
+      <div class="grid-2">
+        <div class="panel wide">
+          <h2>Targets over time <span class="hint">(last 30 days)</span></h2>
+          <div id="trendChart" class="chart-body"></div>
+        </div>
+        <div class="panel">
+          <h2>Attack types</h2>
+          <div id="typeChart" class="chart-body"></div>
+        </div>
       </div>
-      <div class="panel">
-        <h2>Attack types</h2>
-        <div id="typeChart" class="chart-body"></div>
+
+      <div class="grid-3">
+        <div class="panel">
+          <h2>Top countries</h2>
+          <div id="countryChart" class="chart-body"></div>
+        </div>
+        <div class="panel">
+          <h2>Top ports</h2>
+          <div id="portChart" class="chart-body"></div>
+        </div>
+        <div class="panel">
+          <h2>Methods</h2>
+          <div id="methodChart" class="chart-body"></div>
+        </div>
       </div>
-      <div class="panel">
-        <h2>Top countries</h2>
-        <div id="countryChart" class="chart-body"></div>
-      </div>
-      <div class="panel">
-        <h2>Top ports</h2>
-        <div id="portChart" class="chart-body"></div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h2>Most targeted hosts <span class="hint">click to inspect</span></h2>
+          <div id="topHosts" class="chart-body"></div>
+        </div>
+        <div class="panel">
+          <h2>Top attacked paths <span class="hint">(WAF-relevant)</span></h2>
+          <div id="topPaths" class="path-list"></div>
+        </div>
       </div>
     </section>
 
-    <!-- Targets table -->
-    <section class="panel table-panel">
-      <div class="table-head">
-        <h2>Targets <span class="hint" id="tableCount"></span></h2>
-        <div class="controls">
-          <input type="search" id="search" placeholder="Search host, IP, path, org…" />
-          <select id="filterType"><option value="">All types</option></select>
-          <select id="filterCountry"><option value="">All countries</option></select>
-          <label class="chk"><input type="checkbox" id="filterNew" /> New (24h)</label>
-        </div>
+    <!-- ============ HOSTS ============ -->
+    <section id="view-hosts" class="view" hidden>
+      <div class="sortbar">
+        <span>Sort by:</span>
+        <button class="pill active" data-hsort="targetCount">Targets</button>
+        <button class="pill" data-hsort="host">Name</button>
+        <button class="pill" data-hsort="firstSeen">Newest</button>
+        <button class="pill" data-hsort="ports">Attack surface</button>
       </div>
-      <div class="table-wrap">
-        <table id="targetsTable">
-          <thead>
-            <tr>
-              <th data-sort="host">Host</th>
-              <th data-sort="ip">IP</th>
-              <th data-sort="country">Country</th>
-              <th data-sort="type">Type</th>
-              <th data-sort="method">Method</th>
-              <th data-sort="port">Port</th>
-              <th data-sort="use_ssl">SSL</th>
-              <th data-sort="path">Path</th>
-            </tr>
-          </thead>
-          <tbody id="targetsBody"></tbody>
-        </table>
+      <div class="host-grid" id="hostGrid"></div>
+    </section>
+
+    <!-- ============ TARGETS ============ -->
+    <section id="view-targets" class="view" hidden>
+      <div class="panel table-panel">
+        <div class="table-wrap">
+          <table id="targetsTable">
+            <thead>
+              <tr>
+                <th data-sort="host">Host</th>
+                <th data-sort="ip">IP</th>
+                <th data-sort="country">Country</th>
+                <th data-sort="type">Type</th>
+                <th data-sort="method">Method</th>
+                <th data-sort="port">Port</th>
+                <th data-sort="use_ssl">SSL</th>
+                <th data-sort="path">Path</th>
+              </tr>
+            </thead>
+            <tbody id="targetsBody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
   </main>
+
+  <!-- ============ HOST DETAIL DRAWER ============ -->
+  <div class="drawer-overlay" id="drawerOverlay" hidden></div>
+  <aside class="drawer" id="drawer" hidden aria-hidden="true">
+    <div class="drawer-head">
+      <div>
+        <h2 id="drawerHost">host</h2>
+        <p class="drawer-sub" id="drawerSub"></p>
+      </div>
+      <button class="icon-btn" id="drawerClose" title="Close (Esc)">✕</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </aside>
 
   <footer>
     <p>
@@ -88,6 +154,8 @@
       so potential victims and defenders can prepare. It does not perform, facilitate, or coordinate any attack.
     </p>
   </footer>
+
+  <div class="toast" id="toast" hidden></div>
 
   <script src="/app.js"></script>
 </body>
