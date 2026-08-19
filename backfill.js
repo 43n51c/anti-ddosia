@@ -2,29 +2,21 @@
 //
 // Downloads one archived DDoSia target-list snapshot per day for the given
 // year (default 2026) from witha.name, computes daily stats + per-host
-// first-seen dates, and merges the result into data/state.json so the
+// first-seen dates, and writes the result into the SQLite DB so the
 // dashboard's trend chart and "new host" logic reflect real history.
 //
 //   node backfill.js            # backfill 2026
 //   node backfill.js 2025       # backfill a different year
 //   node backfill.js all        # backfill the entire archive (every year)
 //
-// Safe to re-run: it merges (earliest-wins for first-seen, overwrites the
-// day's history point).
+// Safe to re-run: history days are overwritten and first-seen is earliest-wins.
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import * as dbx from './db.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, 'data');
-const STATE_FILE = join(DATA_DIR, 'state.json');
 const BASE = 'https://witha.name/data/';
 const YEAR = process.argv[2] || '2026'; // a 4-digit year, or "all" for the whole archive
 const ALL = /^all$/i.test(YEAR);
 const CONCURRENCY = 10;
-
-if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -80,8 +72,8 @@ async function main() {
   console.log(`Found ${yearFiles.length} snapshots across ${days.length} days (${range}).\n`);
   if (!days.length) { console.log('Nothing to backfill.'); return; }
 
-  const firstSeenHost = {}; // host -> earliest day ISO
-  const history = [];
+  const hostSet = new Set();
+  const summary = [];
 
   await pool(days, async ([day, file]) => {
     let targets = [];
@@ -96,39 +88,24 @@ async function main() {
     const ips = new Set();
     const types = {};
     const dayStartIso = `${day}T00:00:00.000Z`;
-    for (const t of targets) {
-      if (t.host) { hosts.add(t.host); if (!firstSeenHost[t.host] || dayStartIso < firstSeenHost[t.host]) firstSeenHost[t.host] = dayStartIso; }
-      if (t.ip) ips.add(t.ip);
-      if (t.type) types[t.type] = (types[t.type] || 0) + 1;
-    }
-    history.push({ t: `${day}T12:00:00.000Z`, count: targets.length, hosts: hosts.size, ips: ips.size, types });
+    dbx.tx(() => {
+      for (const t of targets) {
+        if (t.host) { hosts.add(t.host); hostSet.add(t.host); dbx.putHostFirstSeen(t.host, dayStartIso); }
+        if (t.ip) ips.add(t.ip);
+        if (t.type) types[t.type] = (types[t.type] || 0) + 1;
+      }
+      dbx.putDay(day, `${day}T12:00:00.000Z`, targets.length, hosts.size, ips.size, types);
+    });
+    summary.push({ day, count: targets.length });
   }, CONCURRENCY);
 
-  history.sort((a, b) => a.t.localeCompare(b.t));
-
-  // ----- merge into state.json -----
-  const state = existsSync(STATE_FILE)
-    ? JSON.parse(readFileSync(STATE_FILE, 'utf8'))
-    : { firstSeenHost: {}, firstSeenTarget: {}, history: [] };
-
-  // First-seen: earliest wins.
-  for (const [host, iso] of Object.entries(firstSeenHost)) {
-    if (!state.firstSeenHost[host] || iso < state.firstSeenHost[host]) state.firstSeenHost[host] = iso;
-  }
-
-  // History: drop existing points for the backfilled days, then add ours.
-  const backfilledDays = new Set(history.map((h) => h.t.slice(0, 10)));
-  const kept = (state.history || []).filter((h) => !backfilledDays.has(h.t.slice(0, 10)));
-  state.history = [...kept, ...history].sort((a, b) => a.t.localeCompare(b.t));
-
-  writeFileSync(STATE_FILE, JSON.stringify(state), 'utf8');
-
-  const totalTargets = history.reduce((s, h) => s + h.count, 0);
-  const peak = history.reduce((m, h) => (h.count > m.count ? h : m), history[0]);
-  console.log(`\nDone. Merged ${history.length} daily points into ${STATE_FILE}`);
-  console.log(`  Distinct hosts tracked: ${Object.keys(firstSeenHost).length}`);
-  console.log(`  Peak day: ${peak.t.slice(0, 10)} with ${peak.count} targets`);
-  console.log(`  Avg targets/day: ${Math.round(totalTargets / history.length)}`);
+  summary.sort((a, b) => a.day.localeCompare(b.day));
+  const totalTargets = summary.reduce((s, h) => s + h.count, 0);
+  const peak = summary.reduce((m, h) => (h.count > m.count ? h : m), summary[0] || { count: 0, day: '—' });
+  console.log(`\nDone. Wrote ${summary.length} daily points to SQLite (data/ddosia.db)`);
+  console.log(`  Distinct hosts tracked: ${hostSet.size}`);
+  console.log(`  Peak day: ${peak.day} with ${peak.count} targets`);
+  console.log(`  Avg targets/day: ${summary.length ? Math.round(totalTargets / summary.length) : 0}`);
 }
 
 main().catch((e) => { console.error('\nBackfill failed:', e.message); process.exit(1); });

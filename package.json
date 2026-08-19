@@ -5,10 +5,11 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "backfill": "node --disable-warning=ExperimentalWarning backfill.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "license": "MIT"
 }

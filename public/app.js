@@ -92,6 +92,8 @@ function render() {
   if (state.view === 'overview') renderOverview();
   if (state.view === 'hosts') renderHosts(rows);
   if (state.view === 'targets') renderTargets(rows);
+  if (state.view === 'assets') renderAssets();
+  if (state.view === 'alerts') renderAlerts();
 }
 
 // ---------- overview ----------
@@ -377,14 +379,175 @@ function syncFilters() {
   fill($('#filterPort'), s.byPort, 'All ports', (r) => `${r.key} (${r.count})`);
 }
 
+// ---------- account / auth / assets / alerts ----------
+const account = { user: null, unseen: 0, emailConfigured: false, assets: [], alerts: [] };
+let pendingView = null;
+
+async function api(path, opts) {
+  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  let data = {};
+  try { data = await res.json(); } catch {}
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+async function loadMe() {
+  try {
+    const d = await api('/api/me');
+    account.user = d.user;
+    account.unseen = d.unseen || 0;
+    account.emailConfigured = !!d.emailConfigured;
+    renderAccount();
+    if (account.user) { await Promise.all([loadAssets(), loadAlerts()]); }
+    if (state.view === 'assets' || state.view === 'alerts') render();
+  } catch {}
+}
+function renderAccount() {
+  const logged = !!account.user;
+  $('#signinBtn').hidden = logged;
+  $('#acctWrap').hidden = !logged;
+  $('#bellWrap').hidden = !logged;
+  if (logged) {
+    $('#acctAvatar').textContent = (account.user.email[0] || '?');
+    $('#acctEmail').textContent = account.user.email;
+    const bb = $('#bellBadge'); bb.hidden = !account.unseen; bb.textContent = account.unseen;
+  }
+  const nb = $('#badgeAlerts'); nb.hidden = !(logged && account.unseen); nb.textContent = account.unseen;
+}
+
+// auth modal
+let authMode = 'login';
+function setAuthMode(mode) {
+  authMode = mode;
+  $$('.auth-tab').forEach((t) => t.classList.toggle('active', t.dataset.mode === mode));
+  $('#authSubmit').textContent = mode === 'login' ? 'Sign in' : 'Create account';
+  $('#authLead').textContent = mode === 'login' ? 'Sign in to monitor your assets and get alerts.' : 'Create an account to monitor your assets and get alerts.';
+  $('#authErr').hidden = true;
+}
+function openAuth(mode = 'login') { setAuthMode(mode); $('#authModal').hidden = false; $('#authOverlay').hidden = false; setTimeout(() => $('#authEmail').focus(), 50); }
+function closeAuth() { $('#authModal').hidden = true; $('#authOverlay').hidden = true; pendingView = null; }
+
+// assets
+async function loadAssets() { try { account.assets = (await api('/api/assets')).assets || []; } catch { account.assets = []; } }
+function assetTargeted(a) {
+  for (const t of state.targets) {
+    if (a.type === 'ip') { if (t.ip === a.value) return t.host; }
+    else if (t.host === a.value || t.host.endsWith('.' + a.value)) return t.host;
+  }
+  return null;
+}
+function renderAssets() {
+  $('#assetCount').textContent = account.assets.length ? `(${account.assets.length})` : '';
+  const el = $('#assetList');
+  if (!account.assets.length) { el.innerHTML = '<div class="empty">No assets yet. Add a domain or IP above to start monitoring.</div>'; return; }
+  el.innerHTML = account.assets.map((a) => {
+    const hit = assetTargeted(a);
+    return `<div class="asset-row">
+      <span class="a-type">${a.type}</span>
+      <div><div class="a-val">${esc(a.value)}</div>${a.label ? `<div class="a-label">${esc(a.label)}</div>` : ''}</div>
+      <span class="a-status ${hit ? 'status-hit' : 'status-clear'}" ${hit ? `data-host="${esc(hit)}"` : ''}>${hit ? '● Targeted now' : '○ Clear'}</span>
+      <button class="a-del" data-del="${a.id}" title="Remove">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// alerts
+async function loadAlerts() { try { const d = await api('/api/alerts'); account.alerts = d.alerts || []; account.unseen = d.unseen || 0; renderAccount(); renderBell(); } catch {} }
+function renderBell() {
+  const list = $('#bellList');
+  const items = account.alerts.slice(0, 6);
+  list.innerHTML = items.length ? items.map((a) => `<div class="bell-item ${a.seen ? '' : 'unseen'}" data-host="${esc(a.target_host)}">
+    <div class="bi-host">${esc(a.target_host)}</div>
+    <div class="bi-meta">asset ${esc(a.asset_value)} · ${a.vectors} vectors · ${timeAgo(a.first_matched)}</div></div>`).join('')
+    : '<div class="bell-empty">No alerts yet.</div>';
+}
+function renderAlerts() {
+  if (account.user) loadSettingsForm();
+  $('#alertsCount').textContent = account.alerts.length ? `(${account.alerts.length})` : '';
+  const el = $('#alertsList');
+  el.innerHTML = account.alerts.length ? account.alerts.map((a) => `<div class="alert-row ${a.seen ? '' : 'unseen'}">
+    <div class="alert-ico">🎯</div>
+    <div class="alert-body">
+      <div class="alert-title">Asset <b>${esc(a.asset_value)}</b><span class="arrow">→</span><span class="host" data-host="${esc(a.target_host)}">${esc(a.target_host)}</span></div>
+      <div class="alert-meta">${a.vectors} vectors · ${esc(a.types || '')} · IPs: ${esc(a.target_ips || '')}</div>
+    </div>
+    <div class="alert-time">${timeAgo(a.first_matched)}</div>
+  </div>`).join('') : '<div class="empty">No alerts yet. When a monitored asset appears on the target list, it shows here (and via your chosen channels).</div>';
+}
+function loadSettingsForm() {
+  const u = account.user; if (!u) return;
+  $('#setWebhook').value = u.webhook_url || '';
+  $('#setEmail').checked = !!u.email_alerts;
+  $('#setInapp').checked = !!u.inapp_alerts;
+  const em = $('#setEmail'), hint = $('#emailHint');
+  if (!account.emailConfigured) { em.disabled = true; hint.textContent = '(server SMTP not configured — webhook/in-app still work)'; }
+  else { em.disabled = false; hint.textContent = ''; }
+}
+async function markSeen() {
+  try { await api('/api/alerts/seen', { method: 'POST' }); account.unseen = 0; account.alerts = account.alerts.map((a) => ({ ...a, seen: 1 })); renderAccount(); renderBell(); if (state.view === 'alerts') renderAlerts(); } catch {}
+}
+
 // ---------- events ----------
 function switchView(view) {
+  if ((view === 'assets' || view === 'alerts') && !account.user) { pendingView = view; openAuth('login'); return; }
   state.view = view;
   $$('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.view === view));
   $$('.view').forEach((v) => { v.hidden = v.id !== `view-${view}`; });
   render();
 }
 $$('.nav-item').forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
+
+// account/auth events
+$('#signinBtn').addEventListener('click', () => openAuth('login'));
+$('#authClose').addEventListener('click', closeAuth);
+$('#authOverlay').addEventListener('click', closeAuth);
+$$('.auth-tab').forEach((t) => t.addEventListener('click', () => setAuthMode(t.dataset.mode)));
+$('#authForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = $('#authEmail').value.trim(), password = $('#authPass').value;
+  try {
+    await api('/api/' + (authMode === 'login' ? 'login' : 'register'), { method: 'POST', body: JSON.stringify({ email, password }) });
+    const want = pendingView;
+    closeAuth(); $('#authForm').reset();
+    await loadMe();
+    toast(authMode === 'login' ? 'Signed in' : 'Account created');
+    switchView(want || 'assets');
+  } catch (err) { const el = $('#authErr'); el.textContent = err.message; el.hidden = false; }
+});
+$('#logoutBtn').addEventListener('click', async () => {
+  try { await api('/api/logout', { method: 'POST' }); } catch {}
+  account.user = null; account.assets = []; account.alerts = []; account.unseen = 0;
+  renderAccount(); $('#acctMenu').hidden = true;
+  if (state.view === 'assets' || state.view === 'alerts') switchView('overview');
+  toast('Logged out');
+});
+$('#bellBtn').addEventListener('click', (e) => { e.stopPropagation(); const m = $('#bellMenu'); m.hidden = !m.hidden; $('#acctMenu').hidden = true; $('#exportMenu').hidden = true; });
+$('#acctBtn').addEventListener('click', (e) => { e.stopPropagation(); const m = $('#acctMenu'); m.hidden = !m.hidden; $('#bellMenu').hidden = true; $('#exportMenu').hidden = true; });
+$('#bellSeen').addEventListener('click', (e) => { e.stopPropagation(); markSeen(); });
+$('#alertsSeen').addEventListener('click', markSeen);
+
+// asset add / delete
+$('#addAssetForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const value = $('#assetValue').value.trim(), label = $('#assetLabel').value.trim();
+  const errEl = $('#assetErr'); errEl.hidden = true;
+  try {
+    const d = await api('/api/assets', { method: 'POST', body: JSON.stringify({ value, label }) });
+    account.assets = d.assets || []; $('#addAssetForm').reset();
+    await loadAlerts(); renderAssets();
+    toast('Asset added — monitoring active');
+  } catch (err) { errEl.textContent = err.message; errEl.hidden = false; }
+});
+
+// settings save
+$('#saveSettings').addEventListener('click', async () => {
+  try {
+    const body = { webhook_url: $('#setWebhook').value.trim(), email_alerts: $('#setEmail').checked, inapp_alerts: $('#setInapp').checked };
+    await api('/api/settings', { method: 'POST', body: JSON.stringify(body) });
+    Object.assign(account.user, body);
+    const ok = $('#saveOk'); ok.hidden = false; setTimeout(() => (ok.hidden = true), 1600);
+  } catch (err) { toast(err.message); }
+});
 
 $('#search').addEventListener('input', (e) => { state.search = e.target.value; render(); });
 $('#searchClear').addEventListener('click', () => { state.search = ''; $('#search').value = ''; render(); });
@@ -400,12 +563,16 @@ $$('#targetsTable thead th').forEach((th) => th.addEventListener('click', () => 
   $$('#targetsTable thead th').forEach((h) => h.classList.remove('sorted-asc', 'sorted-desc')); th.classList.add(state.tSortDir === 'asc' ? 'sorted-asc' : 'sorted-desc'); render();
 }));
 
-$('#exportBtn').addEventListener('click', (e) => { e.stopPropagation(); $('#exportMenu').hidden = !$('#exportMenu').hidden; });
+$('#exportBtn').addEventListener('click', (e) => { e.stopPropagation(); $('#exportMenu').hidden = !$('#exportMenu').hidden; $('#bellMenu').hidden = true; $('#acctMenu').hidden = true; });
 $('#exportMenu').addEventListener('click', (e) => { const b = e.target.closest('[data-export]'); if (b) exportData(b.dataset.export); });
-document.addEventListener('click', () => { $('#exportMenu').hidden = true; });
+document.addEventListener('click', () => { $('#exportMenu').hidden = true; $('#bellMenu').hidden = true; $('#acctMenu').hidden = true; });
 
-document.addEventListener('click', (e) => {
+document.addEventListener('click', async (e) => {
   const cp = e.target.closest('[data-copy]'); if (cp) { e.stopPropagation(); copy(cp.dataset.copy, 'Value'); return; }
+  const del = e.target.closest('[data-del]');
+  if (del) { try { const d = await api('/api/assets/' + del.dataset.del, { method: 'DELETE' }); account.assets = d.assets || []; renderAssets(); } catch {} return; }
+  const mv = e.target.closest('.menu-list [data-view], .bell-all[data-view]');
+  if (mv) { switchView(mv.dataset.view); return; }
   const he = e.target.closest('[data-host]'); if (he) { openDrawer(he.dataset.host); }
 });
 $('#drawerClose').addEventListener('click', closeDrawer);
@@ -414,4 +581,5 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawe
 
 // ---------- boot ----------
 load();
-setInterval(load, REFRESH_MS);
+loadMe();
+setInterval(() => { load(); if (account.user) loadAlerts(); }, REFRESH_MS);

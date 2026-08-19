@@ -11,6 +11,14 @@ services:
       PORT: 3000
       FEED_URL: ${FEED_URL:-https://witha.name/data/last.json}
       POLL_MINUTES: ${POLL_MINUTES:-5}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      # Optional email alerts (leave SMTP_HOST empty to disable):
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
     volumes:
       # Persist GeoIP cache + history. Bind-mounted so `node backfill.js` run
       # on the host is visible to the container (and vice versa).

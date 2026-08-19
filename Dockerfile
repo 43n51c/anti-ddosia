@@ -10,8 +10,10 @@ WORKDIR /app
 COPY package.json ./
 
 # Application code.
-COPY server.js backfill.js ./
+COPY server.js backfill.js db.js auth.js notify.js ./
 COPY public ./public
+
+ENV NODE_OPTIONS=--disable-warning=ExperimentalWarning
 
 # Runtime state (GeoIP cache + history) lives here; mount a volume to persist it.
 RUN mkdir -p /app/data && chown -R node:node /app

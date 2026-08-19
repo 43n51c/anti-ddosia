@@ -14,12 +14,21 @@ The dashboard has three views plus a per-host detail drawer, built around what a
 - **Targets** — the raw flat table (host, IP, country, type, method, port, SSL, path) with sortable columns, for power users.
 - **Global toolbar** — live search, filters by type / country / port, "new 24h" toggle, and **export** the current filtered set as CSV or JSON, or copy all IPs / paths. Hotkeys: `/` focuses search, `Esc` closes the drawer.
 
+### Accounts & asset monitoring
+
+- **Register / sign in** (email + password; scrypt-hashed, cookie sessions).
+- **My Assets** — add domains or IPv4s you own; each shows live status (targeted now / clear).
+- **Alerts** — when a monitored asset (or any of its **subdomains**, or an exact IP) appears on the target list, an alert is raised and delivered through the channels you enable:
+  - **In-app** — notification bell + Alerts view (always on).
+  - **Webhook** — POST JSON to a URL you set (Slack / Telegram / custom).
+  - **Email** — optional, via SMTP (see env below); disabled cleanly if not configured.
+
 Under the hood:
 
 - **Live polling** of the target feed (every 5 min, configurable) — server-side, since the feed sends no CORS headers.
-- **GeoIP enrichment** — each target IP is resolved to country / city / ASN-org via [ip-api.com](https://ip-api.com) (cached to disk; only ~40 unique IPs).
-- **History & first-seen tracking** — persisted to `data/state.json`, so the trend chart and NEW badges survive restarts.
-- **Zero dependencies** — pure Node.js (`>=18`) + vanilla HTML/CSS/JS.
+- **GeoIP enrichment** — each target IP is resolved to country / city / ASN-org via [ip-api.com](https://ip-api.com) (cached; only ~40 unique IPs).
+- **SQLite storage** — a single `data/ddosia.db` (via Node's built-in `node:sqlite`, no external deps) holds GeoIP cache, daily history, first-seen dates, and the users / assets / alerts tables. Existing `data/*.json` from earlier versions is migrated in automatically on first run.
+- **Zero dependencies** — pure Node.js (`>=22`, for `node:sqlite`) + vanilla HTML/CSS/JS.
 
 ## Backfill history (optional but recommended)
 
@@ -64,17 +73,27 @@ Then open <http://localhost:3000>.
 
 ### Configuration (env vars)
 
-| Var             | Default                             | Meaning                          |
-| --------------- | ----------------------------------- | -------------------------------- |
-| `PORT`          | `3000`                              | HTTP port                        |
-| `FEED_URL`      | `https://witha.name/data/last.json` | Source feed                      |
-| `POLL_MINUTES`  | `5`                                 | Feed poll interval               |
+| Var             | Default                             | Meaning                                    |
+| --------------- | ----------------------------------- | ------------------------------------------ |
+| `PORT`          | `3000`                              | HTTP port                                  |
+| `FEED_URL`      | `https://witha.name/data/last.json` | Source feed                                |
+| `POLL_MINUTES`  | `5`                                 | Feed poll interval                         |
+| `APP_URL`       | `http://localhost:3000`             | Public URL, used in alert messages         |
+| `SMTP_HOST`     | *(empty)*                           | SMTP server for email alerts (empty = off) |
+| `SMTP_PORT`     | `587`                               | SMTP port (`465` with `SMTP_SECURE=true`)  |
+| `SMTP_USER` / `SMTP_PASS` | *(empty)*                 | SMTP auth credentials                      |
+| `SMTP_FROM`     | `SMTP_USER`                         | From address for alert emails              |
+| `SMTP_SECURE`   | *(empty)*                           | `true` for implicit TLS (port 465)         |
+
+> Sessions are keyed to the deployment; put the app behind HTTPS in production so the session cookie is sent with the `Secure` flag.
 
 ```bash
 PORT=8080 POLL_MINUTES=10 npm start
 ```
 
 ## API
+
+Public data:
 
 | Endpoint        | Description                                                                        |
 | --------------- | --------------------------------------------------------------------------------- |
@@ -83,11 +102,24 @@ PORT=8080 POLL_MINUTES=10 npm start
 | `GET /api/stats`   | Aggregations: totals, by type/country/port/method, top hosts, top paths, trend.|
 | `GET /api/health`  | Poll status.                                                                   |
 
+Accounts (cookie session):
+
+| Endpoint        | Description                                                          |
+| --------------- | ------------------------------------------------------------------- |
+| `POST /api/register` · `POST /api/login` · `POST /api/logout` | Auth.  |
+| `GET /api/me`      | Current user, settings, unseen-alert count.                      |
+| `GET/POST /api/assets` · `DELETE /api/assets/:id` | Manage monitored assets. |
+| `GET /api/alerts` · `POST /api/alerts/seen` | List alerts / mark all read.   |
+| `POST /api/settings` | Update webhook URL and alert-channel toggles.                 |
+
 ## Layout
 
 ```
-server.js            # feed poller + GeoIP enrichment + JSON API + static server
-backfill.js          # one-off: backfill daily history for a year from the archive
+server.js            # feed poller + matching engine + JSON API + static server
+db.js                # SQLite data layer (schema, queries, JSON migration)
+auth.js              # password hashing (scrypt) + cookie sessions
+notify.js            # alert delivery: webhook + minimal SMTP email client
+backfill.js          # one-off: backfill daily history from the archive
 public/
   index.html         # dashboard shell
   styles.css         # dark theme

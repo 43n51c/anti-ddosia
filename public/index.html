@@ -38,6 +38,16 @@
         <svg viewBox="0 0 24 24" class="ni"><path d="M12 2l3 6 6 .5-4.5 4 1.5 6-6-3.5-6 3.5 1.5-6L3 8.5 9 8z"/></svg>
         Attack Surface
       </button>
+
+      <div class="nav-group">My Monitoring</div>
+      <button class="nav-item" data-view="assets" data-auth="1">
+        <svg viewBox="0 0 24 24" class="ni"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg>
+        My Assets
+      </button>
+      <button class="nav-item" data-view="alerts" data-auth="1">
+        <svg viewBox="0 0 24 24" class="ni"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
+        Alerts <span class="ni-badge" id="badgeAlerts" hidden></span>
+      </button>
     </nav>
 
     <div class="side-card">
@@ -79,6 +89,26 @@
           </div>
         </div>
         <button class="round-btn" id="refreshBtn" title="Refresh now">⟳</button>
+        <!-- notification bell (logged-in) -->
+        <div class="menu" id="bellWrap" hidden>
+          <button class="round-btn" id="bellBtn" title="Alerts">🔔<span class="bell-badge" id="bellBadge" hidden></span></button>
+          <div class="menu-list wide" id="bellMenu" hidden>
+            <div class="bell-head">Recent alerts <button class="link-btn" id="bellSeen">Mark all read</button></div>
+            <div id="bellList" class="bell-list"></div>
+            <button class="bell-all" data-view="alerts">View all alerts →</button>
+          </div>
+        </div>
+        <!-- account -->
+        <button class="btn signin-btn" id="signinBtn">Sign in</button>
+        <div class="menu" id="acctWrap" hidden>
+          <button class="acct-btn" id="acctBtn"><span class="acct-avatar" id="acctAvatar">?</span></button>
+          <div class="menu-list" id="acctMenu" hidden>
+            <div class="acct-email" id="acctEmail"></div>
+            <button data-view="assets">My assets</button>
+            <button data-view="alerts">Alerts &amp; settings</button>
+            <button id="logoutBtn">Log out</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -184,6 +214,48 @@
       </div>
     </section>
 
+    <!-- ============ MY ASSETS ============ -->
+    <section id="view-assets" class="view" hidden>
+      <div class="dash-narrow">
+        <div class="panel">
+          <div class="panel-head"><h2>Add an asset to monitor</h2></div>
+          <p class="muted-note">Enter a domain or IPv4 you own. We alert you when it (or any subdomain) appears on the DDoSia target list.</p>
+          <form class="add-asset" id="addAssetForm">
+            <input type="text" id="assetValue" placeholder="example.com or 203.0.113.10" autocomplete="off" required />
+            <input type="text" id="assetLabel" placeholder="Label (optional)" autocomplete="off" />
+            <button class="btn primary" type="submit">Add asset</button>
+          </form>
+          <div class="form-err" id="assetErr" hidden></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Your assets <span class="hint" id="assetCount"></span></h2></div>
+          <div id="assetList" class="asset-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ALERTS ============ -->
+    <section id="view-alerts" class="view" hidden>
+      <div class="dash-narrow">
+        <div class="panel">
+          <div class="panel-head"><h2>Notification settings</h2></div>
+          <div class="settings">
+            <label class="fld"><span>Webhook URL <small>(Slack / Telegram / custom — receives JSON on each match)</small></span>
+              <input type="url" id="setWebhook" placeholder="https://hooks.slack.com/…" /></label>
+            <label class="chk"><input type="checkbox" id="setEmail" /> Email alerts <small id="emailHint"></small></label>
+            <label class="chk"><input type="checkbox" id="setInapp" /> In-app alerts (bell)</label>
+            <button class="btn primary" id="saveSettings">Save settings</button>
+            <span class="save-ok" id="saveOk" hidden>Saved ✓</span>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Alerts <span class="hint" id="alertsCount"></span></h2>
+            <button class="link-btn" id="alertsSeen">Mark all read</button></div>
+          <div id="alertsList" class="alerts-list"></div>
+        </div>
+      </div>
+    </section>
+
     <footer>
       <p class="disclaimer">
         Defensive threat-intelligence tool. This dashboard <strong>visualizes a publicly published target list</strong>
@@ -203,6 +275,25 @@
   </div>
   <div class="drawer-body" id="drawerBody"></div>
 </aside>
+
+<!-- ============ AUTH MODAL ============ -->
+<div class="modal-overlay" id="authOverlay" hidden></div>
+<div class="modal" id="authModal" hidden>
+  <button class="icon-btn modal-x" id="authClose">✕</button>
+  <div class="modal-brand"><span class="logo-mark">🛡</span> anti<span class="logo-accent">DDoSia</span></div>
+  <div class="auth-tabs">
+    <button class="auth-tab active" data-mode="login">Sign in</button>
+    <button class="auth-tab" data-mode="register">Create account</button>
+  </div>
+  <p class="auth-lead" id="authLead">Sign in to monitor your assets and get alerts.</p>
+  <form id="authForm">
+    <label class="fld"><span>Email</span><input type="email" id="authEmail" autocomplete="email" required /></label>
+    <label class="fld"><span>Password <small>(min 8 characters)</small></span><input type="password" id="authPass" autocomplete="current-password" required /></label>
+    <div class="form-err" id="authErr" hidden></div>
+    <button class="btn primary full" type="submit" id="authSubmit">Sign in</button>
+  </form>
+  <p class="auth-note">Password is stored salted+hashed (scrypt). This is a demo threat-intel tool — don't reuse a sensitive password.</p>
+</div>
 
 <div class="toast" id="toast" hidden></div>
 <script src="/app.js"></script>

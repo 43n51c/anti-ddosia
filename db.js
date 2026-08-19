@@ -1,0 +1,180 @@
+// anti-DDoSia — data layer (SQLite via built-in node:sqlite)
+//
+// One file: data/ddosia.db. Holds operational data (GeoIP cache, daily
+// history, host/target first-seen) and product data (users, sessions,
+// assets, alerts). On first run it migrates any existing data/*.json
+// (from earlier JSON-file versions / backfill) into the DB.
+
+import { DatabaseSync } from 'node:sqlite';
+import { existsSync, readFileSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DATA_DIR = join(__dirname, 'data');
+if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+const DB_FILE = process.env.DB_FILE || join(DATA_DIR, 'ddosia.db');
+
+export const db = new DatabaseSync(DB_FILE);
+db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS geoip (
+  ip TEXT PRIMARY KEY, country TEXT, country_code TEXT, city TEXT,
+  region_name TEXT, org TEXT, asn TEXT
+);
+CREATE TABLE IF NOT EXISTS history (
+  day TEXT PRIMARY KEY, t TEXT, count INTEGER, hosts INTEGER, ips INTEGER, types_json TEXT
+);
+CREATE TABLE IF NOT EXISTS host_first_seen ( host TEXT PRIMARY KEY, first_seen TEXT );
+CREATE TABLE IF NOT EXISTS target_first_seen ( target_id TEXT PRIMARY KEY, first_seen TEXT );
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  pass_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  webhook_url TEXT,
+  email_alerts INTEGER NOT NULL DEFAULT 1,
+  inapp_alerts INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS assets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,            -- 'domain' | 'ip'
+  value TEXT NOT NULL,          -- normalised (lowercase host / ip)
+  label TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE(user_id, type, value)
+);
+CREATE TABLE IF NOT EXISTS alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+  asset_value TEXT NOT NULL,
+  target_host TEXT NOT NULL,
+  target_ips TEXT,
+  vectors INTEGER,
+  types TEXT,
+  first_matched TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  seen INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(asset_id, target_host)
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_user ON alerts(user_id, first_matched DESC);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+`);
+
+// ---------------- one-time migration from JSON ----------------
+(function migrateFromJson() {
+  const have = db.prepare('SELECT COUNT(*) c FROM history').get().c;
+  if (have > 0) return;
+  const stateFile = join(DATA_DIR, 'state.json');
+  const geoFile = join(DATA_DIR, 'geoip-cache.json');
+  let migrated = false;
+  try {
+    if (existsSync(geoFile)) {
+      const g = JSON.parse(readFileSync(geoFile, 'utf8'));
+      const stmt = db.prepare('INSERT OR REPLACE INTO geoip(ip,country,country_code,city,region_name,org,asn) VALUES(?,?,?,?,?,?,?)');
+      const tx = db.prepare('BEGIN'); tx.run();
+      for (const [ip, v] of Object.entries(g)) stmt.run(ip, v.country || '', v.countryCode || '', v.city || '', v.regionName || '', v.org || '', v.as || '');
+      db.prepare('COMMIT').run();
+      migrated = true;
+    }
+    if (existsSync(stateFile)) {
+      const s = JSON.parse(readFileSync(stateFile, 'utf8'));
+      db.prepare('BEGIN').run();
+      const hstmt = db.prepare('INSERT OR REPLACE INTO history(day,t,count,hosts,ips,types_json) VALUES(?,?,?,?,?,?)');
+      for (const h of s.history || []) hstmt.run(h.t.slice(0, 10), h.t, h.count, h.hosts, h.ips, JSON.stringify(h.types || {}));
+      const fstmt = db.prepare('INSERT OR REPLACE INTO host_first_seen(host,first_seen) VALUES(?,?)');
+      for (const [host, iso] of Object.entries(s.firstSeenHost || {})) fstmt.run(host, iso);
+      const tstmt = db.prepare('INSERT OR REPLACE INTO target_first_seen(target_id,first_seen) VALUES(?,?)');
+      for (const [tid, iso] of Object.entries(s.firstSeenTarget || {})) tstmt.run(tid, iso);
+      db.prepare('COMMIT').run();
+      migrated = true;
+    }
+  } catch (e) {
+    console.error('[db] JSON migration warning:', e.message);
+  }
+  if (migrated) console.log('[db] migrated existing JSON data into SQLite');
+})();
+
+// ---------------- prepared statements ----------------
+const S = {
+  geoGet: db.prepare('SELECT * FROM geoip WHERE ip = ?'),
+  geoPut: db.prepare('INSERT OR REPLACE INTO geoip(ip,country,country_code,city,region_name,org,asn) VALUES(?,?,?,?,?,?,?)'),
+  histPut: db.prepare('INSERT OR REPLACE INTO history(day,t,count,hosts,ips,types_json) VALUES(?,?,?,?,?,?)'),
+  histTrend: db.prepare('SELECT day,count,hosts,ips FROM history ORDER BY day ASC'),
+  hfsGet: db.prepare('SELECT first_seen FROM host_first_seen WHERE host = ?'),
+  // earliest-wins upsert: keeps the minimum date seen for a host/target
+  hfsPut: db.prepare('INSERT INTO host_first_seen(host,first_seen) VALUES(?,?) ON CONFLICT(host) DO UPDATE SET first_seen=excluded.first_seen WHERE excluded.first_seen < host_first_seen.first_seen'),
+  tfsGet: db.prepare('SELECT first_seen FROM target_first_seen WHERE target_id = ?'),
+  tfsPut: db.prepare('INSERT INTO target_first_seen(target_id,first_seen) VALUES(?,?) ON CONFLICT(target_id) DO UPDATE SET first_seen=excluded.first_seen WHERE excluded.first_seen < target_first_seen.first_seen'),
+
+  userCreate: db.prepare('INSERT INTO users(email,pass_hash,created_at) VALUES(?,?,?)'),
+  userByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
+  userById: db.prepare('SELECT * FROM users WHERE id = ?'),
+  userSettings: db.prepare('UPDATE users SET webhook_url=?, email_alerts=?, inapp_alerts=? WHERE id=?'),
+
+  sessCreate: db.prepare('INSERT INTO sessions(token,user_id,created_at,expires_at) VALUES(?,?,?,?)'),
+  sessGet: db.prepare('SELECT s.*, u.email FROM sessions s JOIN users u ON u.id=s.user_id WHERE token = ?'),
+  sessDel: db.prepare('DELETE FROM sessions WHERE token = ?'),
+  sessGc: db.prepare('DELETE FROM sessions WHERE expires_at < ?'),
+
+  assetAdd: db.prepare('INSERT OR IGNORE INTO assets(user_id,type,value,label,created_at) VALUES(?,?,?,?,?)'),
+  assetList: db.prepare('SELECT * FROM assets WHERE user_id = ? ORDER BY created_at DESC'),
+  assetDel: db.prepare('DELETE FROM assets WHERE id = ? AND user_id = ?'),
+  assetAll: db.prepare('SELECT a.*, u.email, u.webhook_url, u.email_alerts, u.inapp_alerts FROM assets a JOIN users u ON u.id=a.user_id'),
+
+  alertUpsertSeen: db.prepare('UPDATE alerts SET last_seen=?, target_ips=?, vectors=?, types=? WHERE asset_id=? AND target_host=?'),
+  alertInsert: db.prepare('INSERT OR IGNORE INTO alerts(user_id,asset_id,asset_value,target_host,target_ips,vectors,types,first_matched,last_seen) VALUES(?,?,?,?,?,?,?,?,?)'),
+  alertGetPair: db.prepare('SELECT id FROM alerts WHERE asset_id=? AND target_host=?'),
+  alertList: db.prepare('SELECT * FROM alerts WHERE user_id = ? ORDER BY first_matched DESC LIMIT 200'),
+  alertUnseen: db.prepare('SELECT COUNT(*) c FROM alerts WHERE user_id = ? AND seen = 0'),
+  alertMarkSeen: db.prepare('UPDATE alerts SET seen = 1 WHERE user_id = ?'),
+};
+
+// GeoIP
+export function getGeo(ip) { return S.geoGet.get(ip); }
+export function putGeo(ip, v) { S.geoPut.run(ip, v.country || '', v.countryCode || '', v.city || '', v.regionName || '', v.org || '', v.as || ''); }
+
+// history + first-seen
+export function putDay(day, t, count, hosts, ips, types) { S.histPut.run(day, t, count, hosts, ips, JSON.stringify(types || {})); }
+export function getTrend() { return S.histTrend.all(); }
+export function getHostFirstSeen(host) { return S.hfsGet.get(host)?.first_seen || null; }
+export function putHostFirstSeen(host, iso) { S.hfsPut.run(host, iso); }
+export function getTargetFirstSeen(id) { return S.tfsGet.get(id)?.first_seen || null; }
+export function putTargetFirstSeen(id, iso) { S.tfsPut.run(id, iso); }
+export function tx(fn) { db.prepare('BEGIN').run(); try { fn(); db.prepare('COMMIT').run(); } catch (e) { db.prepare('ROLLBACK').run(); throw e; } }
+
+// users
+export function createUser(email, passHash, iso) { const r = S.userCreate.run(email, passHash, iso); return Number(r.lastInsertRowid); }
+export function getUserByEmail(email) { return S.userByEmail.get(email); }
+export function getUserById(id) { return S.userById.get(id); }
+export function updateUserSettings(id, webhookUrl, emailAlerts, inappAlerts) { S.userSettings.run(webhookUrl || null, emailAlerts ? 1 : 0, inappAlerts ? 1 : 0, id); }
+
+// sessions
+export function createSession(token, userId, createdIso, expiresIso) { S.sessCreate.run(token, userId, createdIso, expiresIso); }
+export function getSession(token) { return S.sessGet.get(token); }
+export function deleteSession(token) { S.sessDel.run(token); }
+export function gcSessions(nowIso) { S.sessGc.run(nowIso); }
+
+// assets
+export function addAsset(userId, type, value, label, iso) { const r = S.assetAdd.run(userId, type, value, label || null, iso); return Number(r.changes) > 0; }
+export function listAssets(userId) { return S.assetList.all(userId); }
+export function deleteAsset(id, userId) { return Number(S.assetDel.run(id, userId).changes) > 0; }
+export function allAssets() { return S.assetAll.all(); }
+
+// alerts
+export function alertPairExists(assetId, host) { return !!S.alertGetPair.get(assetId, host); }
+export function upsertAlertSeen(assetId, host, ips, vectors, types, lastSeen) { S.alertUpsertSeen.run(lastSeen, ips, vectors, types, assetId, host); }
+export function insertAlert(a) { const r = S.alertInsert.run(a.userId, a.assetId, a.assetValue, a.host, a.ips, a.vectors, a.types, a.firstMatched, a.lastSeen); return Number(r.changes) > 0; }
+export function listAlerts(userId) { return S.alertList.all(userId); }
+export function unseenCount(userId) { return S.alertUnseen.get(userId).c; }
+export function markAlertsSeen(userId) { S.alertMarkSeen.run(userId); }
