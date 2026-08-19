@@ -9,88 +9,146 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="logo">🛡️</span>
-      <div>
-        <h1>anti-DDoSia</h1>
-        <p class="subtitle">NoName057(16) / DDoSia Project — live target monitor</p>
-      </div>
-    </div>
-    <nav class="tabs" id="tabs">
-      <button class="tab active" data-view="overview">Overview</button>
-      <button class="tab" data-view="hosts">Hosts <span class="tab-badge" id="badgeHosts"></span></button>
-      <button class="tab" data-view="targets">Targets <span class="tab-badge" id="badgeTargets"></span></button>
+<div class="app">
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="logo"><span class="logo-mark">🛡</span> anti<span class="logo-accent">DDoSia</span></div>
+
+    <nav class="nav">
+      <div class="nav-group">General</div>
+      <button class="nav-item active" data-view="overview">
+        <svg viewBox="0 0 24 24" class="ni"><path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z"/></svg>
+        Overview
+      </button>
+      <button class="nav-item" data-view="hosts">
+        <svg viewBox="0 0 24 24" class="ni"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 2c1.7 0 3.2 3.3 3.2 8s-1.5 8-3.2 8-3.2-3.3-3.2-8 1.5-8 3.2-8zM3 11h18M3 15h18M4 8h16"/></svg>
+        Hosts <span class="ni-badge" id="badgeHosts"></span>
+      </button>
+      <button class="nav-item" data-view="targets">
+        <svg viewBox="0 0 24 24" class="ni"><path d="M4 5h16v3H4zM4 10.5h16v3H4zM4 16h16v3H4z"/></svg>
+        Targets <span class="ni-badge" id="badgeTargets"></span>
+      </button>
+
+      <div class="nav-group">Reports</div>
+      <button class="nav-item" data-view="targets">
+        <svg viewBox="0 0 24 24" class="ni"><path d="M6 2h9l5 5v15H6zM14 2v6h6"/></svg>
+        Threat Details
+      </button>
+      <button class="nav-item" data-view="hosts">
+        <svg viewBox="0 0 24 24" class="ni"><path d="M12 2l3 6 6 .5-4.5 4 1.5 6-6-3.5-6 3.5 1.5-6L3 8.5 9 8z"/></svg>
+        Attack Surface
+      </button>
     </nav>
-    <div class="status" id="status" title="Feed status">
+
+    <div class="side-card">
+      <div class="side-card-ico">📡</div>
+      <p>Live feed from the DDoSia Project. Updates every 5 minutes.</p>
+      <a href="https://witha.name/data/last.json" target="_blank" rel="noopener">Source ↗</a>
+    </div>
+
+    <div class="side-foot">
       <span class="dot" id="statusDot"></span>
       <span id="statusText">connecting…</span>
     </div>
-  </header>
+  </aside>
 
-  <!-- Global toolbar -->
-  <div class="toolbar">
-    <div class="search-wrap">
-      <span class="search-ico">🔎</span>
-      <input type="search" id="search" placeholder="Search host, IP, path, org, country…  ( / )" autocomplete="off" />
-      <button class="clear-btn" id="searchClear" title="Clear" hidden>✕</button>
-    </div>
-    <select id="filterType" class="sel"><option value="">All types</option></select>
-    <select id="filterCountry" class="sel"><option value="">All countries</option></select>
-    <select id="filterPort" class="sel"><option value="">All ports</option></select>
-    <label class="chk"><input type="checkbox" id="filterNew" /> New 24h</label>
-    <span class="toolbar-spacer"></span>
-    <span class="result-count" id="resultCount"></span>
-    <div class="menu">
-      <button class="btn" id="exportBtn">Export ▾</button>
-      <div class="menu-list" id="exportMenu" hidden>
-        <button data-export="csv">Download CSV</button>
-        <button data-export="json">Download JSON</button>
-        <button data-export="ips">Copy all IPs</button>
-        <button data-export="paths">Copy all paths</button>
+  <!-- ================= MAIN ================= -->
+  <div class="main">
+    <!-- app bar -->
+    <header class="appbar">
+      <div class="welcome">
+        <div class="avatar">🛡</div>
+        <div>
+          <h1>NoName057(16) Threat Monitor</h1>
+          <p>Defensive intelligence — visibility, not vulnerability.</p>
+        </div>
       </div>
-    </div>
-  </div>
+      <div class="search-wrap">
+        <span class="search-ico">🔎</span>
+        <input type="search" id="search" placeholder="Search host, IP, path, org, country…  ( / )" autocomplete="off" />
+        <button class="clear-btn" id="searchClear" title="Clear" hidden>✕</button>
+      </div>
+      <div class="appbar-actions">
+        <div class="menu">
+          <button class="round-btn" id="exportBtn" title="Export">⭳</button>
+          <div class="menu-list" id="exportMenu" hidden>
+            <button data-export="csv">Download CSV</button>
+            <button data-export="json">Download JSON</button>
+            <button data-export="ips">Copy all IPs</button>
+            <button data-export="paths">Copy all paths</button>
+          </div>
+        </div>
+        <button class="round-btn" id="refreshBtn" title="Refresh now">⟳</button>
+      </div>
+    </header>
 
-  <main>
+    <!-- filters -->
+    <div class="toolbar">
+      <select id="filterType" class="sel"><option value="">All types</option></select>
+      <select id="filterCountry" class="sel"><option value="">All countries</option></select>
+      <select id="filterPort" class="sel"><option value="">All ports</option></select>
+      <label class="chk"><input type="checkbox" id="filterNew" /> New 24h</label>
+      <span class="toolbar-spacer"></span>
+      <span class="result-count" id="resultCount"></span>
+    </div>
+
     <!-- ============ OVERVIEW ============ -->
     <section id="view-overview" class="view">
-      <div class="cards" id="cards"></div>
+      <div class="dash">
+        <!-- LEFT COLUMN -->
+        <div class="col-main">
+          <!-- current risk -->
+          <div class="panel">
+            <div class="panel-head"><h2>Current Attack Surface</h2><span class="chip-select">Live</span></div>
+            <div class="stat-row" id="statRow"></div>
+          </div>
 
-      <div class="grid-2">
-        <div class="panel wide">
-          <h2>Targets over time <span class="hint">(last 30 days)</span></h2>
-          <div id="trendChart" class="chart-body"></div>
-        </div>
-        <div class="panel">
-          <h2>Attack types</h2>
-          <div id="typeChart" class="chart-body"></div>
-        </div>
-      </div>
+          <!-- threat summary chart -->
+          <div class="panel">
+            <div class="panel-head"><h2>Targets Over Time</h2><span class="chip-select">30-day</span></div>
+            <div id="trendChart" class="chart-body"></div>
+          </div>
 
-      <div class="grid-3">
-        <div class="panel">
-          <h2>Top countries</h2>
-          <div id="countryChart" class="chart-body"></div>
-        </div>
-        <div class="panel">
-          <h2>Top ports</h2>
-          <div id="portChart" class="chart-body"></div>
-        </div>
-        <div class="panel">
-          <h2>Methods</h2>
-          <div id="methodChart" class="chart-body"></div>
-        </div>
-      </div>
+          <!-- threat details table -->
+          <div class="panel">
+            <div class="panel-head"><h2>Threat Details</h2><span class="chip-select" id="tdCount"></span></div>
+            <div class="mini-table-wrap">
+              <table class="mini-table">
+                <thead><tr>
+                  <th>First seen</th><th>Host</th><th>IP</th><th>Type</th><th>Port</th><th>Path</th>
+                </tr></thead>
+                <tbody id="tdBody"></tbody>
+              </table>
+            </div>
+          </div>
 
-      <div class="grid-2">
-        <div class="panel">
-          <h2>Most targeted hosts <span class="hint">click to inspect</span></h2>
-          <div id="topHosts" class="chart-body"></div>
+          <!-- breakdowns -->
+          <div class="triple">
+            <div class="panel"><div class="panel-head"><h2>Top Countries</h2></div><div id="countryChart" class="chart-body sm"></div></div>
+            <div class="panel"><div class="panel-head"><h2>Top Ports</h2></div><div id="portChart" class="chart-body sm"></div></div>
+            <div class="panel"><div class="panel-head"><h2>Methods</h2></div><div id="methodChart" class="chart-body sm"></div></div>
+          </div>
         </div>
-        <div class="panel">
-          <h2>Top attacked paths <span class="hint">(WAF-relevant)</span></h2>
-          <div id="topPaths" class="path-list"></div>
+
+        <!-- RIGHT RAIL -->
+        <div class="col-rail">
+          <div class="panel gauge-panel">
+            <div class="panel-head"><h2>Threat Level</h2><span class="dots">⋮</span></div>
+            <div id="gauge" class="gauge-body"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h2>Attacks by Type</h2><span class="dots">⋮</span></div>
+            <div class="donut-wrap">
+              <div id="typeLegend" class="legend"></div>
+              <div id="typeDonut" class="donut"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h2>Most Targeted Hosts</h2><span class="dots">⋮</span></div>
+            <div id="topHosts" class="host-rail"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -112,51 +170,38 @@
       <div class="panel table-panel">
         <div class="table-wrap">
           <table id="targetsTable">
-            <thead>
-              <tr>
-                <th data-sort="host">Host</th>
-                <th data-sort="ip">IP</th>
-                <th data-sort="country">Country</th>
-                <th data-sort="type">Type</th>
-                <th data-sort="method">Method</th>
-                <th data-sort="port">Port</th>
-                <th data-sort="use_ssl">SSL</th>
-                <th data-sort="path">Path</th>
-              </tr>
-            </thead>
+            <thead><tr>
+              <th data-sort="host">Host</th><th data-sort="ip">IP</th><th data-sort="country">Country</th>
+              <th data-sort="type">Type</th><th data-sort="method">Method</th><th data-sort="port">Port</th>
+              <th data-sort="use_ssl">SSL</th><th data-sort="path">Path</th>
+            </tr></thead>
             <tbody id="targetsBody"></tbody>
           </table>
         </div>
       </div>
     </section>
-  </main>
 
-  <!-- ============ HOST DETAIL DRAWER ============ -->
-  <div class="drawer-overlay" id="drawerOverlay" hidden></div>
-  <aside class="drawer" id="drawer" hidden aria-hidden="true">
-    <div class="drawer-head">
-      <div>
-        <h2 id="drawerHost">host</h2>
-        <p class="drawer-sub" id="drawerSub"></p>
-      </div>
-      <button class="icon-btn" id="drawerClose" title="Close (Esc)">✕</button>
-    </div>
-    <div class="drawer-body" id="drawerBody"></div>
-  </aside>
+    <footer>
+      <p class="disclaimer">
+        Defensive threat-intelligence tool. This dashboard <strong>visualizes a publicly published target list</strong>
+        so potential victims and defenders can prepare. It does not perform, facilitate, or coordinate any attack.
+        Data: <a href="https://witha.name/data/last.json" target="_blank" rel="noopener">witha.name</a> · GeoIP by ip-api.com.
+      </p>
+    </footer>
+  </div>
+</div>
 
-  <footer>
-    <p>
-      Data source: <a href="https://witha.name/data/last.json" target="_blank" rel="noopener">witha.name/data/last.json</a>
-      · Auto-refreshes every 60s · GeoIP by ip-api.com
-    </p>
-    <p class="disclaimer">
-      Defensive threat-intelligence tool. This dashboard <strong>visualizes a publicly published target list</strong>
-      so potential victims and defenders can prepare. It does not perform, facilitate, or coordinate any attack.
-    </p>
-  </footer>
+<!-- ============ HOST DETAIL DRAWER ============ -->
+<div class="drawer-overlay" id="drawerOverlay" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-hidden="true">
+  <div class="drawer-head">
+    <div><h2 id="drawerHost">host</h2><p class="drawer-sub" id="drawerSub"></p></div>
+    <button class="icon-btn" id="drawerClose" title="Close (Esc)">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
 
-  <div class="toast" id="toast" hidden></div>
-
-  <script src="/app.js"></script>
+<div class="toast" id="toast" hidden></div>
+<script src="/app.js"></script>
 </body>
 </html>
