@@ -368,6 +368,10 @@ async function handleApi(req, res, pathname) {
     const q = new URL(req.url, 'http://localhost').searchParams.get('q') || '';
     return sendJson(res, checkTarget(q));
   }
+  if (pathname === '/api/host-sessions') {
+    const host = (new URL(req.url, 'http://localhost').searchParams.get('host') || '').toLowerCase().trim();
+    return sendJson(res, dbx.hostSessions(host));
+  }
   if (pathname === '/api/hosts') return sendJson(res, { ok: current.ok, fetchedAt: current.fetchedAt, hosts: buildHosts() });
   if (pathname === '/api/health') return sendJson(res, { ok: current.ok, fetchedAt: current.fetchedAt, error: current.error });
 

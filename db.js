@@ -161,6 +161,7 @@ const S = {
   asClear: db.prepare('DELETE FROM attack_session'),
   asMost: db.prepare('SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last_seen, SUM(ended IS NULL) active FROM attack_session GROUP BY host ORDER BY sessions DESC, last_seen DESC LIMIT ?'),
   asLongest: db.prepare("SELECT host, started, ended, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session ORDER BY days DESC LIMIT ?"),
+  asByHost: db.prepare("SELECT started, ended, last_seen, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session WHERE host = ? ORDER BY started DESC LIMIT ?"),
 
   cntHosts: db.prepare('SELECT COUNT(*) c FROM host_first_seen'),
   cntGeo: db.prepare('SELECT COUNT(*) c FROM geoip'),
@@ -228,6 +229,18 @@ export function clearSessions() { S.asClear.run(); }
 export function insertSession(host, started, lastSeen, ended) { S.asInsertFull.run(host, started, lastSeen, ended); }
 export function mostTargeted(limit = 10) { return S.asMost.all(limit); }
 export function longestAttacks(limit = 10) { return S.asLongest.all(limit); }
+export function hostSessions(host, limit = 200) {
+  const sessions = S.asByHost.all(host, limit);
+  const summary = {
+    count: sessions.length,
+    totalDays: sessions.reduce((s, r) => s + r.days, 0),
+    longest: sessions.reduce((m, r) => Math.max(m, r.days), 0),
+    firstSeen: sessions.length ? sessions[sessions.length - 1].started : null,
+    lastSeen: sessions.length ? (sessions[0].ended || sessions[0].last_seen) : null,
+    active: sessions.some((r) => !r.ended),
+  };
+  return { host, sessions, summary };
+}
 
 // cumulative all-time counts
 export function cumulative() {

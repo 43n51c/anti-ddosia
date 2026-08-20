@@ -252,24 +252,28 @@ function renderMap(data) {
   </svg>`;
 }
 
+function rankBar(frac, color) { return `<span class="rk-track"><span class="rk-fill" style="width:${(Math.max(0.03, frac) * 100).toFixed(1)}%;background:${color}"></span></span>`; }
 function renderRanks(s) {
   const most = s.mostTargeted || [];
   const live = new Set(state.targets.map((t) => t.host));
+  const maxS = Math.max(1, ...most.map((r) => r.sessions));
   $('#mostTargeted').innerHTML = most.length ? most.map((r, i) => `
-    <div class="rk" data-host="${esc(r.host)}">
+    <div class="rk" data-host="${esc(r.host)}" title="${r.active ? 'targeted now' : 'last ' + timeAgo(r.last_seen) + ' ago'}">
       <span class="rk-i">${i + 1}</span>
-      <span class="rk-h">${esc(r.host)}${live.has(r.host) ? ' <span class="rk-live">●</span>' : ''}</span>
-      <span class="rk-v">${r.sessions}× <span class="rk-sub">${r.active ? 'active' : timeAgo(r.last_seen) + ' ago'}</span></span>
+      <span class="rk-h">${live.has(r.host) ? '<span class="rk-live">●</span> ' : ''}${esc(r.host)}</span>
+      ${rankBar(r.sessions / maxS, '#8b5cf6')}
+      <span class="rk-v">${r.sessions}×</span>
     </div>`).join('') : '<div class="empty">no session data — run backfill</div>';
 
   const longest = s.longestAttacks || [];
+  const maxD = Math.max(0.01, ...longest.map((r) => r.days));
   $('#longestAttacks').innerHTML = longest.length ? longest.map((r, i) => {
     const ongoing = !r.ended;
-    const dur = ongoing ? `<span class="dur" data-since="${esc(r.started)}"></span>` : `${Math.round(r.days)}d`;
-    return `<div class="rk" data-host="${esc(r.host)}">
+    return `<div class="rk" data-host="${esc(r.host)}" title="${ongoing ? 'ongoing' : 'ended ' + r.ended.slice(0, 10)}">
       <span class="rk-i">${i + 1}</span>
-      <span class="rk-h">${esc(r.host)}</span>
-      <span class="rk-v">${dur} <span class="rk-sub ${ongoing ? 'on' : ''}">${ongoing ? 'ongoing' : 'ended'}</span></span>
+      <span class="rk-h">${ongoing ? '<span class="rk-live">●</span> ' : ''}${esc(r.host)}</span>
+      ${rankBar(r.days / maxD, ongoing ? '#3ddc84' : '#f5b301')}
+      <span class="rk-v">${fmtSpan(r.days)}</span>
     </div>`;
   }).join('') : '<div class="empty">no session data — run backfill</div>';
   tickDurations();
@@ -390,24 +394,59 @@ function renderTargets(rows) {
 function markSort(sel, key, dir) { $$(`${sel} thead th`).forEach((h) => h.classList.remove('sa', 'sd')); const th = $(`${sel} thead th[data-sort="${key}"]`); if (th) th.classList.add(dir === 'asc' ? 'sa' : 'sd'); }
 
 // ---------- drawer ----------
-function openDrawer(host) {
-  const rows = state.targets.filter((t) => t.host === host); if (!rows.length) return;
-  const h = groupHosts(rows)[0];
-  const proto = h.ssl ? 'https' : 'http';
-  $('#drawerHost').innerHTML = `${esc(h.host)} <a href="${proto}://${esc(h.host)}" target="_blank" rel="noopener">↗</a>`;
-  $('#drawerSub').innerHTML = `${flag(h.countryCode)} ${esc(h.country)}${h.city ? ' · ' + esc(h.city) : ''}${h.org ? ' · ' + esc(h.org) : ''}`;
-  const facts = [
-    { k: 'vectors', v: h.targetCount }, { k: 'unique IPs', v: h.ips.length }, { k: 'ports', v: h.ports.join(', ') || '—' },
-    { k: 'targeted for', v: `<span class="dur" data-since="${esc(h.sessionStart)}"></span>`, raw: true },
-    { k: 'first seen ever', v: (h.firstSeen || '').slice(0, 10) || '—' },
-  ];
-  const paths = h.paths.filter(Boolean);
-  $('#drawerBody').innerHTML = `
-    <div class="facts">${facts.map((f) => `<div class="fact"><div class="k">${f.k}</div><div class="v">${f.raw ? f.v : esc(f.v)}</div></div>`).join('')}</div>
-    <div class="dsec"><h3>IP ADDRESSES <button class="mini-copy" data-copy="${esc(h.ips.join('\n'))}">copy all</button></h3>${h.ips.map((ip) => `<div class="ioc-row"><span class="val">${esc(ip)}</span><button class="mini-copy" data-copy="${esc(ip)}">copy</button></div>`).join('')}</div>
-    <div class="dsec"><h3>TARGETED PATHS ${paths.length ? `<button class="mini-copy" data-copy="${esc(paths.join('\n'))}">copy all</button>` : ''}</h3>${paths.length ? paths.map((p) => `<div class="ioc-row"><span class="val" title="${esc(p)}">${esc(p)}</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors</div>'}</div>
-    <div class="dsec"><h3>ALL VECTORS (${h.vectors.length})</h3><table class="vec-tbl"><thead><tr><th>type</th><th>method</th><th>port</th><th>ssl</th><th>path</th></tr></thead><tbody>${h.vectors.map((v) => `<tr><td><span class="tag ${typeCls(v.type)}">${esc(v.type)}</span></td><td class="cc">${esc(v.method || '—')}</td><td class="cc">${esc(v.port)}</td><td>${v.use_ssl ? '🔒' : '—'}</td><td class="p">${esc(v.path || '—')}</td></tr>`).join('')}</tbody></table></div>`;
+function fmtSpan(days) {
+  let mins = Math.max(0, Math.round(days * 1440));
+  const d = Math.floor(mins / 1440); mins -= d * 1440;
+  const h = Math.floor(mins / 60); mins -= h * 60;
+  if (d > 0) return h > 0 ? `${d}d ${h}h` : `${d}d`;
+  if (h > 0) return mins > 0 ? `${h}h ${mins}m` : `${h}h`;
+  return `${mins}m`;
+}
+async function openDrawer(host) {
+  const rows = state.targets.filter((t) => t.host === host);
+  const isCurrent = rows.length > 0;
+  const h = isCurrent ? groupHosts(rows)[0] : null;
+  const proto = (h && h.ssl) ? 'https' : 'http';
+  $('#drawerHost').innerHTML = `${esc(host)} <a href="${proto}://${esc(host)}" target="_blank" rel="noopener">↗</a>`;
+
+  let currentHtml = '';
+  if (isCurrent) {
+    $('#drawerSub').innerHTML = `${flag(h.countryCode)} ${esc(h.country)}${h.city ? ' · ' + esc(h.city) : ''}${h.org ? ' · ' + esc(h.org) : ''}`;
+    const facts = [
+      { k: 'vectors', v: h.targetCount }, { k: 'unique IPs', v: h.ips.length }, { k: 'ports', v: h.ports.join(', ') || '—' },
+      { k: 'targeted for', v: `<span class="dur" data-since="${esc(h.sessionStart)}"></span>`, raw: true },
+    ];
+    const paths = h.paths.filter(Boolean);
+    currentHtml = `
+      <div class="facts">${facts.map((f) => `<div class="fact"><div class="k">${f.k}</div><div class="v">${f.raw ? f.v : esc(f.v)}</div></div>`).join('')}</div>
+      <div class="dsec"><h3>IP ADDRESSES <button class="mini-copy" data-copy="${esc(h.ips.join('\n'))}">copy all</button></h3>${h.ips.map((ip) => `<div class="ioc-row"><span class="val">${esc(ip)}</span><button class="mini-copy" data-copy="${esc(ip)}">copy</button></div>`).join('')}</div>
+      <div class="dsec"><h3>TARGETED PATHS ${paths.length ? `<button class="mini-copy" data-copy="${esc(paths.join('\n'))}">copy all</button>` : ''}</h3>${paths.length ? paths.map((p) => `<div class="ioc-row"><span class="val" title="${esc(p)}">${esc(p)}</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors</div>'}</div>
+      <div class="dsec"><h3>ALL VECTORS (${h.vectors.length})</h3><table class="vec-tbl"><thead><tr><th>type</th><th>method</th><th>port</th><th>ssl</th><th>path</th></tr></thead><tbody>${h.vectors.map((v) => `<tr><td><span class="tag ${typeCls(v.type)}">${esc(v.type)}</span></td><td class="cc">${esc(v.method || '—')}</td><td class="cc">${esc(v.port)}</td><td>${v.use_ssl ? '🔒' : '—'}</td><td class="p">${esc(v.path || '—')}</td></tr>`).join('')}</tbody></table></div>`;
+  } else {
+    $('#drawerSub').innerHTML = '<span class="off">not currently on the target list — showing attack history</span>';
+  }
+  $('#drawerBody').innerHTML = currentHtml + '<div class="dsec" id="drawerHist"><h3>ATTACK HISTORY</h3><div class="empty">loading…</div></div>';
   $('#drawer').hidden = false; $('#drawerOverlay').hidden = false; tickDurations();
+
+  try {
+    const d = await api('/api/host-sessions?host=' + encodeURIComponent(host));
+    const sm = d.summary, ss = d.sessions || [];
+    const sumFacts = [
+      { k: 'attack sessions', v: String(sm.count) },
+      { k: 'longest stint', v: sm.longest ? fmtSpan(sm.longest) : '—' },
+      { k: 'total under attack', v: sm.totalDays ? fmtSpan(sm.totalDays) : '—' },
+      { k: 'first seen', v: (sm.firstSeen || '').slice(0, 10) || '—' },
+    ];
+    const list = ss.length ? ss.map((s) => {
+      const ongoing = !s.ended;
+      const dur = ongoing ? `<span class="dur" data-since="${esc(s.started)}"></span>` : fmtSpan(s.days);
+      return `<tr><td class="cc">${s.started.slice(0, 10)}</td><td class="cc">${ongoing ? '<span class="on">ongoing</span>' : s.ended.slice(0, 10)}</td><td>${dur}</td></tr>`;
+    }).join('') : '<tr><td colspan="3" class="empty">no recorded sessions</td></tr>';
+    $('#drawerHist').innerHTML = `<h3>ATTACK HISTORY (${sm.count} session${sm.count === 1 ? '' : 's'})</h3>
+      <div class="facts">${sumFacts.map((f) => `<div class="fact"><div class="k">${f.k}</div><div class="v">${esc(f.v)}</div></div>`).join('')}</div>
+      <table class="vec-tbl"><thead><tr><th>started</th><th>ended</th><th>duration</th></tr></thead><tbody>${list}</tbody></table>`;
+    tickDurations();
+  } catch { $('#drawerHist').innerHTML = '<h3>ATTACK HISTORY</h3><div class="empty">could not load history</div>'; }
 }
 function closeDrawer() { $('#drawer').hidden = true; $('#drawerOverlay').hidden = true; }
 
