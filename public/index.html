@@ -168,11 +168,12 @@
         <button class="pill" data-hsort="host">name</button>
         <button class="pill" data-hsort="firstSeen">newest</button>
         <button class="pill" data-hsort="ports">surface</button>
+        <select id="hostAllCountry" class="sel" hidden><option value="">country: all</option></select>
       </div>
       <div class="host-grid" id="hostGrid"></div>
       <div class="pnl tbl-pnl" id="hostAllWrap" hidden>
         <div class="tbl-wrap tall"><table class="tbl" id="hostAllTbl"><thead><tr>
-          <th>host</th><th>sessions</th><th>longest</th><th>total time</th><th>last seen</th>
+          <th>host</th><th>country</th><th>sessions</th><th>longest</th><th>total time</th><th>last seen</th>
         </tr></thead><tbody id="hostAllBody"></tbody></table></div>
       </div>
     </section>

@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS attack_session (
 );
 CREATE INDEX IF NOT EXISTS idx_as_host ON attack_session(host);
 CREATE INDEX IF NOT EXISTS idx_as_active ON attack_session(host) WHERE ended IS NULL;
+CREATE TABLE IF NOT EXISTS host_country ( host TEXT PRIMARY KEY, code TEXT, country TEXT );
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,12 +163,18 @@ const S = {
   asMost: db.prepare('SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last_seen, SUM(ended IS NULL) active FROM attack_session GROUP BY host ORDER BY sessions DESC, last_seen DESC LIMIT ?'),
   asLongest: db.prepare("SELECT host, started, ended, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session ORDER BY days DESC LIMIT ?"),
   asByHost: db.prepare("SELECT started, ended, last_seen, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session WHERE host = ? ORDER BY started DESC LIMIT ?"),
-  asAll: {
-    sessions: db.prepare(`${''}SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last, SUM(julianday(COALESCE(ended,'now'))-julianday(started)) total, MAX(julianday(COALESCE(ended,'now'))-julianday(started)) longest, SUM(ended IS NULL) active FROM attack_session WHERE host LIKE ? ESCAPE '\\' GROUP BY host ORDER BY sessions DESC, last DESC LIMIT ?`),
-    recent: db.prepare(`SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last, SUM(julianday(COALESCE(ended,'now'))-julianday(started)) total, MAX(julianday(COALESCE(ended,'now'))-julianday(started)) longest, SUM(ended IS NULL) active FROM attack_session WHERE host LIKE ? ESCAPE '\\' GROUP BY host ORDER BY last DESC LIMIT ?`),
-    longest: db.prepare(`SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last, SUM(julianday(COALESCE(ended,'now'))-julianday(started)) total, MAX(julianday(COALESCE(ended,'now'))-julianday(started)) longest, SUM(ended IS NULL) active FROM attack_session WHERE host LIKE ? ESCAPE '\\' GROUP BY host ORDER BY longest DESC LIMIT ?`),
-    name: db.prepare(`SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last, SUM(julianday(COALESCE(ended,'now'))-julianday(started)) total, MAX(julianday(COALESCE(ended,'now'))-julianday(started)) longest, SUM(ended IS NULL) active FROM attack_session WHERE host LIKE ? ESCAPE '\\' GROUP BY host ORDER BY host ASC LIMIT ?`),
-  },
+  asAll: (() => {
+    const cols = "a.host host, MAX(hc.code) code, MAX(hc.country) country, COUNT(*) sessions, MAX(COALESCE(a.ended,a.last_seen)) last, SUM(julianday(COALESCE(a.ended,'now'))-julianday(a.started)) total, MAX(julianday(COALESCE(a.ended,'now'))-julianday(a.started)) longest, SUM(a.ended IS NULL) active";
+    const from = "FROM attack_session a LEFT JOIN host_country hc ON hc.host = a.host WHERE a.host LIKE ? ESCAPE '\\' AND (? = '' OR hc.code = ?) GROUP BY a.host ";
+    return {
+      sessions: db.prepare(`SELECT ${cols} ${from} ORDER BY sessions DESC, last DESC LIMIT ?`),
+      recent: db.prepare(`SELECT ${cols} ${from} ORDER BY last DESC LIMIT ?`),
+      longest: db.prepare(`SELECT ${cols} ${from} ORDER BY longest DESC LIMIT ?`),
+      name: db.prepare(`SELECT ${cols} ${from} ORDER BY a.host ASC LIMIT ?`),
+    };
+  })(),
+  hcPut: db.prepare('INSERT OR REPLACE INTO host_country(host,code,country) VALUES(?,?,?)'),
+  hcClear: db.prepare('DELETE FROM host_country'),
 
   cntHosts: db.prepare('SELECT COUNT(*) c FROM host_first_seen'),
   cntGeo: db.prepare('SELECT COUNT(*) c FROM geoip'),
@@ -235,11 +242,14 @@ export function clearSessions() { S.asClear.run(); }
 export function insertSession(host, started, lastSeen, ended) { S.asInsertFull.run(host, started, lastSeen, ended); }
 export function mostTargeted(limit = 10) { return S.asMost.all(limit); }
 export function longestAttacks(limit = 10) { return S.asLongest.all(limit); }
-export function hostsAll(q = '', sort = 'sessions', limit = 200) {
+export function hostsAll(q = '', sort = 'sessions', country = '', limit = 200) {
   const like = '%' + String(q || '').replace(/[%_\\]/g, (c) => '\\' + c) + '%';
   const stmt = S.asAll[sort] || S.asAll.sessions;
-  return { hosts: stmt.all(like, limit) };
+  const cc = String(country || '').toUpperCase();
+  return { hosts: stmt.all(like, cc, cc, limit) };
 }
+export function putHostCountry(host, code, country) { S.hcPut.run(host, code, country); }
+export function clearHostCountry() { S.hcClear.run(); }
 export function hostSessions(host, limit = 200) {
   const sessions = S.asByHost.all(host, limit);
   const summary = {

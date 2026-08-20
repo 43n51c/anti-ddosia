@@ -122,7 +122,9 @@ function render() {
   $('#badgeHosts').textContent = state.stats?.totals?.hosts ?? '';
   $('#badgeTargets').textContent = state.targets.length || '';
   $('#searchClear').hidden = !state.search;
-  $('#toolbar').style.display = (state.view === 'ops' || state.view === 'hosts' || state.view === 'targets') ? '' : 'none';
+  // type/country/port/new filter the current snapshot; hide them where they don't apply (all-time hosts)
+  const liveFilterView = (state.view === 'ops' || state.view === 'targets' || (state.view === 'hosts' && state.hostsMode === 'live'));
+  $('#toolbar').style.display = liveFilterView ? '' : 'none';
   if (state.view === 'ops') renderOps(rows);
   if (state.view === 'hosts') renderHosts(rows);
   if (state.view === 'targets') renderTargets(rows);
@@ -367,27 +369,39 @@ function renderHosts(rows) {
   const all = state.hostsMode === 'all';
   $('#hostGrid').hidden = all;
   $('#hostAllWrap').hidden = !all;
-  if (all) return renderHostsAll();
+  $('#hostAllCountry').hidden = !all;
+  if (all) { syncHostCountry(); return renderHostsAll(); }
   renderHostsLive(rows);
+}
+function syncHostCountry() {
+  const sel = $('#hostAllCountry'); const cur = sel.value;
+  const items = state.stats?.byCountryAllTime || [];
+  if (sel.options.length <= 1 && items.length) {
+    sel.innerHTML = '<option value="">country: all</option>' + items.map((c) => `<option value="${esc(c.code)}">${esc(c.key)} (${c.count})</option>`).join('');
+    sel.value = cur;
+  }
 }
 async function renderHostsAll() {
   const sort = HSORT_TO_ALL[state.hSort] || 'sessions';
-  const key = `${state.search}|${sort}`;
+  const country = $('#hostAllCountry').value || '';
+  const key = `${state.search}|${sort}|${country}`;
   if (key === hostsAllKey && $('#hostAllBody').children.length) return; // avoid refetch on poll re-render
   hostsAllKey = key;
   try {
-    const d = await api(`/api/hosts-all?q=${encodeURIComponent(state.search)}&sort=${sort}`);
+    const d = await api(`/api/hosts-all?q=${encodeURIComponent(state.search)}&sort=${sort}&country=${encodeURIComponent(country)}`);
     const hosts = d.hosts || [];
     const body = $('#hostAllBody');
     body.innerHTML = hosts.length ? hosts.map((h) => `<tr data-host="${esc(h.host)}">
       <td>${h.active ? '<span class="tdot"></span>' : ''}${esc(h.host)}</td>
+      <td class="cc">${flag(h.code)} ${esc(h.country || '')}</td>
       <td>${h.sessions}×</td>
       <td class="cc">${fmtSpan(h.longest)}</td>
       <td class="cc">${fmtSpan(h.total)}</td>
       <td class="cc">${h.active ? '<span class="ssl1">targeted now</span>' : timeAgo(h.last) + ' ago'}</td>
-    </tr>`).join('') : '<tr><td colspan="5" class="empty">no hosts match</td></tr>';
-  } catch { $('#hostAllBody').innerHTML = '<tr><td colspan="5" class="empty">could not load</td></tr>'; }
+    </tr>`).join('') : '<tr><td colspan="6" class="empty">no hosts match</td></tr>';
+  } catch { $('#hostAllBody').innerHTML = '<tr><td colspan="6" class="empty">could not load</td></tr>'; }
 }
+$('#hostAllCountry').addEventListener('change', () => { hostsAllKey = null; renderHostsAll(); });
 function renderHostsLive(rows) {
   let hosts = groupHosts(rows);
   hosts.sort((a, b) => { if (state.hSort === 'host') return a.host.localeCompare(b.host); if (state.hSort === 'firstSeen') return new Date(b.firstSeen) - new Date(a.firstSeen); if (state.hSort === 'ports') return (b.ports.length + b.paths.length) - (a.ports.length + a.paths.length); return b.targetCount - a.targetCount; });

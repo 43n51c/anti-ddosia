@@ -147,6 +147,23 @@ async function main() {
   dbx.clearCountries();
   dbx.tx(() => { for (const [code, e] of byCode) dbx.putCountry(code, e.country, e.hosts.size, e.targets); });
 
+  // ---- host -> country (most common country among the host's IPs) ----
+  const hostCC = new Map(); // host -> Map(code -> count)
+  for (const [host, ip] of recs) {
+    const g = dbx.getGeo(ip); if (!g) continue;
+    let m = hostCC.get(host); if (!m) { m = new Map(); hostCC.set(host, m); }
+    m.set(g.country_code || 'XX', (m.get(g.country_code || 'XX') || 0) + 1);
+  }
+  dbx.clearHostCountry();
+  dbx.tx(() => {
+    for (const [host, m] of hostCC) {
+      let best = 'XX', bestN = -1;
+      for (const [code, n] of m) if (n > bestN) { best = code; bestN = n; }
+      const cn = byCode.get(best)?.country || best;
+      dbx.putHostCountry(host, best, cn);
+    }
+  });
+
   // ---- reconstruct attack sessions (runs of consecutive days on the list) ----
   const GAP = 2; // tolerate up to 2 missing archived days within one stint
   const latest = days[days.length - 1][0];
