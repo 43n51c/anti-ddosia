@@ -65,7 +65,8 @@
           <div class="menu-list" id="acctMenu" hidden>
             <div class="acct-email mono" id="acctEmail"></div>
             <button data-view="assets">my assets</button>
-            <button data-view="alerts">alerts & settings</button>
+            <button data-view="alerts">alerts</button>
+            <button id="settingsBtn">notification settings</button>
             <button id="logoutBtn">log out</button>
           </div>
         </div>
@@ -235,16 +236,6 @@
     <section id="view-alerts" class="view" hidden>
       <div class="narrow">
         <div class="pnl">
-          <div class="pnl-h"><span>NOTIFICATION CHANNELS</span></div>
-          <div class="settings">
-            <label class="fld"><span class="mono">webhook url <small>(slack / telegram / custom · JSON on match)</small></span>
-              <input type="url" id="setWebhook" class="mono" placeholder="https://hooks.slack.com/…" /></label>
-            <label class="chk"><input type="checkbox" id="setEmail" /> email alerts <small id="emailHint" class="mono"></small></label>
-            <label class="chk"><input type="checkbox" id="setInapp" /> in-app (bell)</label>
-            <div class="row-btn"><button class="run mono" id="saveSettings">SAVE</button><span class="ok mono" id="saveOk" hidden>saved ✓</span></div>
-          </div>
-        </div>
-        <div class="pnl">
           <div class="pnl-h"><span>ALERTS <b id="alertsCount"></b></span><button class="lnk" id="alertsSeen">mark read</button></div>
           <div id="alertsList" class="alerts-list"></div>
         </div>
@@ -286,6 +277,21 @@
     <button class="run full mono" type="submit" id="authSubmit">SIGN IN</button>
   </form>
   <p class="auth-note mono">password stored salted+hashed (scrypt). demo tool — don't reuse a sensitive password.</p>
+</div>
+
+<!-- account settings modal -->
+<div class="modal-overlay" id="settingsOverlay" hidden></div>
+<div class="modal" id="settingsModal" hidden>
+  <button class="ico-btn modal-x" id="settingsClose">×</button>
+  <div class="modal-brand mono">notification settings</div>
+  <div class="set-acct mono"><span>signed in as</span><b id="setAcctEmail"></b></div>
+  <div class="settings">
+    <label class="fld"><span class="mono">webhook url <small>(slack / telegram / custom · JSON on match)</small></span>
+      <input type="url" id="setWebhook" class="mono" placeholder="https://hooks.slack.com/…" /></label>
+    <label class="chk"><input type="checkbox" id="setEmail" /> email alerts <small id="emailHint" class="mono"></small></label>
+    <label class="chk"><input type="checkbox" id="setInapp" /> in-app (bell)</label>
+    <div class="row-btn"><button class="run mono" id="saveSettings">SAVE</button><span class="ok mono" id="saveOk" hidden>saved ✓</span></div>
+  </div>
 </div>
 
 <div class="toast mono" id="toast" hidden></div>

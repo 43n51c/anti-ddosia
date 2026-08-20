@@ -673,13 +673,14 @@ function alertRow(a) {
   </div>`;
 }
 function renderAlerts() {
-  if (account.user) loadSettingsForm();
   const active = account.alerts.filter((a) => a.active !== 0).length;
   $('#alertsCount').textContent = account.alerts.length ? `(${active} active · ${account.alerts.length} total)` : '';
   const el = $('#alertsList');
   el.innerHTML = account.alerts.length ? account.alerts.map(alertRow).join('') : '<div class="empty">no alerts yet — when a monitored asset hits the list it shows here</div>';
 }
 function loadSettingsForm() { const u = account.user; if (!u) return; $('#setWebhook').value = u.webhook_url || ''; $('#setEmail').checked = !!u.email_alerts; $('#setInapp').checked = !!u.inapp_alerts; const em = $('#setEmail'), h = $('#emailHint'); if (!account.emailConfigured) { em.disabled = true; h.textContent = '(server SMTP off — webhook/in-app still work)'; } else { em.disabled = false; h.textContent = ''; } }
+function openSettings() { if (!account.user) return; $('#setAcctEmail').textContent = account.user.email; loadSettingsForm(); $('#saveOk').hidden = true; $('#settingsModal').hidden = false; $('#settingsOverlay').hidden = false; $('#acctMenu').hidden = true; }
+function closeSettings() { $('#settingsModal').hidden = true; $('#settingsOverlay').hidden = true; }
 async function markSeen() { try { await api('/api/alerts/seen', { method: 'POST' }); account.unseen = 0; account.alerts = account.alerts.map((a) => ({ ...a, seen: 1 })); renderAccount(); renderBell(); if (state.view === 'alerts') renderAlerts(); } catch {} }
 
 // ---------- events ----------
@@ -758,6 +759,9 @@ $$('#opsFeed thead th').forEach((th) => th.addEventListener('click', () => { con
 $('#signinBtn').addEventListener('click', () => openAuth('login'));
 $('#authClose').addEventListener('click', closeAuth);
 $('#authOverlay').addEventListener('click', closeAuth);
+$('#settingsBtn').addEventListener('click', (e) => { e.stopPropagation(); openSettings(); });
+$('#settingsClose').addEventListener('click', closeSettings);
+$('#settingsOverlay').addEventListener('click', closeSettings);
 $$('.auth-tab').forEach((t) => t.addEventListener('click', () => setAuthMode(t.dataset.mode)));
 $('#authForm').addEventListener('submit', async (e) => { e.preventDefault(); const email = $('#authEmail').value.trim(), password = $('#authPass').value; try { await api('/api/' + (authMode === 'login' ? 'login' : 'register'), { method: 'POST', body: JSON.stringify({ email, password }) }); const want = pendingView; closeAuth(); $('#authForm').reset(); await loadMe(); toast(authMode === 'login' ? 'signed in' : 'account created'); switchView(want || 'assets'); } catch (err) { const el = $('#authErr'); el.textContent = err.message; el.hidden = false; } });
 $('#logoutBtn').addEventListener('click', async () => { try { await api('/api/logout', { method: 'POST' }); } catch {} account.user = null; account.assets = []; account.alerts = []; account.unseen = 0; renderAccount(); $('#acctMenu').hidden = true; if (state.view === 'assets' || state.view === 'alerts') switchView('ops'); toast('logged out'); });
@@ -779,7 +783,7 @@ document.addEventListener('click', async (e) => {
 });
 $('#drawerClose').addEventListener('click', closeDrawer);
 $('#drawerOverlay').addEventListener('click', closeDrawer);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); if (e.key === '/' && document.activeElement !== $('#search') && document.activeElement !== $('#checkInput')) { e.preventDefault(); $('#search').focus(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDrawer(); closeSettings(); closeAuth(); } if (e.key === '/' && document.activeElement !== $('#search') && document.activeElement !== $('#checkInput')) { e.preventDefault(); $('#search').focus(); } });
 
 // ---------- boot ----------
 tick(); setInterval(tick, 1000);
