@@ -10,7 +10,7 @@ services:
       # Override any of these in a local .env file (see .env.example).
       PORT: 3000
       FEED_URL: ${FEED_URL:-https://witha.name/data/last.json}
-      POLL_MINUTES: ${POLL_MINUTES:-5}
+      POLL_MINUTES: ${POLL_MINUTES:-1}
       APP_URL: ${APP_URL:-http://localhost:3000}
       # Optional email alerts (leave SMTP_HOST empty to disable):
       SMTP_HOST: ${SMTP_HOST:-}

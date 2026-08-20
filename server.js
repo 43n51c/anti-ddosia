@@ -19,12 +19,13 @@ const PUBLIC_DIR = join(__dirname, 'public');
 const CONFIG = {
   port: Number(process.env.PORT) || 3000,
   feedUrl: process.env.FEED_URL || 'https://witha.name/data/last.json',
-  pollMs: (Number(process.env.POLL_MINUTES) || 5) * 60 * 1000,
+  pollMs: (Number(process.env.POLL_MINUTES) || 1) * 60 * 1000,
   geoipBatchUrl: 'http://ip-api.com/batch?fields=query,country,countryCode,city,regionName,org,as',
 };
 
 // In-memory snapshot served to clients.
 let current = { ok: false, fetchedAt: null, feedLastModified: null, error: 'not fetched yet', targets: [] };
+let feedETag = null; // for conditional requests (avoid re-downloading unchanged feed)
 
 // ---------- GeoIP enrichment ----------
 async function enrichGeoIp(ips) {
@@ -51,8 +52,15 @@ function geoFor(ip) {
 // ---------- feed polling ----------
 async function poll() {
   try {
-    const res = await fetch(CONFIG.feedUrl, { headers: { 'User-Agent': 'anti-ddosia-monitor/1.0' } });
+    // Conditional request: only download the body when the feed actually changed.
+    const headers = { 'User-Agent': 'anti-ddosia-monitor/1.0' };
+    if (feedETag) headers['If-None-Match'] = feedETag;
+    else if (current.feedLastModified) headers['If-Modified-Since'] = current.feedLastModified;
+
+    const res = await fetch(CONFIG.feedUrl, { headers });
+    if (res.status === 304) { current.fetchedAt = new Date().toISOString(); return; } // unchanged
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    feedETag = res.headers.get('etag') || feedETag;
     const lastModified = res.headers.get('last-modified');
     const json = await res.json();
     const raw = Array.isArray(json) ? json : json.targets || [];
