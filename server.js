@@ -160,6 +160,9 @@ function runMatching() {
       }
     }
   }
+  // Alerts not touched this pass (target dropped off the list) are now resolved.
+  const resolved = dbx.resolveStaleAlerts(nowIso);
+  if (resolved) console.log(`[match] resolved ${resolved} alert(s) — targets left the list`);
 }
 
 // ---------- aggregations ----------
@@ -340,7 +343,7 @@ async function handleApi(req, res, pathname) {
     const full = dbx.getUserById(u.id);
     return sendJson(res, {
       user: { email: full.email, webhook_url: full.webhook_url || '', email_alerts: !!full.email_alerts, inapp_alerts: !!full.inapp_alerts },
-      unseen: dbx.unseenCount(u.id), emailConfigured: emailConfigured(), providers: oauth.enabledProviders(),
+      unseen: dbx.unseenCount(u.id), activeAlerts: dbx.activeAlertCount(u.id), emailConfigured: emailConfigured(), providers: oauth.enabledProviders(),
     });
   }
   if (pathname === '/api/providers') return sendJson(res, { providers: oauth.enabledProviders() });
@@ -365,7 +368,7 @@ async function handleApi(req, res, pathname) {
     dbx.deleteAsset(id, user.id);
     return sendJson(res, { assets: dbx.listAssets(user.id) });
   }
-  if (pathname === '/api/alerts' && method === 'GET') return sendJson(res, { alerts: dbx.listAlerts(user.id), unseen: dbx.unseenCount(user.id) });
+  if (pathname === '/api/alerts' && method === 'GET') return sendJson(res, { alerts: dbx.listAlerts(user.id), unseen: dbx.unseenCount(user.id), active: dbx.activeAlertCount(user.id) });
   if (pathname === '/api/alerts/seen' && method === 'POST') { dbx.markAlertsSeen(user.id); return sendJson(res, { ok: true }); }
   if (pathname === '/api/settings' && method === 'POST') {
     const b = await readBody(req);

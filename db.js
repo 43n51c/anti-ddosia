@@ -84,6 +84,8 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 try { db.exec('ALTER TABLE users ADD COLUMN provider TEXT'); } catch { /* column exists */ }
 try { db.exec('ALTER TABLE host_surface ADD COLUMN ips TEXT'); } catch { /* column exists */ }
 try { db.exec('ALTER TABLE host_surface ADD COLUMN by_ip TEXT'); } catch { /* column exists */ }
+try { db.exec('ALTER TABLE alerts ADD COLUMN active INTEGER NOT NULL DEFAULT 1'); } catch { /* column exists */ }
+try { db.exec('ALTER TABLE alerts ADD COLUMN resolved_at TEXT'); } catch { /* column exists */ }
 
 // ---------------- one-time migration from JSON ----------------
 (function migrateFromJson() {
@@ -148,12 +150,16 @@ const S = {
   assetDel: db.prepare('DELETE FROM assets WHERE id = ? AND user_id = ?'),
   assetAll: db.prepare('SELECT a.*, u.email, u.webhook_url, u.email_alerts, u.inapp_alerts FROM assets a JOIN users u ON u.id=a.user_id'),
 
-  alertUpsertSeen: db.prepare('UPDATE alerts SET last_seen=?, target_ips=?, vectors=?, types=? WHERE asset_id=? AND target_host=?'),
-  alertInsert: db.prepare('INSERT OR IGNORE INTO alerts(user_id,asset_id,asset_value,target_host,target_ips,vectors,types,first_matched,last_seen) VALUES(?,?,?,?,?,?,?,?,?)'),
+  // re-match: refresh detail, bump last_seen, and re-open if it had resolved (fresh unseen ping too)
+  alertUpsertSeen: db.prepare('UPDATE alerts SET last_seen=?, target_ips=?, vectors=?, types=?, active=1, resolved_at=NULL, seen=CASE WHEN active=0 THEN 0 ELSE seen END WHERE asset_id=? AND target_host=?'),
+  alertInsert: db.prepare('INSERT OR IGNORE INTO alerts(user_id,asset_id,asset_value,target_host,target_ips,vectors,types,first_matched,last_seen,active) VALUES(?,?,?,?,?,?,?,?,?,1)'),
   alertGetPair: db.prepare('SELECT id FROM alerts WHERE asset_id=? AND target_host=?'),
-  alertList: db.prepare('SELECT * FROM alerts WHERE user_id = ? ORDER BY first_matched DESC LIMIT 200'),
+  alertList: db.prepare('SELECT * FROM alerts WHERE user_id = ? ORDER BY active DESC, COALESCE(resolved_at, last_seen) DESC, first_matched DESC LIMIT 200'),
   alertUnseen: db.prepare('SELECT COUNT(*) c FROM alerts WHERE user_id = ? AND seen = 0'),
+  alertActiveCount: db.prepare('SELECT COUNT(*) c FROM alerts WHERE user_id = ? AND active = 1'),
   alertMarkSeen: db.prepare('UPDATE alerts SET seen = 1 WHERE user_id = ?'),
+  // after a matching pass: anything still active but not touched this run has left the list
+  alertResolveStale: db.prepare('UPDATE alerts SET active=0, resolved_at=? WHERE active=1 AND last_seen<>?'),
 
   countryPut: db.prepare('INSERT OR REPLACE INTO country_alltime(code,country,hosts,targets) VALUES(?,?,?,?)'),
   countryAll: db.prepare('SELECT code,country,hosts,targets FROM country_alltime ORDER BY targets DESC'),
@@ -233,7 +239,10 @@ export function upsertAlertSeen(assetId, host, ips, vectors, types, lastSeen) { 
 export function insertAlert(a) { const r = S.alertInsert.run(a.userId, a.assetId, a.assetValue, a.host, a.ips, a.vectors, a.types, a.firstMatched, a.lastSeen); return Number(r.changes) > 0; }
 export function listAlerts(userId) { return S.alertList.all(userId); }
 export function unseenCount(userId) { return S.alertUnseen.get(userId).c; }
+export function activeAlertCount(userId) { return S.alertActiveCount.get(userId).c; }
 export function markAlertsSeen(userId) { S.alertMarkSeen.run(userId); }
+// Resolve alerts whose target left the list this poll (last_seen older than nowIso).
+export function resolveStaleAlerts(nowIso) { return Number(S.alertResolveStale.run(nowIso, nowIso).changes); }
 
 // all-time country aggregation
 export function putCountry(code, country, hosts, targets) { S.countryPut.run(code, country, hosts, targets); }

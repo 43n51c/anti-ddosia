@@ -323,14 +323,35 @@ a:hover { text-decoration: underline; }
 .ok { color: var(--grn); font-size: 12px; }
 .settings .chk small { color: var(--dim); margin-left: 4px; }
 .alerts-list { display: flex; flex-direction: column; gap: 7px; }
-.alert-row { display: flex; align-items: flex-start; gap: 11px; background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.alert-row { display: flex; align-items: flex-start; gap: 11px; background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; cursor: pointer; transition: border-color .15s; }
+.alert-row:hover { border-color: var(--line2); }
 .alert-row.unseen { border-color: rgba(255,85,102,.4); }
+.alert-row.resolved { opacity: .72; }
 .alert-ico { width: 30px; height: 30px; border-radius: 7px; background: rgba(255,85,102,.13); display: grid; place-items: center; flex-shrink: 0; color: var(--red); }
+.alert-row.resolved .alert-ico { background: var(--bg3); color: var(--dim); }
 .alert-b { flex: 1; min-width: 0; }
 .alert-t { font-size: 12.5px; }
 .alert-t b { color: #eaf1fa; } .alert-t .arw { color: var(--tx2); margin: 0 5px; } .alert-t .host { color: #ff8a97; cursor: pointer; }
+.alert-row.resolved .alert-t .host { color: var(--tx2); }
 .alert-m { color: var(--tx2); font-size: 11px; margin-top: 4px; word-break: break-all; }
+.alert-r { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
 .alert-time { color: var(--dim); font-size: 10.5px; white-space: nowrap; }
+.al-badge { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+.al-badge.live { color: var(--red); background: rgba(255,85,102,.13); border: 1px solid rgba(255,85,102,.32); }
+.al-badge.done { color: var(--grn); background: rgba(61,220,132,.1); border: 1px solid rgba(61,220,132,.28); }
+
+/* bell lifecycle dots */
+.bell-item .h .dot { display: inline-block; margin-right: 6px; vertical-align: 1px; }
+.bell-item .h .dot.live { background: var(--red); }
+.bell-item .h .dot.done { background: var(--grn); }
+
+/* posture summary */
+.posture { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.po-cell { background: var(--bg1); border: 1px solid var(--line); border-radius: 10px; padding: 14px 15px; display: flex; flex-direction: column; gap: 3px; }
+.po-cell b { font-size: 26px; font-weight: 600; color: #eaf1fa; font-variant-numeric: tabular-nums; line-height: 1; }
+.po-cell span { font-size: 10px; color: var(--tx2); letter-spacing: 0.08em; text-transform: uppercase; }
+.posture.alarm .po-cell.hit b, .posture.alarm .po-cell.live b { color: var(--red); }
+.po-cell.hit b, .po-cell.live b { color: var(--tx); }
 
 /* drawer */
 .drawer-overlay { position: fixed; inset: 0; background: rgba(3,5,9,.66); z-index: 60; animation: fade .2s; }

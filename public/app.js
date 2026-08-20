@@ -589,19 +589,47 @@ function openAuth(m = 'login') { setAuthMode(m); renderAuthProviders(); $('#auth
 function closeAuth() { $('#authModal').hidden = true; $('#authOverlay').hidden = true; pendingView = null; }
 async function loadAssets() { try { account.assets = (await api('/api/assets')).assets || []; } catch { account.assets = []; } }
 function assetTargeted(a) { for (const t of state.targets) { if (a.type === 'ip') { if (t.ip === a.value) return t.host; } else if (t.host === a.value || t.host.endsWith('.' + a.value)) return t.host; } return null; }
+function renderPosture() {
+  const el = $('#posture'); if (!account.user) { el.hidden = true; return; }
+  const targeted = account.assets.filter((a) => assetTargeted(a)).length;
+  const active = (account.alerts || []).filter((a) => a.active !== 0).length;
+  const resolved = (account.alerts || []).filter((a) => a.active === 0).length;
+  $('#poAssets').textContent = account.assets.length;
+  $('#poTargeted').textContent = targeted;
+  $('#poActive').textContent = active;
+  $('#poResolved').textContent = resolved;
+  el.classList.toggle('alarm', targeted > 0);
+  el.hidden = false;
+}
 function renderAssets() {
+  renderPosture();
   $('#assetCount').textContent = account.assets.length ? `(${account.assets.length})` : '';
   const el = $('#assetList');
   if (!account.assets.length) { el.innerHTML = '<div class="empty">no assets yet — add a domain or IP above</div>'; return; }
   el.innerHTML = account.assets.map((a) => { const hit = assetTargeted(a); return `<div class="asset-row"><span class="a-type">${a.type}</span><div><div class="a-val">${esc(a.value)}</div>${a.label ? `<div class="a-label">${esc(a.label)}</div>` : ''}</div><span class="a-status ${hit ? 'a-hit' : 'a-clear'}" ${hit ? `data-host="${esc(hit)}"` : ''}>${hit ? '● targeted now' : '○ clear'}</span><button class="a-del" data-del="${a.id}">×</button></div>`; }).join('');
 }
-async function loadAlerts() { try { const d = await api('/api/alerts'); account.alerts = d.alerts || []; account.unseen = d.unseen || 0; renderAccount(); renderBell(); } catch {} }
-function renderBell() { const el = $('#bellList'); const it = account.alerts.slice(0, 6); el.innerHTML = it.length ? it.map((a) => `<div class="bell-item ${a.seen ? '' : 'unseen'}" data-host="${esc(a.target_host)}"><div class="h">${esc(a.target_host)}</div><div class="m">${esc(a.asset_value)} · ${a.vectors} vec · ${timeAgo(a.first_matched)} ago</div></div>`).join('') : '<div class="bell-empty">no alerts yet</div>'; }
+async function loadAlerts() { try { const d = await api('/api/alerts'); account.alerts = d.alerts || []; account.unseen = d.unseen || 0; account.activeAlerts = d.active || 0; renderAccount(); renderBell(); } catch {} }
+function renderBell() { const el = $('#bellList'); const it = account.alerts.slice(0, 6); el.innerHTML = it.length ? it.map((a) => { const active = a.active !== 0; return `<div class="bell-item ${a.seen ? '' : 'unseen'}" data-host="${esc(a.target_host)}"><div class="h">${active ? '<span class="dot live"></span>' : '<span class="dot done"></span>'}${esc(a.target_host)}</div><div class="m">${esc(a.asset_value)} · ${active ? a.vectors + ' vec · active' : 'resolved ' + timeAgo(a.resolved_at || a.last_seen) + ' ago'}</div></div>`; }).join('') : '<div class="bell-empty">no alerts yet</div>'; }
+function alertRow(a) {
+  const active = a.active !== 0;
+  const state = active
+    ? `<span class="al-badge live">● ACTIVE</span><span class="alert-time">started ${timeAgo(a.first_matched)} ago</span>`
+    : `<span class="al-badge done">✓ RESOLVED</span><span class="alert-time">left list ${timeAgo(a.resolved_at || a.last_seen)} ago</span>`;
+  return `<div class="alert-row ${a.seen ? '' : 'unseen'} ${active ? '' : 'resolved'}" data-host="${esc(a.target_host)}">
+    <div class="alert-ico">${active ? '◉' : '○'}</div>
+    <div class="alert-b">
+      <div class="alert-t">asset <b>${esc(a.asset_value)}</b><span class="arw">→</span><span class="host">${esc(a.target_host)}</span></div>
+      <div class="alert-m">${a.vectors} vectors · ${esc(a.types || '')} · IPs ${esc(a.target_ips || '')}</div>
+    </div>
+    <div class="alert-r">${state}</div>
+  </div>`;
+}
 function renderAlerts() {
   if (account.user) loadSettingsForm();
-  $('#alertsCount').textContent = account.alerts.length ? `(${account.alerts.length})` : '';
+  const active = account.alerts.filter((a) => a.active !== 0).length;
+  $('#alertsCount').textContent = account.alerts.length ? `(${active} active · ${account.alerts.length} total)` : '';
   const el = $('#alertsList');
-  el.innerHTML = account.alerts.length ? account.alerts.map((a) => `<div class="alert-row ${a.seen ? '' : 'unseen'}"><div class="alert-ico">◎</div><div class="alert-b"><div class="alert-t">asset <b>${esc(a.asset_value)}</b><span class="arw">→</span><span class="host" data-host="${esc(a.target_host)}">${esc(a.target_host)}</span></div><div class="alert-m">${a.vectors} vectors · ${esc(a.types || '')} · IPs ${esc(a.target_ips || '')}</div></div><div class="alert-time">${timeAgo(a.first_matched)} ago</div></div>`).join('') : '<div class="empty">no alerts yet — when a monitored asset hits the list it shows here</div>';
+  el.innerHTML = account.alerts.length ? account.alerts.map(alertRow).join('') : '<div class="empty">no alerts yet — when a monitored asset hits the list it shows here</div>';
 }
 function loadSettingsForm() { const u = account.user; if (!u) return; $('#setWebhook').value = u.webhook_url || ''; $('#setEmail').checked = !!u.email_alerts; $('#setInapp').checked = !!u.inapp_alerts; const em = $('#setEmail'), h = $('#emailHint'); if (!account.emailConfigured) { em.disabled = true; h.textContent = '(server SMTP off — webhook/in-app still work)'; } else { em.disabled = false; h.textContent = ''; } }
 async function markSeen() { try { await api('/api/alerts/seen', { method: 'POST' }); account.unseen = 0; account.alerts = account.alerts.map((a) => ({ ...a, seen: 1 })); renderAccount(); renderBell(); if (state.view === 'alerts') renderAlerts(); } catch {} }

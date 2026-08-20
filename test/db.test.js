@@ -68,6 +68,34 @@ test('alerts: insert once per (asset,host), upsert on repeat, unseen count', () 
   assert.equal(dbx.listAlerts(uid).length, 1);
 });
 
+test('alert lifecycle: resolve when target leaves, reactivate on re-match', () => {
+  const uid = dbx.createUser('life@example.com', 'h', '2026-01-01T00:00:00Z');
+  dbx.addAsset(uid, 'domain', 'lc.com', null, '2026-01-01T00:00:00Z');
+  const assetId = dbx.listAssets(uid)[0].id;
+  const base = { userId: uid, assetId, assetValue: 'lc.com', host: 'lc.com', ips: '1.2.3.4', vectors: 2, types: 'http', firstMatched: '2026-01-01T00:00:00Z', lastSeen: '2026-01-01T00:00:00Z' };
+  dbx.insertAlert(base);
+  assert.equal(dbx.activeAlertCount(uid), 1);
+
+  // a later poll where lc.com is NOT touched → its last_seen stays old → resolved
+  const poll2 = '2026-01-02T00:00:00Z';
+  const changed = dbx.resolveStaleAlerts(poll2);
+  assert.ok(changed >= 1);
+  assert.equal(dbx.activeAlertCount(uid), 0);
+  const a = dbx.listAlerts(uid).find((r) => r.target_host === 'lc.com');
+  assert.equal(a.active, 0);
+  assert.equal(a.resolved_at, poll2);
+
+  // target reappears → upsertAlertSeen reactivates and clears resolved_at + re-pings unseen
+  dbx.markAlertsSeen(uid);
+  const poll3 = '2026-01-03T00:00:00Z';
+  dbx.upsertAlertSeen(assetId, 'lc.com', '1.2.3.4', 4, 'http', poll3);
+  assert.equal(dbx.activeAlertCount(uid), 1);
+  const b = dbx.listAlerts(uid).find((r) => r.target_host === 'lc.com');
+  assert.equal(b.active, 1);
+  assert.equal(b.resolved_at, null);
+  assert.equal(b.seen, 0); // reopened → unseen again
+});
+
 test('updateSessions: opens at publish time, touches, and closes stints', () => {
   dbx.clearSessions();
   // first config publication: two hosts appear
