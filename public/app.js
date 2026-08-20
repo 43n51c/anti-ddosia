@@ -709,7 +709,12 @@ $('#searchClear').addEventListener('click', () => { state.search = ''; $('#searc
 $('#filterType').addEventListener('change', (e) => { state.filterType = e.target.value; render(); });
 $('#filterCountry').addEventListener('change', (e) => { state.filterCountry = e.target.value; render(); });
 $('#filterPort').addEventListener('change', (e) => { state.filterPort = e.target.value; render(); });
-$('#filterNew').addEventListener('change', (e) => { state.filterNew = e.target.checked; render(); });
+$('#filterNew').addEventListener('click', (e) => {
+  const seg = e.target.closest('.seg'); if (!seg) return;
+  state.filterNew = seg.dataset.new === '1';
+  $$('#filterNew .seg').forEach((s) => s.classList.toggle('on', s === seg));
+  render();
+});
 $('#refreshBtn').addEventListener('click', () => load());
 document.addEventListener('click', (e) => {
   const g = e.target.closest('.seg[data-geo]'); if (g) { e.stopPropagation(); state.geoMode = g.dataset.geo; render(); return; }

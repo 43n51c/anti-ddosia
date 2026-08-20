@@ -78,7 +78,10 @@
       <select id="filterType" class="sel"><option value="">type: all</option></select>
       <select id="filterCountry" class="sel"><option value="">country: all</option></select>
       <select id="filterPort" class="sel"><option value="">port: all</option></select>
-      <label class="chk"><input type="checkbox" id="filterNew" /> new/24h</label>
+      <span class="seg-group" id="filterNew" role="group" aria-label="recency filter">
+        <button type="button" class="seg on" data-new="0">ALL</button>
+        <button type="button" class="seg" data-new="1">NEW·24H</button>
+      </span>
       <span class="spacer"></span>
       <span class="rc mono" id="resultCount"></span>
     </div>

@@ -101,6 +101,11 @@ a:hover { text-decoration: underline; }
 .sel { background: var(--bg1); border: 1px solid var(--line); color: var(--tx); border-radius: 6px; padding: 7px 10px; font-family: inherit; font-size: 12px; cursor: pointer; }
 .sel:focus { outline: none; border-color: var(--line2); }
 .chk { display: flex; align-items: center; gap: 6px; color: var(--tx2); font-size: 12px; cursor: pointer; user-select: none; }
+.seg-group { display: inline-flex; background: var(--bg1); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg-group .seg { background: none; border: none; color: var(--tx2); font-family: inherit; font-size: 11px; letter-spacing: 0.04em; padding: 7px 12px; cursor: pointer; transition: color .12s, background .12s; }
+.seg-group .seg + .seg { border-left: 1px solid var(--line); }
+.seg-group .seg:hover { color: var(--tx); }
+.seg-group .seg.on { background: var(--grn); color: #04180d; font-weight: 700; }
 .spacer { flex: 1; }
 .rc { color: var(--tx2); font-size: 12px; }
 
