@@ -19,6 +19,12 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_SECURE: ${SMTP_SECURE:-}
+      # Optional social sign-in (leave empty to disable). Register redirect
+      # URI <APP_URL>/auth/<provider>/callback in the provider console.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
     volumes:
       # Persist GeoIP cache + history. Bind-mounted so `node backfill.js` run
       # on the host is visible to the container (and vice versa).

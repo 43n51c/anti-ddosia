@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS alerts (
 CREATE INDEX IF NOT EXISTS idx_alerts_user ON alerts(user_id, first_matched DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 `);
+try { db.exec('ALTER TABLE users ADD COLUMN provider TEXT'); } catch { /* column exists */ }
 
 // ---------------- one-time migration from JSON ----------------
 (function migrateFromJson() {
@@ -119,6 +120,7 @@ const S = {
   tfsPut: db.prepare('INSERT INTO target_first_seen(target_id,first_seen) VALUES(?,?) ON CONFLICT(target_id) DO UPDATE SET first_seen=excluded.first_seen WHERE excluded.first_seen < target_first_seen.first_seen'),
 
   userCreate: db.prepare('INSERT INTO users(email,pass_hash,created_at) VALUES(?,?,?)'),
+  userCreateOAuth: db.prepare("INSERT INTO users(email,pass_hash,created_at,provider) VALUES(?,'',?,?)"),
   userByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
   userById: db.prepare('SELECT * FROM users WHERE id = ?'),
   userSettings: db.prepare('UPDATE users SET webhook_url=?, email_alerts=?, inapp_alerts=? WHERE id=?'),
@@ -165,6 +167,8 @@ export function tx(fn) { db.prepare('BEGIN').run(); try { fn(); db.prepare('COMM
 
 // users
 export function createUser(email, passHash, iso) { const r = S.userCreate.run(email, passHash, iso); return Number(r.lastInsertRowid); }
+export function createOAuthUser(email, provider, iso) { const r = S.userCreateOAuth.run(email, iso, provider); return Number(r.lastInsertRowid); }
+export function findOrCreateOAuthUser(email, provider, iso) { const u = S.userByEmail.get(email); if (u) return u.id; return createOAuthUser(email, provider, iso); }
 export function getUserByEmail(email) { return S.userByEmail.get(email); }
 export function getUserById(id) { return S.userById.get(id); }
 export function updateUserSettings(id, webhookUrl, emailAlerts, inappAlerts) { S.userSettings.run(webhookUrl || null, emailAlerts ? 1 : 0, inappAlerts ? 1 : 0, id); }

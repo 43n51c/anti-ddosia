@@ -54,6 +54,17 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 function flag(cc) { if (!cc || cc.length !== 2 || cc === 'XX') return '<span class="flag flag-x"></span>'; return `<img class="flag" src="/flags/${cc.toLowerCase()}.svg" alt="${esc(cc)}" loading="lazy" onerror="this.replaceWith(document.createTextNode('${esc(cc)}'))">`; }
 const codeOf = (c) => c.code || codeFor(c.key);
 function timeAgo(iso) { if (!iso) return '—'; const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000); if (s < 60) return `${s}s`; if (s < 3600) return `${Math.floor(s / 60)}m`; if (s < 86400) return `${Math.floor(s / 3600)}h`; return `${Math.floor(s / 86400)}d`; }
+function fmtDur(iso) {
+  if (!iso) return '—';
+  let s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000); if (s < 0) s = 0;
+  const d = Math.floor(s / 86400); s -= d * 86400;
+  const h = Math.floor(s / 3600); s -= h * 3600;
+  const m = Math.floor(s / 60); s -= m * 60;
+  const p = (n) => String(n).padStart(2, '0');
+  return (d > 0 ? d + 'd ' : '') + `${p(h)}:${p(m)}:${p(s)}`;
+}
+function tickDurations() { for (const el of document.querySelectorAll('.dur[data-since]')) el.textContent = fmtDur(el.dataset.since); }
+const dayIso = (d) => (d ? `${d}T00:00:00.000Z` : null);
 const isNew = (t) => t.hostFirstSeen && (Date.now() - new Date(t.hostFirstSeen).getTime()) < DAY;
 const typeCls = (ty) => (['http', 'http2', 'http3', 'tcp', 'udp', 'nginx_loris'].includes(ty) ? 't-' + ty : 't-default');
 function toast(m) { const el = $('#toast'); el.textContent = m; el.hidden = false; clearTimeout(el._t); el._t = setTimeout(() => (el.hidden = true), 1800); }
@@ -69,7 +80,7 @@ async function load() {
   } catch (e) { setStatus(false, { error: e.message }); }
 }
 function setStatus(ok, meta) { $('#statusDot').className = 'dot ' + (ok ? 'ok' : 'err'); $('#statusText').textContent = ok ? `live · ${timeAgo(meta.fetchedAt)} ago` : 'feed error'; }
-function tick() { const d = new Date(); $('#clock').textContent = d.toISOString().slice(0, 16).replace('T', ' ') + 'Z'; }
+function tick() { const d = new Date(); $('#clock').textContent = d.toISOString().slice(0, 16).replace('T', ' ') + 'Z'; tickDurations(); }
 
 // ---------- filtering ----------
 function filtered() {
@@ -115,6 +126,7 @@ function render() {
   if (state.view === 'targets') renderTargets(rows);
   if (state.view === 'assets') renderAssets();
   if (state.view === 'alerts') renderAlerts();
+  tickDurations();
 }
 
 function renderOps(rows) {
@@ -128,7 +140,7 @@ function renderOps(rows) {
     { l: 'UNIQUE IPS', v: T.ips },
     { l: 'COUNTRIES', v: T.countries },
     { l: 'NEW / 24H', v: T.newHosts24h, d: T.newHosts24h ? 'fresh hosts' : '', dc: 'up' },
-    { l: 'WAVE SINCE', v: (s.waveSince || '—'), sm: true, d: 'dominant onset' },
+    { l: 'WAVE SINCE', v: (s.waveSince || '—'), sm: true, d: s.waveSince ? `running <span class="dur" data-since="${dayIso(s.waveSince)}"></span>` : 'dominant onset' },
   ];
   $('#tiles').innerHTML = tiles.map((c) => `<div class="tile"><div class="l">${c.l}</div><div class="v ${c.sm ? 'sm' : ''}">${c.v}</div>${c.d ? `<div class="d ${c.dc || ''}">${c.d}</div>` : ''}</div>`).join('');
 
@@ -175,7 +187,7 @@ function renderPulse(T, s) {
   const sigs = [
     { l: 'NEW · 24H', v: `${T.newHosts24h} host${T.newHosts24h === 1 ? '' : 's'}`, d: newNames, vc: T.newHosts24h ? 'up' : '' },
     { l: 'TRAJECTORY', v: `${trajV}&nbsp;<span class="sig-sub">vs yday</span>&nbsp;${miniSpark(last7, 56, 16, delta > 0 ? '#ff5566' : '#3ddc84')}`, d: `${T.targets} now &larr; ${s.yesterdayCount ?? '—'} yesterday`, vc: trajCls },
-    { l: 'CURRENT WAVE', v: `since ${s.waveSince || '—'}`, d: cc || '—' },
+    { l: 'CURRENT WAVE', v: s.waveSince ? `<span class="dur" data-since="${dayIso(s.waveSince)}"></span>` : '—', d: `since ${s.waveSince || '—'}${cc ? ' · ' + cc : ''}` },
     { l: 'HOT TARGET', v: hot ? esc(hot.host) : '—', d: hot ? `${hot.targetCount} vectors · ${Object.keys(hot.types).join('/')}` : '' },
   ];
   el.hidden = false;
@@ -257,7 +269,7 @@ function renderOpsFeed(rows) {
       <td>${h.targetCount}</td>
       <td class="tt">${Object.keys(h.types).join(' ')}</td>
       <td class="cc">${h.ports.join(' ')}</td>
-      <td class="cc">${timeAgo(h.firstSeen)} ago</td>
+      <td class="cc"><span class="dur" data-since="${esc(h.firstSeen)}"></span></td>
     </tr>`;
   }).join('');
   markSort('#opsFeed', state.fSortKey, state.fSortDir);
@@ -311,7 +323,7 @@ $('#checkForm').addEventListener('submit', async (e) => {
         `<div class="vrow"><b>${esc(r.query)}</b> → <span class="host" data-host="${esc(m.host)}">${esc(m.host)}</span> · ${m.vectors} vectors · ${esc(m.types.join('/'))} · ${m.ips.length} IP${m.ips.length > 1 ? 's' : ''} · ${flag(m.country && codeFor(m.country) || 'XX')} ${esc(m.city || m.country)}</div>`).join('')
         + `<div class="vrow" style="margin-top:6px">→ sign in to monitor this asset and get alerted on new hits.</div>`;
     } else {
-      el.className = 'verdict clear';
+      el.className = 'verdict ok';
       el.innerHTML = `<div class="vhead">○ NOT on the current list</div><div class="vrow"><b>${esc(r.query)}</b> (${r.type}) is not among today's ${state.targets.length} targets. Add it to monitoring to catch future waves.</div>`;
     }
   } catch (err) { el.hidden = false; el.className = 'verdict'; el.innerHTML = `<div class="vrow">check failed: ${esc(err.message)}</div>`; }
@@ -358,14 +370,17 @@ function openDrawer(host) {
   const proto = h.ssl ? 'https' : 'http';
   $('#drawerHost').innerHTML = `${esc(h.host)} <a href="${proto}://${esc(h.host)}" target="_blank" rel="noopener">↗</a>`;
   $('#drawerSub').innerHTML = `${flag(h.countryCode)} ${esc(h.country)}${h.city ? ' · ' + esc(h.city) : ''}${h.org ? ' · ' + esc(h.org) : ''}`;
-  const facts = [['vectors', h.targetCount], ['unique IPs', h.ips.length], ['ports', h.ports.join(', ') || '—'], ['first seen', timeAgo(h.firstSeen) + ' ago']];
+  const facts = [
+    { k: 'vectors', v: h.targetCount }, { k: 'unique IPs', v: h.ips.length }, { k: 'ports', v: h.ports.join(', ') || '—' },
+    { k: 'targeted for', v: `<span class="dur" data-since="${esc(h.firstSeen)}"></span>`, raw: true },
+  ];
   const paths = h.paths.filter(Boolean);
   $('#drawerBody').innerHTML = `
-    <div class="facts">${facts.map(([k, v]) => `<div class="fact"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('')}</div>
+    <div class="facts">${facts.map((f) => `<div class="fact"><div class="k">${f.k}</div><div class="v">${f.raw ? f.v : esc(f.v)}</div></div>`).join('')}</div>
     <div class="dsec"><h3>IP ADDRESSES <button class="mini-copy" data-copy="${esc(h.ips.join('\n'))}">copy all</button></h3>${h.ips.map((ip) => `<div class="ioc-row"><span class="val">${esc(ip)}</span><button class="mini-copy" data-copy="${esc(ip)}">copy</button></div>`).join('')}</div>
     <div class="dsec"><h3>TARGETED PATHS ${paths.length ? `<button class="mini-copy" data-copy="${esc(paths.join('\n'))}">copy all</button>` : ''}</h3>${paths.length ? paths.map((p) => `<div class="ioc-row"><span class="val" title="${esc(p)}">${esc(p)}</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors</div>'}</div>
     <div class="dsec"><h3>ALL VECTORS (${h.vectors.length})</h3><table class="vec-tbl"><thead><tr><th>type</th><th>method</th><th>port</th><th>ssl</th><th>path</th></tr></thead><tbody>${h.vectors.map((v) => `<tr><td><span class="tag ${typeCls(v.type)}">${esc(v.type)}</span></td><td class="cc">${esc(v.method || '—')}</td><td class="cc">${esc(v.port)}</td><td>${v.use_ssl ? '🔒' : '—'}</td><td class="p">${esc(v.path || '—')}</td></tr>`).join('')}</tbody></table></div>`;
-  $('#drawer').hidden = false; $('#drawerOverlay').hidden = false;
+  $('#drawer').hidden = false; $('#drawerOverlay').hidden = false; tickDurations();
 }
 function closeDrawer() { $('#drawer').hidden = true; $('#drawerOverlay').hidden = true; }
 
@@ -389,8 +404,13 @@ function syncFilters() {
 }
 
 // ==================== account / auth / assets / alerts ====================
-const account = { user: null, unseen: 0, emailConfigured: false, assets: [], alerts: [] };
+const account = { user: null, unseen: 0, emailConfigured: false, assets: [], alerts: [], providers: [] };
 let pendingView = null;
+
+const PROVIDER_ICON = {
+  google: '<svg viewBox="0 0 48 48" width="18" height="18"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2 5-4.4 6.6v5.5h7.1c4.1-3.8 6.6-9.4 6.6-16.1z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.1 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.8 28.2c-.4-1.3-.7-2.7-.7-4.2s.2-2.9.7-4.2v-5.7H4.5C3 17.1 2.1 20.4 2.1 24s.9 6.9 2.4 9.9l7.3-5.7z"/><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.1 29.9 2 24 2 15.4 2 8.1 6.9 4.5 14.1l7.3 5.7c1.7-5.1 6.5-9.1 12.2-9.1z"/></svg>',
+  github: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 016 0C17.3 4.7 18.3 5 18.3 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>',
+};
 async function loadMe() {
   try {
     const d = await api('/api/me');
@@ -408,7 +428,14 @@ function renderAccount() {
 }
 let authMode = 'login';
 function setAuthMode(m) { authMode = m; $$('.auth-tab').forEach((t) => t.classList.toggle('active', t.dataset.mode === m)); $('#authSubmit').textContent = m === 'login' ? 'SIGN IN' : 'CREATE ACCOUNT'; $('#authLead').textContent = m === 'login' ? 'sign in to monitor your assets and get alerts.' : 'create an account to monitor your assets and get alerts.'; $('#authErr').hidden = true; }
-function openAuth(m = 'login') { setAuthMode(m); $('#authModal').hidden = false; $('#authOverlay').hidden = false; setTimeout(() => $('#authEmail').focus(), 50); }
+function renderAuthProviders() {
+  const el = $('#oauthBtns');
+  const provs = account.providers || [];
+  el.innerHTML = provs.map((p) => `<a class="oauth-btn" href="/auth/${p.key}">${PROVIDER_ICON[p.key] || ''}<span>Continue with ${esc(p.label)}</span></a>`).join('');
+  $('#authOr').hidden = provs.length === 0;
+}
+async function loadProviders() { try { account.providers = (await api('/api/providers')).providers || []; renderAuthProviders(); } catch {} }
+function openAuth(m = 'login') { setAuthMode(m); renderAuthProviders(); $('#authModal').hidden = false; $('#authOverlay').hidden = false; setTimeout(() => $('#authEmail').focus(), 50); }
 function closeAuth() { $('#authModal').hidden = true; $('#authOverlay').hidden = true; pendingView = null; }
 async function loadAssets() { try { account.assets = (await api('/api/assets')).assets || []; } catch { account.assets = []; } }
 function assetTargeted(a) { for (const t of state.targets) { if (a.type === 'ip') { if (t.ip === a.value) return t.host; } else if (t.host === a.value || t.host.endsWith('.' + a.value)) return t.host; } return null; }
@@ -526,5 +553,6 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawe
 // ---------- boot ----------
 tick(); setInterval(tick, 1000);
 loadWorld();
+loadProviders();
 load(); loadMe();
 setInterval(() => { load(); if (account.user) loadAlerts(); }, REFRESH_MS);

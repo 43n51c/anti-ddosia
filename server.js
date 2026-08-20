@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize } from 'node:path';
 import * as dbx from './db.js';
 import * as auth from './auth.js';
+import * as oauth from './oauth.js';
 import { deliverAlert, emailConfigured } from './notify.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -292,9 +293,10 @@ async function handleApi(req, res, pathname) {
     const full = dbx.getUserById(u.id);
     return sendJson(res, {
       user: { email: full.email, webhook_url: full.webhook_url || '', email_alerts: !!full.email_alerts, inapp_alerts: !!full.inapp_alerts },
-      unseen: dbx.unseenCount(u.id), emailConfigured: emailConfigured(),
+      unseen: dbx.unseenCount(u.id), emailConfigured: emailConfigured(), providers: oauth.enabledProviders(),
     });
   }
+  if (pathname === '/api/providers') return sendJson(res, { providers: oauth.enabledProviders() });
 
   // everything below requires auth
   const user = auth.currentUser(req);
@@ -339,10 +341,50 @@ async function handleApi(req, res, pathname) {
   return sendJson(res, { error: 'Not found' }, 404);
 }
 
+// ---------- OAuth (Google / GitHub) ----------
+async function handleOAuth(req, res, pathname) {
+  const parts = pathname.split('/').filter(Boolean); // ['auth','google'(,'callback')]
+  const provider = parts[1];
+  if (!oauth.isEnabled(provider)) return void res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Provider not enabled');
+  const secure = isSecure(req);
+
+  if (parts.length === 2) { // start the flow
+    const state = oauth.newState();
+    res.setHeader('Set-Cookie', `oauth_state=${provider}:${state}; HttpOnly; SameSite=Lax; Path=/; Max-Age=600${secure ? '; Secure' : ''}`);
+    return void res.writeHead(302, { Location: oauth.authorizeUrl(provider, state) }).end();
+  }
+  if (parts[2] === 'callback') {
+    const url = new URL(req.url, 'http://localhost');
+    const code = url.searchParams.get('code');
+    const state = url.searchParams.get('state');
+    const cookie = auth.parseCookies(req).oauth_state || '';
+    const clear = 'oauth_state=; HttpOnly; Path=/; Max-Age=0';
+    if (!code || !state || cookie !== `${provider}:${state}`) {
+      res.setHeader('Set-Cookie', clear);
+      return void res.writeHead(302, { Location: '/?auth=state' }).end();
+    }
+    try {
+      const token = await oauth.exchangeCode(provider, code);
+      const email = ((await oauth.emailForToken(provider, token)) || '').toLowerCase();
+      if (!email) { res.setHeader('Set-Cookie', clear); return void res.writeHead(302, { Location: '/?auth=noemail' }).end(); }
+      const uid = dbx.findOrCreateOAuthUser(email, provider, new Date().toISOString());
+      const { token: sess, exp } = auth.startSession(uid);
+      res.setHeader('Set-Cookie', [clear, auth.sessionCookie(sess, exp, secure)]);
+      return void res.writeHead(302, { Location: '/' }).end();
+    } catch (e) {
+      console.error('[oauth] callback failed:', e.message);
+      res.setHeader('Set-Cookie', clear);
+      return void res.writeHead(302, { Location: '/?auth=error' }).end();
+    }
+  }
+  res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const { pathname } = new URL(req.url, 'http://localhost');
     if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname);
+    if (pathname.startsWith('/auth/')) return await handleOAuth(req, res, pathname);
     return serveStatic(req, res);
   } catch (e) {
     sendJson(res, { error: e.message || 'server error' }, e.message === 'invalid JSON' || e.message === 'body too large' ? 400 : 500);

@@ -16,7 +16,7 @@ The dashboard has three views plus a per-host detail drawer, built around what a
 
 ### Accounts & asset monitoring
 
-- **Register / sign in** (email + password; scrypt-hashed, cookie sessions).
+- **Register / sign in** — email + password (scrypt-hashed, cookie sessions), or **social sign-in with Google / GitHub** (OAuth 2.0, enabled per-provider via env). To enable a provider, create an OAuth app and register the redirect URI `<APP_URL>/auth/<provider>/callback` (e.g. `http://localhost:3000/auth/google/callback`), then set its client id/secret env vars.
 - **My Assets** — add domains or IPv4s you own; each shows live status (targeted now / clear).
 - **Alerts** — when a monitored asset (or any of its **subdomains**, or an exact IP) appears on the target list, an alert is raised and delivered through the channels you enable:
   - **In-app** — notification bell + Alerts view (always on).
@@ -84,6 +84,8 @@ Then open <http://localhost:3000>.
 | `SMTP_USER` / `SMTP_PASS` | *(empty)*                 | SMTP auth credentials                      |
 | `SMTP_FROM`     | `SMTP_USER`                         | From address for alert emails              |
 | `SMTP_SECURE`   | *(empty)*                           | `true` for implicit TLS (port 465)         |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | *(empty)*               | Enable Google sign-in                      |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | *(empty)*               | Enable GitHub sign-in                      |
 
 > Sessions are keyed to the deployment; put the app behind HTTPS in production so the session cookie is sent with the `Secure` flag.
 

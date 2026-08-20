@@ -112,7 +112,7 @@ a:hover { text-decoration: underline; }
 .run.full { width: 100%; padding: 12px; }
 .verdict { margin-top: 13px; border-top: 1px solid var(--line); padding-top: 13px; font-size: 13px; animation: fade .2s; }
 .verdict.hit .vhead { color: var(--red); }
-.verdict.clear .vhead { color: var(--grn); }
+.verdict.ok .vhead { color: var(--grn); }
 .verdict .vhead { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
 .verdict .vrow { color: var(--tx2); font-size: 12px; margin: 3px 0; }
 .verdict .vrow b { color: var(--tx); }
@@ -308,6 +308,12 @@ a:hover { text-decoration: underline; }
 .auth-tab { flex: 1; background: none; border: none; color: var(--tx2); padding: 9px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12px; letter-spacing: 0.05em; }
 .auth-tab.active { background: var(--bg3); color: #eaf1fa; }
 .auth-lead { color: var(--tx2); font-size: 12px; text-align: center; margin: 0 0 16px; }
+.oauth-btns { display: flex; flex-direction: column; gap: 8px; }
+.oauth-btn { display: flex; align-items: center; justify-content: center; gap: 9px; background: var(--bg2); border: 1px solid var(--line2); color: var(--tx); border-radius: 9px; padding: 11px; font-size: 13px; text-decoration: none; }
+.oauth-btn:hover { border-color: var(--tx2); text-decoration: none; background: var(--bg3); }
+.oauth-btn svg { flex-shrink: 0; }
+.auth-or { display: flex; align-items: center; gap: 10px; color: var(--dim); font-size: 10.5px; letter-spacing: 0.06em; margin: 14px 0; }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 #authForm { display: flex; flex-direction: column; gap: 13px; }
 .auth-note { color: var(--dim); font-size: 10.5px; margin: 14px 0 0; text-align: center; }
 
