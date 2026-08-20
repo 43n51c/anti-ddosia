@@ -123,12 +123,13 @@ function render() {
   $('#badgeHosts').textContent = state.stats?.totals?.hosts ?? '';
   $('#badgeTargets').textContent = state.targets.length || '';
   $('#searchClear').hidden = !state.search;
-  // type/country/port/new filter the current snapshot; hide them where they don't apply (all-time hosts)
-  const liveFilterView = (state.view === 'ops' || state.view === 'targets' || (state.view === 'hosts' && state.hostsMode === 'live'));
+  // type/country/port/new filter the target/host LIST — only shown where a
+  // filtered list is the main content (FEED + live HOSTS), like the grep box.
+  // OPS is a holistic overview, so it ignores these and shows the full snapshot.
+  const liveFilterView = (state.view === 'targets' || (state.view === 'hosts' && state.hostsMode === 'live'));
   $('#toolbar').style.display = liveFilterView ? '' : 'none';
-  // grep filters tables/lists; the OPS "check" box is its own thing, so keep grep to the list views only
   $('.search-wrap').style.display = (state.view === 'hosts' || state.view === 'targets') ? '' : 'none';
-  if (state.view === 'ops') renderOps(rows);
+  if (state.view === 'ops') renderOps(state.targets);
   if (state.view === 'hosts') renderHosts(rows);
   if (state.view === 'targets') renderTargets(rows);
   if (state.view === 'assets') renderAssets();
@@ -705,15 +706,22 @@ function switchView(v) {
 }
 $$('.nav-item').forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
 $('#search').addEventListener('input', (e) => { state.search = e.target.value; render(); });
-$('#searchClear').addEventListener('click', () => { state.search = ''; $('#search').value = ''; render(); });
-$('#filterType').addEventListener('change', (e) => { state.filterType = e.target.value; render(); });
-$('#filterCountry').addEventListener('change', (e) => { state.filterCountry = e.target.value; render(); });
-$('#filterPort').addEventListener('change', (e) => { state.filterPort = e.target.value; render(); });
+// re-run a one-shot fade on the visible list so a filter change is felt, not just applied
+function flashActiveList() {
+  const sel = state.view === 'targets' ? '#targetsTable tbody' : (state.view === 'hosts' ? '#hostAllTbl tbody' : null);
+  if (!sel) return; const el = $(sel); if (!el) return;
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+const applyFilter = () => { render(); flashActiveList(); };
+$('#searchClear').addEventListener('click', () => { state.search = ''; $('#search').value = ''; applyFilter(); });
+$('#filterType').addEventListener('change', (e) => { state.filterType = e.target.value; applyFilter(); });
+$('#filterCountry').addEventListener('change', (e) => { state.filterCountry = e.target.value; applyFilter(); });
+$('#filterPort').addEventListener('change', (e) => { state.filterPort = e.target.value; applyFilter(); });
 $('#filterNew').addEventListener('click', (e) => {
   const seg = e.target.closest('.seg'); if (!seg) return;
   state.filterNew = seg.dataset.new === '1';
   $$('#filterNew .seg').forEach((s) => s.classList.toggle('on', s === seg));
-  render();
+  applyFilter();
 });
 $('#refreshBtn').addEventListener('click', () => load());
 document.addEventListener('click', (e) => {
