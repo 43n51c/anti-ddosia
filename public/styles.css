@@ -69,6 +69,9 @@ a:hover { text-decoration: underline; }
 .search-wrap .sp { position: absolute; left: 11px; color: var(--dim); }
 .search-wrap input { width: 100%; background: var(--bg1); border: 1px solid var(--line); color: var(--tx); border-radius: 7px; padding: 9px 28px 9px 26px; font-family: inherit; font-size: 12.5px; }
 .search-wrap input:focus { outline: none; border-color: var(--line2); }
+.search-wrap input { -webkit-appearance: none; appearance: none; }
+.search-wrap input::-webkit-search-cancel-button,
+.search-wrap input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
 .clear { position: absolute; right: 9px; background: none; border: none; color: var(--tx2); cursor: pointer; }
 .cmd-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
 .ico-btn { width: 36px; height: 36px; border-radius: 7px; background: var(--bg1); border: 1px solid var(--line); color: var(--tx); font-size: 15px; cursor: pointer; position: relative; }
