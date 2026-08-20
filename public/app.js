@@ -507,7 +507,7 @@ async function openDrawer(host) {
     const title = from === lastDay ? from : `${from} → ${lastDay}`;
     const dur = ongoing ? `<span class="dur" data-since="${esc(s.started)}"></span>` : fmtSpan(s.days);
     const hint = `${ongoing ? '<span class="on">ongoing</span> · ' : ''}${dur}`;
-    return `<details class="dsec-c sess" data-host="${esc(host)}" data-from="${from}" data-to="${lastDay}"><summary><span class="dsc-t">${title}</span><span class="dsc-hint">${hint}</span></summary><div class="dsc-body sess-body"><div class="empty">…</div></div></details>`;
+    return `<details class="dsec-c sess" data-shost="${esc(host)}" data-from="${from}" data-to="${lastDay}"><summary><span class="dsc-t">${title}</span><span class="dsc-hint">${hint}</span></summary><div class="dsc-body sess-body"><div class="empty">…</div></div></details>`;
   }).join('') : '<div class="empty">no recorded sessions</div>';
   const histHtml = `<div class="dsec-label">ATTACK HISTORY <span class="dsc-hint">${sm.count} session${sm.count === 1 ? '' : 's'} · click to expand</span></div>${sessRows}`;
 
@@ -527,7 +527,7 @@ async function loadSessionDetail(el) {
   el.dataset.loaded = '1';
   const body = el.querySelector('.sess-body');
   try {
-    const d = await api(`/api/session-detail?host=${encodeURIComponent(el.dataset.host)}&from=${el.dataset.from}&to=${el.dataset.to}`);
+    const d = await api(`/api/session-detail?host=${encodeURIComponent(el.dataset.shost)}&from=${el.dataset.from}&to=${el.dataset.to}`);
     body.innerHTML = renderSessDetail(d);
   } catch { el.dataset.loaded = ''; body.innerHTML = '<div class="empty">could not load</div>'; }
 }
