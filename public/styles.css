@@ -267,6 +267,7 @@ a:hover { text-decoration: underline; }
 .tt { color: var(--amb); }
 .path { color: var(--tx2); max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
 .ssl1 { color: var(--grn); } .ssl0 { color: var(--dim); }
+.lock { width: 12px; height: 12px; fill: none; stroke: var(--grn); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -2px; }
 .tag { font-size: 10.5px; padding: 2px 7px; border-radius: 4px; }
 .t-http, .t-http2, .t-http3 { background: rgba(77,157,255,.14); color: #7fb6ff; }
 .t-tcp, .t-udp { background: rgba(245,179,1,.14); color: var(--amb); }

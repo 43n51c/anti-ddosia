@@ -55,6 +55,7 @@ function flag(cc) { if (!cc || cc.length !== 2 || cc === 'XX') return '<span cla
 // CSP-friendly flag fallback: replace a broken flag image with its code (no inline onerror)
 document.addEventListener('error', (e) => { const t = e.target; if (t && t.tagName === 'IMG' && t.classList.contains('flag')) t.replaceWith(document.createTextNode(t.getAttribute('alt') || '')); }, true);
 const codeOf = (c) => c.code || codeFor(c.key);
+const LOCK = '<svg class="lock" viewBox="0 0 24 24" aria-label="ssl"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>';
 function timeAgo(iso) { if (!iso) return '—'; const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000); if (s < 60) return `${s}s`; if (s < 3600) return `${Math.floor(s / 60)}m`; if (s < 86400) return `${Math.floor(s / 3600)}h`; return `${Math.floor(s / 86400)}d`; }
 function fmtDur(iso) {
   if (!iso) return '—';
@@ -418,7 +419,7 @@ function renderHostsLive(rows) {
         ${h.org ? `<div class="hc-org">${esc(h.org)}</div>` : ''}</div>
         <div class="hc-v"><div class="n">${h.targetCount}</div><div class="l">VEC</div></div></div>
       <div class="hc-chips">${chips}</div>
-      <div class="hc-surf"><span><b>${h.ips.length}</b> IP</span><span><b>${h.ports.length}</b> ports</span><span><b>${h.paths.length}</b> paths</span><span>${h.ssl ? '🔒' : 'no ssl'}</span></div>
+      <div class="hc-surf"><span><b>${h.ips.length}</b> IP</span><span><b>${h.ports.length}</b> ports</span><span><b>${h.paths.length}</b> paths</span><span>${h.ssl ? LOCK + ' ssl' : 'no ssl'}</span></div>
     </div>`;
   }).join('');
 }
@@ -432,7 +433,7 @@ function renderTargets(rows) {
   body.innerHTML = rows.map((t) => `<tr class="${isNew(t) ? 'new' : ''}" data-host="${esc(t.host)}">
     <td>${esc(t.host)}${isNew(t) ? ' <span class="nbadge">NEW</span>' : ''}</td><td class="cc">${esc(t.ip)}</td><td class="cc">${flag(t.countryCode)} ${esc(t.country)}</td>
     <td><span class="tag ${typeCls(t.type)}">${esc(t.type)}</span></td><td class="cc">${esc(t.method || '—')}</td><td class="cc">${esc(t.port)}</td>
-    <td class="${t.use_ssl ? 'ssl1' : 'ssl0'}">${t.use_ssl ? '🔒' : '—'}</td><td class="path">${esc(t.path || '—')}</td></tr>`).join('');
+    <td class="${t.use_ssl ? 'ssl1' : 'ssl0'}">${t.use_ssl ? LOCK : '—'}</td><td class="path">${esc(t.path || '—')}</td></tr>`).join('');
   markSort('#targetsTable', state.tSortKey, state.tSortDir);
 }
 function markSort(sel, key, dir) { $$(`${sel} thead th`).forEach((h) => h.classList.remove('sa', 'sd')); const th = $(`${sel} thead th[data-sort="${key}"]`); if (th) th.classList.add(dir === 'asc' ? 'sa' : 'sd'); }
