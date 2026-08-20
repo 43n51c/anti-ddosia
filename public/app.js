@@ -17,14 +17,28 @@ const CENTROID = {
   AU: [134, -25], NZ: [172, -41], ZA: [24, -29], IN: [79, 22], SG: [104, 1.3], AE: [54, 24],
   TW: [121, 24], MT: [14.4, 35.9], CY: [33, 35], AL: [20, 41], MK: [21.7, 41.6], ME: [19.3, 42.7], XK: [21, 42.6],
 };
-const CONTINENTS = [
-  'M120,92 L305,68 L362,150 L300,214 L232,224 L172,182 L132,138 Z',
-  'M300,250 L352,248 L372,330 L332,412 L300,360 L293,300 Z',
-  'M470,92 L562,88 L576,140 L520,162 L470,140 Z',
-  'M480,178 L582,172 L602,270 L540,362 L500,300 L474,230 Z',
-  'M576,78 L822,68 L862,150 L762,212 L642,200 L580,150 Z',
-  'M800,298 L882,298 L892,360 L820,376 L790,340 Z',
-];
+// world map (real Natural Earth 110m geometry), projected equirectangular
+const MAP_W = 1000, MAP_H = 500;
+const world = { all: '', byCode: new Map(), loaded: false };
+function ringToPath(ring) {
+  let d = '';
+  for (let i = 0; i < ring.length; i++) { const x = ((ring[i][0] + 180) / 360 * MAP_W).toFixed(1); const y = ((90 - ring[i][1]) / 180 * MAP_H).toFixed(1); d += (i ? 'L' : 'M') + x + ',' + y; }
+  return d + 'Z';
+}
+function geomToPath(g) {
+  if (g.type === 'Polygon') return g.coordinates.map(ringToPath).join('');
+  if (g.type === 'MultiPolygon') return g.coordinates.map((p) => p.map(ringToPath).join('')).join('');
+  return '';
+}
+async function loadWorld() {
+  try {
+    const gj = await fetch('/world.geojson').then((r) => r.json());
+    let all = '';
+    for (const f of gj.features) { const d = geomToPath(f.g); all += d; if (f.c) world.byCode.set(f.c, (world.byCode.get(f.c) || '') + d); }
+    world.all = all; world.loaded = true;
+    if (state.view === 'ops' && state.stats) renderMap(state.stats.byCountry);
+  } catch (e) { console.error('world map load failed', e.message); }
+}
 
 const state = { targets: [], stats: null, view: 'ops', search: '', filterType: '', filterCountry: '', filterPort: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
 
@@ -130,26 +144,29 @@ function bars(el, rows, labelFn, color) {
 }
 
 function renderMap(byCountry) {
-  const W = 1000, H = 480;
+  const W = MAP_W, H = MAP_H;
   const proj = (lng, lat) => [(lng + 180) / 360 * W, (90 - lat) / 180 * H];
   const max = Math.max(1, ...byCountry.map((c) => c.count));
+  const targetedCodes = new Set(byCountry.map((c) => codeFor(c.key)).filter(Boolean));
+  const hi = [...targetedCodes].map((cc) => world.byCode.get(cc)).filter(Boolean)
+    .map((d) => `<path d="${d}" fill="rgba(255,85,102,0.14)" stroke="#8a3a45" stroke-width="0.5"/>`).join('');
   const markers = byCountry.map((c, i) => {
     const cc = codeFor(c.key); const ce = CENTROID[cc]; if (!ce) return '';
     const [x, y] = proj(ce[0], ce[1]);
-    const r = 5 + Math.sqrt(c.count / max) * 20;
-    const top = i === 0;
-    return `${top ? `<circle cx="${x}" cy="${y}" r="${r}" fill="#ff5566" opacity="0.12"><animate attributeName="r" values="${r};${r + 14};${r}" dur="2.6s" repeatCount="indefinite"/></circle>` : ''}
-      <circle cx="${x}" cy="${y}" r="${r}" fill="rgba(255,85,102,0.16)" stroke="#ff5566" stroke-width="1"/>
+    const r = 5 + Math.sqrt(c.count / max) * 22;
+    return `${i === 0 ? `<circle cx="${x}" cy="${y}" r="${r}" fill="#ff5566" opacity="0.12"><animate attributeName="r" values="${r};${r + 16};${r}" dur="2.6s" repeatCount="indefinite"/></circle>` : ''}
+      <circle cx="${x}" cy="${y}" r="${r}" fill="rgba(255,85,102,0.18)" stroke="#ff5566" stroke-width="1"/>
       <circle cx="${x}" cy="${y}" r="3" fill="#ff5566"/>
-      <text x="${x}" y="${y - r - 5}" text-anchor="middle" fill="#c4d0de" font-size="15" font-family="JetBrains Mono, monospace">${flag(cc)} ${c.count}</text>`;
+      <text x="${x}" y="${y - r - 6}" text-anchor="middle" fill="#dbe6f2" font-size="16" font-family="JetBrains Mono, monospace">${flag(cc)} ${c.count}</text>`;
   }).join('');
-  const grat = [];
-  for (let gy = 0; gy <= H; gy += 60) grat.push(`<line x1="0" y1="${gy}" x2="${W}" y2="${gy}" stroke="#101c2b"/>`);
-  for (let gx = 0; gx <= W; gx += 80) grat.push(`<line x1="${gx}" y1="0" x2="${gx}" y2="${H}" stroke="#101c2b"/>`);
-  $('#map').innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
-    <rect width="${W}" height="${H}" fill="#070c14"/>
-    ${grat.join('')}
-    ${CONTINENTS.map((d) => `<path d="${d}" fill="#0f2135" stroke="#1c3550" stroke-width="1"/>`).join('')}
+  const land = world.loaded
+    ? `<path d="${world.all}" fill="#0e1a2a" stroke="#22384f" stroke-width="0.35"/>${hi}`
+    : '';
+  // crop to the populated latitude band (~ -60..85) so the ocean isn't mostly empty
+  const y0 = (90 - 84) / 180 * H, y1 = (90 - -58) / 180 * H;
+  $('#map').innerHTML = `<svg viewBox="0 ${y0.toFixed(0)} ${W} ${(y1 - y0).toFixed(0)}" preserveAspectRatio="xMidYMid meet">
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#070d16"/>
+    ${land}
     ${markers}
   </svg>`;
 }
@@ -391,5 +408,6 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawe
 
 // ---------- boot ----------
 tick(); setInterval(tick, 1000);
+loadWorld();
 load(); loadMe();
 setInterval(() => { load(); if (account.user) loadAlerts(); }, REFRESH_MS);
