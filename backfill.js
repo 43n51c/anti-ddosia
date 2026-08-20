@@ -104,6 +104,7 @@ async function main() {
   const uniqIps = new Set();
   const hostDays = new Map(); // host -> Set(day) for attack-session reconstruction
   const hostIpSurf = new Map(); // host -> Map(ip -> { paths:Map, ports:Set, types:Map, methods:Set })
+  dbx.clearHostDay(); // rebuilt below, per (host, day)
 
   await pool(days, async ([day, file]) => {
     let targets = [];
@@ -138,6 +139,19 @@ async function main() {
         }
       }
       dbx.putDay(day, `${day}T12:00:00.000Z`, targets.length, hosts.size, ips.size, types);
+      // per-(host,day) surface for per-session detail
+      const dayHostSurf = new Map();
+      for (const t of targets) {
+        if (!t.host) continue;
+        let e = dayHostSurf.get(t.host);
+        if (!e) { e = { p: new Map(), po: new Set(), ty: new Map(), me: new Set(), ip: new Set() }; dayHostSurf.set(t.host, e); }
+        if (t.path && (e.p.size < 100 || e.p.has(t.path))) e.p.set(t.path, (e.p.get(t.path) || 0) + 1);
+        if (t.port != null) e.po.add(t.port);
+        if (t.type) e.ty.set(t.type, (e.ty.get(t.type) || 0) + 1);
+        if (t.method) e.me.add(t.method);
+        if (t.ip) e.ip.add(t.ip);
+      }
+      for (const [host, e] of dayHostSurf) dbx.putHostDay(host, day, { p: [...e.p.entries()], po: [...e.po].sort((a, b) => a - b), ty: Object.fromEntries(e.ty), me: [...e.me], ip: [...e.ip] });
     });
     for (const host of hosts) { let hs = hostDays.get(host); if (!hs) { hs = new Set(); hostDays.set(host, hs); } hs.add(day); }
     summary.push({ day, count: targets.length });

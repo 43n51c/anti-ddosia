@@ -37,6 +37,8 @@ CREATE INDEX IF NOT EXISTS idx_as_host ON attack_session(host);
 CREATE INDEX IF NOT EXISTS idx_as_active ON attack_session(host) WHERE ended IS NULL;
 CREATE TABLE IF NOT EXISTS host_country ( host TEXT PRIMARY KEY, code TEXT, country TEXT );
 CREATE TABLE IF NOT EXISTS host_surface ( host TEXT PRIMARY KEY, paths TEXT, ports TEXT, types TEXT, methods TEXT );
+CREATE TABLE IF NOT EXISTS host_day_surface ( host TEXT, day TEXT, data TEXT, PRIMARY KEY(host, day) );
+CREATE INDEX IF NOT EXISTS idx_hds_host ON host_day_surface(host);
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -181,6 +183,9 @@ const S = {
   hsurfGet: db.prepare('SELECT paths, ports, types, methods, ips, by_ip FROM host_surface WHERE host = ?'),
   hsurfPut: db.prepare('INSERT OR REPLACE INTO host_surface(host,paths,ports,types,methods,ips,by_ip) VALUES(?,?,?,?,?,?,?)'),
   hsurfClear: db.prepare('DELETE FROM host_surface'),
+  hdsPut: db.prepare('INSERT OR REPLACE INTO host_day_surface(host,day,data) VALUES(?,?,?)'),
+  hdsClear: db.prepare('DELETE FROM host_day_surface'),
+  hdsRange: db.prepare('SELECT data FROM host_day_surface WHERE host = ? AND day >= ? AND day <= ?'),
 
   cntHosts: db.prepare('SELECT COUNT(*) c FROM host_first_seen'),
   cntGeo: db.prepare('SELECT COUNT(*) c FROM geoip'),
@@ -258,6 +263,22 @@ export function putHostCountry(host, code, country) { S.hcPut.run(host, code, co
 export function clearHostCountry() { S.hcClear.run(); }
 export function putHostSurface(host, paths, ports, types, methods, ips, byIp) { S.hsurfPut.run(host, JSON.stringify(paths), JSON.stringify(ports), JSON.stringify(types), JSON.stringify(methods), JSON.stringify(ips || []), JSON.stringify(byIp || {})); }
 export function clearHostSurface() { S.hsurfClear.run(); }
+// per-day surface (for per-session attack detail); data = {p:[[path,count]],po:[ports],ty:{type:count},me:[methods],ip:[ips]}
+export function putHostDay(host, day, data) { S.hdsPut.run(host, day, JSON.stringify(data)); }
+export function clearHostDay() { S.hdsClear.run(); }
+export function sessionDetail(host, from, to) {
+  const rows = S.hdsRange.all(host, from, to);
+  const paths = new Map(), ports = new Set(), types = {}, methods = new Set(), ips = new Set();
+  for (const r of rows) {
+    let d; try { d = JSON.parse(r.data); } catch { continue; }
+    for (const [p, c] of (d.p || [])) paths.set(p, (paths.get(p) || 0) + c);
+    for (const x of (d.po || [])) ports.add(x);
+    for (const [t, c] of Object.entries(d.ty || {})) types[t] = (types[t] || 0) + c;
+    for (const m of (d.me || [])) methods.add(m);
+    for (const i of (d.ip || [])) ips.add(i);
+  }
+  return { days: rows.length, paths: [...paths.entries()].sort((a, b) => b[1] - a[1]), ports: [...ports].sort((a, b) => a - b), types, methods: [...methods], ips: [...ips] };
+}
 export function getHostSurface(host) {
   const r = S.hsurfGet.get(host);
   if (!r) return null;

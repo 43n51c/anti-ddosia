@@ -500,15 +500,36 @@ async function openDrawer(host) {
     targetsHtml = `<div class="dsec-label">TARGETS BY IP <span class="dsc-hint">${ips.length} IP${ips.length === 1 ? '' : 's'} · all-time</span></div>${secs}`;
   }
 
-  const list = ss.length ? ss.map((s) => {
+  const sessRows = ss.length ? ss.map((s) => {
     const ongoing = !s.ended;
+    const from = s.started.slice(0, 10);
+    const lastDay = ongoing ? new Date().toISOString().slice(0, 10) : new Date(new Date(s.ended).getTime() - 86400000).toISOString().slice(0, 10);
+    const title = from === lastDay ? from : `${from} → ${lastDay}`;
     const dur = ongoing ? `<span class="dur" data-since="${esc(s.started)}"></span>` : fmtSpan(s.days);
-    return `<tr><td class="cc">${s.started.slice(0, 10)}</td><td class="cc">${ongoing ? '<span class="on">ongoing</span>' : s.ended.slice(0, 10)}</td><td>${dur}</td></tr>`;
-  }).join('') : '<tr><td colspan="3" class="empty">no recorded sessions</td></tr>';
-  const histHtml = `<div class="dsec-label">ATTACK HISTORY <span class="dsc-hint">${sm.count} session${sm.count === 1 ? '' : 's'} · daily resolution</span></div><table class="vec-tbl"><thead><tr><th>started</th><th>ended</th><th>duration</th></tr></thead><tbody>${list}</tbody></table>`;
+    const hint = `${ongoing ? '<span class="on">ongoing</span> · ' : ''}${dur}`;
+    return `<details class="dsec-c sess" data-host="${esc(host)}" data-from="${from}" data-to="${lastDay}"><summary><span class="dsc-t">${title}</span><span class="dsc-hint">${hint}</span></summary><div class="dsc-body sess-body"><div class="empty">…</div></div></details>`;
+  }).join('') : '<div class="empty">no recorded sessions</div>';
+  const histHtml = `<div class="dsec-label">ATTACK HISTORY <span class="dsc-hint">${sm.count} session${sm.count === 1 ? '' : 's'} · click to expand</span></div>${sessRows}`;
 
   $('#drawerBody').innerHTML = factsHtml + targetsHtml + histHtml;
   tickDurations();
+  $$('#drawerBody details.sess').forEach((el) => el.addEventListener('toggle', () => loadSessionDetail(el)));
+}
+function renderSessDetail(d) {
+  const paths = d.paths || [], types = d.types || {}, methods = d.methods || [], ips = d.ips || [], ports = d.ports || [];
+  const meta = `<div class="sess-meta">${ips.length ? 'IPs: ' + ips.map(esc).join(', ') + ' · ' : ''}ports ${ports.join(', ') || '—'}</div>`;
+  const pathRows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors in this session</div>';
+  const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(m)}</span>`).join('')}</div>` : '';
+  return meta + pathRows + chips;
+}
+async function loadSessionDetail(el) {
+  if (!el.open || el.dataset.loaded) return;
+  el.dataset.loaded = '1';
+  const body = el.querySelector('.sess-body');
+  try {
+    const d = await api(`/api/session-detail?host=${encodeURIComponent(el.dataset.host)}&from=${el.dataset.from}&to=${el.dataset.to}`);
+    body.innerHTML = renderSessDetail(d);
+  } catch { el.dataset.loaded = ''; body.innerHTML = '<div class="empty">could not load</div>'; }
 }
 function closeDrawer() { $('#drawer').hidden = true; $('#drawerOverlay').hidden = true; }
 

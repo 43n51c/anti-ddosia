@@ -103,6 +103,19 @@ async function poll() {
     const typeCounts = {};
     for (const t of targets) typeCounts[t.type] = (typeCounts[t.type] || 0) + 1;
     dbx.putDay(day, nowIso, targets.length, new Set(targets.map((x) => x.host)).size, new Set(targets.map((x) => x.ip)).size, typeCounts);
+    // per-(host,day) surface so the current (ongoing) session has detail for today too
+    const dayHostSurf = new Map();
+    for (const t of raw) {
+      if (!t.host) continue;
+      let e = dayHostSurf.get(t.host);
+      if (!e) { e = { p: new Map(), po: new Set(), ty: new Map(), me: new Set(), ip: new Set() }; dayHostSurf.set(t.host, e); }
+      if (t.path && (e.p.size < 100 || e.p.has(t.path))) e.p.set(t.path, (e.p.get(t.path) || 0) + 1);
+      if (t.port != null) e.po.add(t.port);
+      if (t.type) e.ty.set(t.type, (e.ty.get(t.type) || 0) + 1);
+      if (t.method) e.me.add(t.method);
+      if (t.ip) e.ip.add(t.ip);
+    }
+    dbx.tx(() => { for (const [hn, e] of dayHostSurf) dbx.putHostDay(hn, day, { p: [...e.p.entries()], po: [...e.po].sort((a, b) => a - b), ty: Object.fromEntries(e.ty), me: [...e.me], ip: [...e.ip] }); });
 
     current = { ok: true, fetchedAt: nowIso, feedLastModified: lastModified, error: null, targets };
     console.log(`[poll] ${nowIso} ok — ${targets.length} targets, ${new Set(targets.map((x) => x.host)).size} hosts`);
@@ -375,6 +388,10 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/hosts-all') {
     const u = new URL(req.url, 'http://localhost').searchParams;
     return sendJson(res, dbx.hostsAll(u.get('q') || '', u.get('sort') || 'sessions', u.get('country') || '', 300));
+  }
+  if (pathname === '/api/session-detail') {
+    const u = new URL(req.url, 'http://localhost').searchParams;
+    return sendJson(res, dbx.sessionDetail((u.get('host') || '').toLowerCase(), u.get('from') || '', u.get('to') || ''));
   }
   if (pathname === '/api/hosts') return sendJson(res, { ok: current.ok, fetchedAt: current.fetchedAt, hosts: buildHosts() });
   if (pathname === '/api/health') return sendJson(res, { ok: current.ok, fetchedAt: current.fetchedAt, error: current.error });
