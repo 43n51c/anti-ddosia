@@ -45,8 +45,7 @@ async function loadWorld() {
 }
 
 let trendGeom = null;
-let drawerHostName = null;
-const state = { targets: [], stats: null, view: 'ops', geoMode: 'live', hostsMode: 'live', resGroup: 'fqdn', search: '', filterType: '', filterCountry: '', filterPort: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
+const state = { targets: [], stats: null, view: 'ops', geoMode: 'live', hostsMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
 
 // ---------- helpers ----------
 const $ = (s) => document.querySelector(s);
@@ -448,40 +447,7 @@ function fmtSpan(days) {
   if (h > 0) return mins > 0 ? `${h}h ${mins}m` : `${h}h`;
   return `${mins}m`;
 }
-// group a host's live vectors into the same per-IP shape as the stored surface
-function byIpFromTargets(rows) {
-  const m = {};
-  for (const t of rows) {
-    const ip = t.ip || 'unknown';
-    const e = (m[ip] ||= { paths: new Map(), ports: new Set(), types: new Map(), methods: new Set() });
-    if (t.path) e.paths.set(t.path, (e.paths.get(t.path) || 0) + 1);
-    if (t.port != null) e.ports.add(t.port);
-    if (t.type) e.types.set(t.type, (e.types.get(t.type) || 0) + 1);
-    if (t.method) e.methods.add(t.method);
-  }
-  const out = {};
-  for (const [ip, e] of Object.entries(m)) out[ip] = { paths: [...e.paths.entries()].sort((a, b) => b[1] - a[1]), ports: [...e.ports].sort((a, b) => a - b), types: Object.fromEntries(e.types), methods: [...e.methods] };
-  return out;
-}
-function aggregateByIp(byIp) {
-  const paths = new Map(), ports = new Set(), types = {}, methods = new Set();
-  for (const e of Object.values(byIp)) {
-    for (const [p, c] of (e.paths || [])) paths.set(p, (paths.get(p) || 0) + c);
-    for (const p of (e.ports || [])) ports.add(p);
-    for (const [t, c] of Object.entries(e.types || {})) types[t] = (types[t] || 0) + c;
-    for (const m of (e.methods || [])) methods.add(m);
-  }
-  return { paths: [...paths.entries()].sort((a, b) => b[1] - a[1]), ports: [...ports].sort((a, b) => a - b), types, methods: [...methods] };
-}
-function renderResSection(label, e, openIt, kind) {
-  const paths = e.paths || [], ports = e.ports || [], types = e.types || {}, methods = e.methods || [];
-  const copyBtns = `<div class="dsc-copyall"><button class="mini-copy" data-copy="${esc(label)}">copy ${kind}</button>${paths.length ? ` <button class="mini-copy" data-copy="${esc(paths.map((p) => p[0]).join('\n'))}">copy paths</button>` : ''}</div>`;
-  const pathRows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors</div>';
-  const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(m)}</span>`).join('')}</div>` : '';
-  return dsecC(`${label} · ${paths.length} path${paths.length === 1 ? '' : 's'}`, copyBtns + pathRows + chips, openIt, `ports ${ports.join(', ') || '—'}`);
-}
 async function openDrawer(host) {
-  drawerHostName = host;
   const rows = state.targets.filter((t) => t.host === host);
   const isCurrent = rows.length > 0;
   const h = isCurrent ? groupHosts(rows)[0] : null;
@@ -497,22 +463,27 @@ async function openDrawer(host) {
   try { d = await api('/api/host-sessions?host=' + encodeURIComponent(host)); } catch {}
   const surf = d.surface, sm = d.summary || { count: 0, totalDays: 0, longest: 0, firstSeen: null }, ss = d.sessions || [];
 
-  const byIp = isCurrent ? byIpFromTargets(rows) : (surf && surf.byIp ? surf.byIp : {});
-  const ipEntries = Object.entries(byIp).sort((a, b) => (b[1].paths ? b[1].paths.length : 0) - (a[1].paths ? a[1].paths.length : 0));
-
   const facts = isCurrent
     ? [{ k: 'vectors', v: h.targetCount }, { k: 'unique IPs', v: h.ips.length }, { k: 'ports', v: h.ports.join(', ') || '—' }, { k: 'targeted for', v: `<span class="dur" data-since="${esc(h.sessionStart)}"></span>`, raw: true }]
     : [{ k: 'attack sessions', v: String(sm.count) }, { k: 'longest stint', v: sm.longest ? fmtSpan(sm.longest) : '—' }, { k: 'total under attack', v: sm.totalDays ? fmtSpan(sm.totalDays) : '—' }, { k: 'first seen', v: (sm.firstSeen || '').slice(0, 10) || '—' }];
   const factsHtml = `<div class="facts">${facts.map((f) => `<div class="fact"><div class="k">${f.k}</div><div class="v">${f.raw ? f.v : esc(f.v)}</div></div>`).join('')}</div>`;
 
-  const group = state.resGroup || 'fqdn';
-  const scope = isCurrent ? 'live' : 'all-time';
-  const toggle = `<span class="geo-toggle res-group"><button class="seg ${group === 'fqdn' ? 'on' : ''}" data-resgroup="fqdn">BY FQDN</button><button class="seg ${group === 'ip' ? 'on' : ''}" data-resgroup="ip">BY IP</button></span>`;
-  let resBody;
-  if (!ipEntries.length) resBody = '<div class="empty">no path data recorded</div>';
-  else if (group === 'ip') resBody = ipEntries.map(([ip, e]) => renderResSection(ip, e, ipEntries.length === 1, 'IP')).join('');
-  else resBody = renderResSection(host, aggregateByIp(byIp), true, 'FQDN');
-  const ipSecs = `<div class="dsec-label">TARGETED RESOURCES ${toggle}<span class="dsc-hint">${ipEntries.length} IP${ipEntries.length === 1 ? '' : 's'} · ${scope}</span></div>` + resBody;
+  // one flat list of every target for this host (as it appears in the data)
+  let targetsHtml;
+  if (isCurrent) {
+    const body = `<table class="vec-tbl"><thead><tr><th>ip</th><th>type</th><th>method</th><th>port</th><th>path</th></tr></thead><tbody>${h.vectors.map((v) => `<tr><td class="cc mono">${esc(v.ip)}</td><td><span class="tag ${typeCls(v.type)}">${esc(v.type)}</span></td><td class="cc">${esc(v.method || '—')}</td><td class="cc">${esc(v.port)}</td><td class="p">${esc(v.path || '—')}</td></tr>`).join('')}</tbody></table>`;
+    targetsHtml = `<div class="dsec-label">TARGETS <span class="dsc-hint">${h.vectors.length} entries · live</span></div>${body}`;
+  } else {
+    const byIp = surf && surf.byIp ? surf.byIp : {};
+    const flat = [];
+    for (const [ip, e] of Object.entries(byIp)) for (const [p, c] of (e.paths || [])) flat.push({ ip, path: p, count: c });
+    flat.sort((a, b) => a.ip.localeCompare(b.ip) || b.count - a.count);
+    const body = flat.length
+      ? `<table class="vec-tbl"><thead><tr><th>ip</th><th>path</th><th>seen</th></tr></thead><tbody>${flat.map((r) => `<tr><td class="cc mono">${esc(r.ip)}</td><td class="p">${esc(r.path || '(no path)')}</td><td class="cc">${r.count}×</td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">no path-based targets recorded</div>';
+    const chips = surf ? `<div class="surf-chips">${Object.entries(surf.types || {}).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${(surf.methods || []).map((m) => `<span class="tag t-default">${esc(m)}</span>`).join('')}</div>` : '';
+    targetsHtml = `<div class="dsec-label">TARGETS <span class="dsc-hint">${flat.length} entries · all-time · ports ${surf ? surf.ports.join(', ') : '—'}</span></div>${body}${chips}`;
+  }
 
   const list = ss.length ? ss.map((s) => {
     const ongoing = !s.ended;
@@ -521,7 +492,7 @@ async function openDrawer(host) {
   }).join('') : '<tr><td colspan="3" class="empty">no recorded sessions</td></tr>';
   const histHtml = `<div class="dsec-label">ATTACK HISTORY <span class="dsc-hint">${sm.count} session${sm.count === 1 ? '' : 's'} · daily resolution</span></div><table class="vec-tbl"><thead><tr><th>started</th><th>ended</th><th>duration</th></tr></thead><tbody>${list}</tbody></table>`;
 
-  $('#drawerBody').innerHTML = factsHtml + ipSecs + histHtml;
+  $('#drawerBody').innerHTML = factsHtml + targetsHtml + histHtml;
   tickDurations();
 }
 function closeDrawer() { $('#drawer').hidden = true; $('#drawerOverlay').hidden = true; }
@@ -618,8 +589,7 @@ $('#filterNew').addEventListener('change', (e) => { state.filterNew = e.target.c
 $('#refreshBtn').addEventListener('click', () => load());
 document.addEventListener('click', (e) => {
   const g = e.target.closest('.seg[data-geo]'); if (g) { e.stopPropagation(); state.geoMode = g.dataset.geo; render(); return; }
-  const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); return; }
-  const rg = e.target.closest('.seg[data-resgroup]'); if (rg) { e.stopPropagation(); state.resGroup = rg.dataset.resgroup; if (drawerHostName) openDrawer(drawerHostName); }
+  const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); }
 });
 
 // map marker hover tooltip
