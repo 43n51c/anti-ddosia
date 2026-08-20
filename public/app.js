@@ -589,20 +589,68 @@ function openAuth(m = 'login') { setAuthMode(m); renderAuthProviders(); $('#auth
 function closeAuth() { $('#authModal').hidden = true; $('#authOverlay').hidden = true; pendingView = null; }
 async function loadAssets() { try { account.assets = (await api('/api/assets')).assets || []; } catch { account.assets = []; } }
 function assetTargeted(a) { for (const t of state.targets) { if (a.type === 'ip') { if (t.ip === a.value) return t.host; } else if (t.host === a.value || t.host.endsWith('.' + a.value)) return t.host; } return null; }
-function renderPosture() {
-  const el = $('#posture'); if (!account.user) { el.hidden = true; return; }
-  const targeted = account.assets.filter((a) => assetTargeted(a)).length;
-  const active = (account.alerts || []).filter((a) => a.active !== 0).length;
-  const resolved = (account.alerts || []).filter((a) => a.active === 0).length;
+function renderDashboard() {
+  const dash = $('#dash'); if (!account.user) { dash.hidden = true; return; }
+  dash.hidden = false;
+  const alerts = account.alerts || [];
+  const activeAlerts = alerts.filter((a) => a.active !== 0);
+  const resolved = alerts.length - activeAlerts.length;
+  const targetedAssets = new Set(activeAlerts.map((a) => a.asset_value));
+  const totalVectors = activeAlerts.reduce((s, a) => s + (a.vectors || 0), 0);
+  const underAttack = targetedAssets.size > 0;
+
+  // posture cells
   $('#poAssets').textContent = account.assets.length;
-  $('#poTargeted').textContent = targeted;
-  $('#poActive').textContent = active;
+  $('#poTargeted').textContent = targetedAssets.size;
+  $('#poActive').textContent = activeAlerts.length;
   $('#poResolved').textContent = resolved;
-  el.classList.toggle('alarm', targeted > 0);
-  el.hidden = false;
+  $('#posture').classList.toggle('alarm', underAttack);
+
+  // status hero
+  const hero = $('#dashHero');
+  hero.className = 'dash-hero ' + (underAttack ? 'alarm' : (account.assets.length ? 'clear' : 'idle'));
+  $('#dhIco').textContent = underAttack ? '⚠' : (account.assets.length ? '✓' : '＋');
+  if (underAttack) {
+    const hosts = activeAlerts.length;
+    $('#dhHead').innerHTML = `${targetedAssets.size} asset${targetedAssets.size === 1 ? '' : 's'} under active attack`;
+    $('#dhSub').textContent = `${totalVectors} attack vector${totalVectors === 1 ? '' : 's'} across ${hosts} target host${hosts === 1 ? '' : 's'} on the current list`;
+  } else if (account.assets.length) {
+    $('#dhHead').textContent = 'All clear';
+    $('#dhSub').textContent = `None of your ${account.assets.length} monitored asset${account.assets.length === 1 ? '' : 's'} is on the current target list.`;
+  } else {
+    $('#dhHead').textContent = 'No assets monitored yet';
+    $('#dhSub').textContent = 'Add a domain or IPv4 below to start watching the target list.';
+  }
+
+  // under-attack cards
+  const atkPnl = $('#attackPnl');
+  atkPnl.hidden = !underAttack;
+  if (underAttack) {
+    $('#atkCount').textContent = `(${activeAlerts.length})`;
+    $('#attackList').innerHTML = activeAlerts.map((a) => {
+      const chips = (a.types || '').split(',').map((t) => t.trim()).filter(Boolean)
+        .map((t) => `<span class="tag ${typeCls(t)}">${esc(t)}</span>`).join('');
+      return `<div class="atk-row" data-host="${esc(a.target_host)}">
+        <div class="atk-main">
+          <div class="atk-host">${esc(a.target_host)}</div>
+          <div class="atk-meta">matches <b>${esc(a.asset_value)}</b> · IPs ${esc(a.target_ips || '—')}</div>
+          <div class="atk-chips">${chips}</div>
+        </div>
+        <div class="atk-vec"><b>${a.vectors || 0}</b><span>vectors</span></div>
+      </div>`;
+    }).join('');
+  }
+
+  // attack methods across the user's active alerts
+  const mPnl = $('#methodsPnl');
+  const mm = new Map();
+  for (const a of activeAlerts) for (const t of (a.types || '').split(',').map((x) => x.trim()).filter(Boolean)) mm.set(t, (mm.get(t) || 0) + 1);
+  const rows = [...mm.entries()].map(([key, count]) => ({ key, count })).sort((x, y) => y.count - x.count).slice(0, 6);
+  mPnl.hidden = rows.length === 0;
+  if (rows.length) bars($('#dashMethods'), rows, (r) => `<span class="tag ${typeCls(r.key)}">${esc(r.key)}</span>`, '#ff5566');
 }
 function renderAssets() {
-  renderPosture();
+  renderDashboard();
   $('#assetCount').textContent = account.assets.length ? `(${account.assets.length})` : '';
   const el = $('#assetList');
   if (!account.assets.length) { el.innerHTML = '<div class="empty">no assets yet — add a domain or IP above</div>'; return; }

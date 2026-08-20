@@ -192,11 +192,27 @@
     <!-- ===== ASSETS ===== -->
     <section id="view-assets" class="view" hidden>
       <div class="narrow">
-        <div class="posture" id="posture" hidden>
-          <div class="po-cell"><b id="poAssets">0</b><span>monitored</span></div>
-          <div class="po-cell hit"><b id="poTargeted">0</b><span>targeted now</span></div>
-          <div class="po-cell live"><b id="poActive">0</b><span>active alerts</span></div>
-          <div class="po-cell"><b id="poResolved">0</b><span>resolved</span></div>
+        <div class="dash" id="dash" hidden>
+          <div class="dash-hero" id="dashHero">
+            <div class="dh-ico" id="dhIco"></div>
+            <div class="dh-txt"><div class="dh-head" id="dhHead"></div><div class="dh-sub" id="dhSub"></div></div>
+          </div>
+          <div class="posture" id="posture">
+            <div class="po-cell"><b id="poAssets">0</b><span>monitored</span></div>
+            <div class="po-cell hit"><b id="poTargeted">0</b><span>targeted now</span></div>
+            <div class="po-cell live"><b id="poActive">0</b><span>active alerts</span></div>
+            <div class="po-cell"><b id="poResolved">0</b><span>resolved</span></div>
+          </div>
+          <div class="dash-grid">
+            <div class="pnl" id="attackPnl" hidden>
+              <div class="pnl-h"><span>UNDER ATTACK NOW <b id="atkCount"></b></span></div>
+              <div id="attackList" class="atk-list"></div>
+            </div>
+            <div class="pnl" id="methodsPnl" hidden>
+              <div class="pnl-h"><span>ATTACK METHODS · YOUR ASSETS</span></div>
+              <div id="dashMethods" class="bars"></div>
+            </div>
+          </div>
         </div>
         <div class="pnl">
           <div class="pnl-h"><span>ADD ASSET TO MONITOR</span></div>
