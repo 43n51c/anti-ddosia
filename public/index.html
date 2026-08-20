@@ -4,298 +4,234 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>anti-DDoSia — NoName057(16) Target Monitor</title>
-  <meta name="description" content="Live tracking of DDoSia Project (NoName057(16)) DDoS targets from the public feed." />
+  <meta name="description" content="Live tracking of DDoSia Project (NoName057(16)) DDoS targets." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
 <div class="app">
-  <!-- ================= SIDEBAR ================= -->
-  <aside class="sidebar">
-    <div class="logo"><span class="logo-mark">🛡</span> anti<span class="logo-accent">DDoSia</span></div>
-
+  <!-- ===== RAIL ===== -->
+  <aside class="rail">
+    <div class="brand">anti<span>·</span>ddosia</div>
     <nav class="nav">
-      <div class="nav-group">General</div>
-      <button class="nav-item active" data-view="overview">
-        <svg viewBox="0 0 24 24" class="ni"><path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z"/></svg>
-        Overview
-      </button>
-      <button class="nav-item" data-view="hosts">
-        <svg viewBox="0 0 24 24" class="ni"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 2c1.7 0 3.2 3.3 3.2 8s-1.5 8-3.2 8-3.2-3.3-3.2-8 1.5-8 3.2-8zM3 11h18M3 15h18M4 8h16"/></svg>
-        Hosts <span class="ni-badge" id="badgeHosts"></span>
-      </button>
-      <button class="nav-item" data-view="targets">
-        <svg viewBox="0 0 24 24" class="ni"><path d="M4 5h16v3H4zM4 10.5h16v3H4zM4 16h16v3H4z"/></svg>
-        Targets <span class="ni-badge" id="badgeTargets"></span>
-      </button>
-
-      <div class="nav-group">Reports</div>
-      <button class="nav-item" data-view="targets">
-        <svg viewBox="0 0 24 24" class="ni"><path d="M6 2h9l5 5v15H6zM14 2v6h6"/></svg>
-        Threat Details
-      </button>
-      <button class="nav-item" data-view="hosts">
-        <svg viewBox="0 0 24 24" class="ni"><path d="M12 2l3 6 6 .5-4.5 4 1.5 6-6-3.5-6 3.5 1.5-6L3 8.5 9 8z"/></svg>
-        Attack Surface
-      </button>
-
-      <div class="nav-group">My Monitoring</div>
-      <button class="nav-item" data-view="assets" data-auth="1">
-        <svg viewBox="0 0 24 24" class="ni"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg>
-        My Assets
-      </button>
-      <button class="nav-item" data-view="alerts" data-auth="1">
-        <svg viewBox="0 0 24 24" class="ni"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
-        Alerts <span class="ni-badge" id="badgeAlerts" hidden></span>
-      </button>
+      <button class="nav-item active" data-view="ops"><span class="k">01</span> OPS</button>
+      <button class="nav-item" data-view="hosts"><span class="k">02</span> HOSTS <b class="nb" id="badgeHosts"></b></button>
+      <button class="nav-item" data-view="targets"><span class="k">03</span> FEED <b class="nb" id="badgeTargets"></b></button>
+      <div class="nav-sep">MONITORING</div>
+      <button class="nav-item" data-view="assets" data-auth="1"><span class="k">04</span> ASSETS</button>
+      <button class="nav-item" data-view="alerts" data-auth="1"><span class="k">05</span> ALERTS <b class="nb alert" id="badgeAlerts" hidden></b></button>
     </nav>
-
-    <div class="side-card">
-      <div class="side-card-ico">📡</div>
-      <p>Live feed from the DDoSia Project. Updates every 5 minutes.</p>
-      <a href="https://witha.name/data/last.json" target="_blank" rel="noopener">Source ↗</a>
-    </div>
-
-    <div class="side-foot">
-      <span class="dot" id="statusDot"></span>
-      <span id="statusText">connecting…</span>
+    <div class="rail-foot">
+      <div class="stat-line"><span class="dot" id="statusDot"></span><span id="statusText">connecting…</span></div>
+      <div class="src">src: <a href="https://witha.name/data/last.json" target="_blank" rel="noopener">last.json</a></div>
     </div>
   </aside>
 
-  <!-- ================= MAIN ================= -->
+  <!-- ===== MAIN ===== -->
   <div class="main">
-    <!-- app bar -->
-    <header class="appbar">
-      <div class="welcome">
-        <div class="avatar">🛡</div>
-        <div>
-          <h1>NoName057(16) Threat Monitor</h1>
-          <p>Defensive intelligence — visibility, not vulnerability.</p>
-        </div>
-      </div>
+    <!-- command bar -->
+    <header class="cmdbar">
+      <div class="feedstat mono"><span class="lbl">FEED</span> last.json <span class="sep">·</span> <span id="clock">—</span></div>
       <div class="search-wrap">
-        <span class="search-ico">🔎</span>
-        <input type="search" id="search" placeholder="Search host, IP, path, org, country…  ( / )" autocomplete="off" />
-        <button class="clear-btn" id="searchClear" title="Clear" hidden>✕</button>
+        <span class="sp">/</span>
+        <input type="search" id="search" placeholder="grep host, ip, path, org, country" autocomplete="off" />
+        <button class="clear" id="searchClear" hidden>×</button>
       </div>
-      <div class="appbar-actions">
+      <div class="cmd-actions">
         <div class="menu">
-          <button class="round-btn" id="exportBtn" title="Export">⭳</button>
+          <button class="ico-btn" id="exportBtn" title="Export">⤓</button>
           <div class="menu-list" id="exportMenu" hidden>
-            <button data-export="csv">Download CSV</button>
-            <button data-export="json">Download JSON</button>
-            <button data-export="ips">Copy all IPs</button>
-            <button data-export="paths">Copy all paths</button>
+            <button data-export="csv">download CSV</button>
+            <button data-export="json">download JSON</button>
+            <button data-export="ips">copy all IPs</button>
+            <button data-export="paths">copy all paths</button>
           </div>
         </div>
-        <button class="round-btn" id="refreshBtn" title="Refresh now">⟳</button>
-        <!-- notification bell (logged-in) -->
+        <button class="ico-btn" id="refreshBtn" title="Refresh">↻</button>
         <div class="menu" id="bellWrap" hidden>
-          <button class="round-btn" id="bellBtn" title="Alerts">🔔<span class="bell-badge" id="bellBadge" hidden></span></button>
+          <button class="ico-btn" id="bellBtn" title="Alerts">◔<span class="bdg" id="bellBadge" hidden></span></button>
           <div class="menu-list wide" id="bellMenu" hidden>
-            <div class="bell-head">Recent alerts <button class="link-btn" id="bellSeen">Mark all read</button></div>
+            <div class="bell-head">ALERTS <button class="lnk" id="bellSeen">mark read</button></div>
             <div id="bellList" class="bell-list"></div>
-            <button class="bell-all" data-view="alerts">View all alerts →</button>
+            <button class="bell-all" data-view="alerts">view all →</button>
           </div>
         </div>
-        <!-- account -->
-        <button class="btn signin-btn" id="signinBtn">Sign in</button>
+        <button class="signin" id="signinBtn">SIGN IN</button>
         <div class="menu" id="acctWrap" hidden>
-          <button class="acct-btn" id="acctBtn"><span class="acct-avatar" id="acctAvatar">?</span></button>
+          <button class="acct" id="acctBtn"><span id="acctAvatar">?</span></button>
           <div class="menu-list" id="acctMenu" hidden>
-            <div class="acct-email" id="acctEmail"></div>
-            <button data-view="assets">My assets</button>
-            <button data-view="alerts">Alerts &amp; settings</button>
-            <button id="logoutBtn">Log out</button>
+            <div class="acct-email mono" id="acctEmail"></div>
+            <button data-view="assets">my assets</button>
+            <button data-view="alerts">alerts & settings</button>
+            <button id="logoutBtn">log out</button>
           </div>
         </div>
       </div>
     </header>
 
     <!-- filters -->
-    <div class="toolbar">
-      <select id="filterType" class="sel"><option value="">All types</option></select>
-      <select id="filterCountry" class="sel"><option value="">All countries</option></select>
-      <select id="filterPort" class="sel"><option value="">All ports</option></select>
-      <label class="chk"><input type="checkbox" id="filterNew" /> New 24h</label>
-      <span class="toolbar-spacer"></span>
-      <span class="result-count" id="resultCount"></span>
+    <div class="toolbar" id="toolbar">
+      <select id="filterType" class="sel"><option value="">type: all</option></select>
+      <select id="filterCountry" class="sel"><option value="">country: all</option></select>
+      <select id="filterPort" class="sel"><option value="">port: all</option></select>
+      <label class="chk"><input type="checkbox" id="filterNew" /> new/24h</label>
+      <span class="spacer"></span>
+      <span class="rc mono" id="resultCount"></span>
     </div>
 
-    <!-- ============ OVERVIEW ============ -->
-    <section id="view-overview" class="view">
-      <div class="dash">
-        <!-- LEFT COLUMN -->
-        <div class="col-main">
-          <!-- current risk -->
-          <div class="panel">
-            <div class="panel-head"><h2>Current Attack Surface</h2><span class="chip-select">Live</span></div>
-            <div class="stat-row" id="statRow"></div>
-          </div>
+    <!-- ===== OPS ===== -->
+    <section id="view-ops" class="view">
+      <!-- check hero -->
+      <div class="check">
+        <div class="check-q mono">// is your asset on the current DDoSia target list?</div>
+        <form class="cli" id="checkForm">
+          <span class="prompt mono">&gt;</span>
+          <input type="text" id="checkInput" class="mono" placeholder="your-domain.com  or  203.0.113.10" autocomplete="off" />
+          <button class="run mono" type="submit">CHECK</button>
+        </form>
+        <div class="verdict" id="checkVerdict" hidden></div>
+      </div>
 
-          <!-- threat summary chart -->
-          <div class="panel">
-            <div class="panel-head">
-              <div><h2>Targets Over Time</h2><span class="sub-note" id="trendNote"></span></div>
-              <span class="chip-select" id="trendRange">30-day</span>
-            </div>
-            <div id="trendChart" class="chart-body"></div>
-          </div>
+      <!-- stat tiles -->
+      <div class="tiles" id="tiles"></div>
 
-          <!-- threat details table -->
-          <div class="panel">
-            <div class="panel-head"><h2>Threat Details</h2><span class="chip-select" id="tdCount"></span></div>
-            <div class="mini-table-wrap">
-              <table class="mini-table">
-                <thead><tr>
-                  <th>First seen</th><th>Host</th><th>IP</th><th>Type</th><th>Port</th><th>Path</th>
-                </tr></thead>
-                <tbody id="tdBody"></tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- breakdowns -->
-          <div class="triple">
-            <div class="panel"><div class="panel-head"><h2>Top Countries</h2></div><div id="countryChart" class="chart-body sm"></div></div>
-            <div class="panel"><div class="panel-head"><h2>Top Ports</h2></div><div id="portChart" class="chart-body sm"></div></div>
-            <div class="panel"><div class="panel-head"><h2>Methods</h2></div><div id="methodChart" class="chart-body sm"></div></div>
-          </div>
+      <!-- map + right rail -->
+      <div class="grid-map">
+        <div class="pnl map-pnl">
+          <div class="pnl-h"><span>GLOBAL TARGET MAP</span><span class="mono" id="mapMeta"></span></div>
+          <div id="map" class="map"></div>
         </div>
+        <div class="pnl">
+          <div class="pnl-h"><span>BY COUNTRY</span></div>
+          <div id="countryBars" class="bars"></div>
+          <div class="pnl-h" style="margin-top:16px"><span>ATTACK METHODS</span></div>
+          <div id="methodBars" class="bars"></div>
+        </div>
+      </div>
 
-        <!-- RIGHT RAIL -->
-        <div class="col-rail">
-          <div class="panel gauge-panel">
-            <div class="panel-head"><h2>Threat Level</h2><span class="dots">⋮</span></div>
-            <div id="gauge" class="gauge-body"></div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-head"><h2>Attacks by Type</h2><span class="dots">⋮</span></div>
-            <div class="donut-wrap">
-              <div id="typeLegend" class="legend"></div>
-              <div id="typeDonut" class="donut"></div>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-head"><h2>Most Targeted Hosts</h2><span class="dots">⋮</span></div>
-            <div id="topHosts" class="host-rail"></div>
+      <!-- feed + trend -->
+      <div class="grid-feed">
+        <div class="pnl feed-pnl">
+          <div class="pnl-h"><span>LIVE TARGET FEED</span><span class="mono">vectors ↓ · click to inspect</span></div>
+          <div class="tbl-wrap"><table class="tbl" id="opsFeed"><thead><tr>
+            <th data-sort="host">host</th><th data-sort="country">loc</th><th data-sort="targetCount">vec</th><th>types</th><th>ports</th><th data-sort="firstSeen">first seen</th>
+          </tr></thead><tbody id="opsFeedBody"></tbody></table></div>
+        </div>
+        <div class="pnl">
+          <div class="pnl-h"><span>3-YEAR TREND</span><span class="mono" id="trendMeta"></span></div>
+          <div id="trendChart" class="trend"></div>
+          <div class="pnl-h" style="margin-top:14px"><span>IOC EXTRACT</span></div>
+          <div class="iocs">
+            <button class="ioc" data-export="ips">IPs <b id="iocIps">0</b> <span class="cp">copy</span></button>
+            <button class="ioc" data-export="paths">Paths <b id="iocPaths">0</b> <span class="cp">copy</span></button>
+            <button class="ioc" data-export="csv">CSV <span class="cp">download</span></button>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ============ HOSTS ============ -->
+    <!-- ===== HOSTS ===== -->
     <section id="view-hosts" class="view" hidden>
       <div class="sortbar">
-        <span>Sort by:</span>
-        <button class="pill active" data-hsort="targetCount">Targets</button>
-        <button class="pill" data-hsort="host">Name</button>
-        <button class="pill" data-hsort="firstSeen">Newest</button>
-        <button class="pill" data-hsort="ports">Attack surface</button>
+        <span class="mono">sort:</span>
+        <button class="pill active" data-hsort="targetCount">vectors</button>
+        <button class="pill" data-hsort="host">name</button>
+        <button class="pill" data-hsort="firstSeen">newest</button>
+        <button class="pill" data-hsort="ports">surface</button>
       </div>
       <div class="host-grid" id="hostGrid"></div>
     </section>
 
-    <!-- ============ TARGETS ============ -->
+    <!-- ===== FEED (raw) ===== -->
     <section id="view-targets" class="view" hidden>
-      <div class="panel table-panel">
-        <div class="table-wrap">
-          <table id="targetsTable">
-            <thead><tr>
-              <th data-sort="host">Host</th><th data-sort="ip">IP</th><th data-sort="country">Country</th>
-              <th data-sort="type">Type</th><th data-sort="method">Method</th><th data-sort="port">Port</th>
-              <th data-sort="use_ssl">SSL</th><th data-sort="path">Path</th>
-            </tr></thead>
-            <tbody id="targetsBody"></tbody>
-          </table>
-        </div>
+      <div class="pnl tbl-pnl">
+        <div class="tbl-wrap tall"><table class="tbl" id="targetsTable"><thead><tr>
+          <th data-sort="host">host</th><th data-sort="ip">ip</th><th data-sort="country">country</th>
+          <th data-sort="type">type</th><th data-sort="method">method</th><th data-sort="port">port</th>
+          <th data-sort="use_ssl">ssl</th><th data-sort="path">path</th>
+        </tr></thead><tbody id="targetsBody"></tbody></table></div>
       </div>
     </section>
 
-    <!-- ============ MY ASSETS ============ -->
+    <!-- ===== ASSETS ===== -->
     <section id="view-assets" class="view" hidden>
-      <div class="dash-narrow">
-        <div class="panel">
-          <div class="panel-head"><h2>Add an asset to monitor</h2></div>
-          <p class="muted-note">Enter a domain or IPv4 you own. We alert you when it (or any subdomain) appears on the DDoSia target list.</p>
+      <div class="narrow">
+        <div class="pnl">
+          <div class="pnl-h"><span>ADD ASSET TO MONITOR</span></div>
+          <p class="note mono">domain or IPv4 you own. alert fires when it (or any subdomain) hits the target list.</p>
           <form class="add-asset" id="addAssetForm">
-            <input type="text" id="assetValue" placeholder="example.com or 203.0.113.10" autocomplete="off" required />
-            <input type="text" id="assetLabel" placeholder="Label (optional)" autocomplete="off" />
-            <button class="btn primary" type="submit">Add asset</button>
+            <input type="text" id="assetValue" class="mono" placeholder="example.com  /  203.0.113.10" autocomplete="off" required />
+            <input type="text" id="assetLabel" class="mono" placeholder="label (optional)" autocomplete="off" />
+            <button class="run mono" type="submit">ADD</button>
           </form>
-          <div class="form-err" id="assetErr" hidden></div>
+          <div class="err" id="assetErr" hidden></div>
         </div>
-        <div class="panel">
-          <div class="panel-head"><h2>Your assets <span class="hint" id="assetCount"></span></h2></div>
+        <div class="pnl">
+          <div class="pnl-h"><span>YOUR ASSETS <b id="assetCount"></b></span></div>
           <div id="assetList" class="asset-list"></div>
         </div>
       </div>
     </section>
 
-    <!-- ============ ALERTS ============ -->
+    <!-- ===== ALERTS ===== -->
     <section id="view-alerts" class="view" hidden>
-      <div class="dash-narrow">
-        <div class="panel">
-          <div class="panel-head"><h2>Notification settings</h2></div>
+      <div class="narrow">
+        <div class="pnl">
+          <div class="pnl-h"><span>NOTIFICATION CHANNELS</span></div>
           <div class="settings">
-            <label class="fld"><span>Webhook URL <small>(Slack / Telegram / custom — receives JSON on each match)</small></span>
-              <input type="url" id="setWebhook" placeholder="https://hooks.slack.com/…" /></label>
-            <label class="chk"><input type="checkbox" id="setEmail" /> Email alerts <small id="emailHint"></small></label>
-            <label class="chk"><input type="checkbox" id="setInapp" /> In-app alerts (bell)</label>
-            <button class="btn primary" id="saveSettings">Save settings</button>
-            <span class="save-ok" id="saveOk" hidden>Saved ✓</span>
+            <label class="fld"><span class="mono">webhook url <small>(slack / telegram / custom · JSON on match)</small></span>
+              <input type="url" id="setWebhook" class="mono" placeholder="https://hooks.slack.com/…" /></label>
+            <label class="chk"><input type="checkbox" id="setEmail" /> email alerts <small id="emailHint" class="mono"></small></label>
+            <label class="chk"><input type="checkbox" id="setInapp" /> in-app (bell)</label>
+            <div class="row-btn"><button class="run mono" id="saveSettings">SAVE</button><span class="ok mono" id="saveOk" hidden>saved ✓</span></div>
           </div>
         </div>
-        <div class="panel">
-          <div class="panel-head"><h2>Alerts <span class="hint" id="alertsCount"></span></h2>
-            <button class="link-btn" id="alertsSeen">Mark all read</button></div>
+        <div class="pnl">
+          <div class="pnl-h"><span>ALERTS <b id="alertsCount"></b></span><button class="lnk" id="alertsSeen">mark read</button></div>
           <div id="alertsList" class="alerts-list"></div>
         </div>
       </div>
     </section>
 
-    <footer>
-      <p class="disclaimer">
-        Defensive threat-intelligence tool. This dashboard <strong>visualizes a publicly published target list</strong>
-        so potential victims and defenders can prepare. It does not perform, facilitate, or coordinate any attack.
-        Data: <a href="https://witha.name/data/last.json" target="_blank" rel="noopener">witha.name</a> · GeoIP by ip-api.com.
-      </p>
+    <footer class="foot mono">
+      defensive threat-intel · visualizes a publicly published target list so defenders can prepare · does not perform or facilitate attacks · data: witha.name · geoip: ip-api.com
     </footer>
   </div>
 </div>
 
-<!-- ============ HOST DETAIL DRAWER ============ -->
+<!-- drawer -->
 <div class="drawer-overlay" id="drawerOverlay" hidden></div>
-<aside class="drawer" id="drawer" hidden aria-hidden="true">
+<aside class="drawer" id="drawer" hidden>
   <div class="drawer-head">
-    <div><h2 id="drawerHost">host</h2><p class="drawer-sub" id="drawerSub"></p></div>
-    <button class="icon-btn" id="drawerClose" title="Close (Esc)">✕</button>
+    <div><h2 id="drawerHost" class="mono">host</h2><p class="drawer-sub mono" id="drawerSub"></p></div>
+    <button class="ico-btn" id="drawerClose">×</button>
   </div>
   <div class="drawer-body" id="drawerBody"></div>
 </aside>
 
-<!-- ============ AUTH MODAL ============ -->
+<!-- auth modal -->
 <div class="modal-overlay" id="authOverlay" hidden></div>
 <div class="modal" id="authModal" hidden>
-  <button class="icon-btn modal-x" id="authClose">✕</button>
-  <div class="modal-brand"><span class="logo-mark">🛡</span> anti<span class="logo-accent">DDoSia</span></div>
+  <button class="ico-btn modal-x" id="authClose">×</button>
+  <div class="modal-brand mono">anti<span>·</span>ddosia</div>
   <div class="auth-tabs">
-    <button class="auth-tab active" data-mode="login">Sign in</button>
-    <button class="auth-tab" data-mode="register">Create account</button>
+    <button class="auth-tab active" data-mode="login">SIGN IN</button>
+    <button class="auth-tab" data-mode="register">CREATE</button>
   </div>
-  <p class="auth-lead" id="authLead">Sign in to monitor your assets and get alerts.</p>
+  <p class="auth-lead mono" id="authLead">sign in to monitor your assets and get alerts.</p>
   <form id="authForm">
-    <label class="fld"><span>Email</span><input type="email" id="authEmail" autocomplete="email" required /></label>
-    <label class="fld"><span>Password <small>(min 8 characters)</small></span><input type="password" id="authPass" autocomplete="current-password" required /></label>
-    <div class="form-err" id="authErr" hidden></div>
-    <button class="btn primary full" type="submit" id="authSubmit">Sign in</button>
+    <label class="fld"><span class="mono">email</span><input type="email" id="authEmail" class="mono" autocomplete="email" required /></label>
+    <label class="fld"><span class="mono">password <small>(min 8)</small></span><input type="password" id="authPass" class="mono" autocomplete="current-password" required /></label>
+    <div class="err" id="authErr" hidden></div>
+    <button class="run full mono" type="submit" id="authSubmit">SIGN IN</button>
   </form>
-  <p class="auth-note">Password is stored salted+hashed (scrypt). This is a demo threat-intel tool — don't reuse a sensitive password.</p>
+  <p class="auth-note mono">password stored salted+hashed (scrypt). demo tool — don't reuse a sensitive password.</p>
 </div>
 
-<div class="toast" id="toast" hidden></div>
+<div class="toast mono" id="toast" hidden></div>
 <script src="/app.js"></script>
 </body>
 </html>

@@ -178,12 +178,24 @@ function buildStats() {
   const trend = dbx.getTrend().slice(-2000).map((h) => ({ day: h.day, count: h.count, hosts: h.hosts, ips: h.ips }));
   const peak = trend.reduce((m, d) => (d.count > m.count ? d : m), { count: 0, day: null });
   const avg = trend.length ? Math.round(trend.reduce((s, d) => s + d.count, 0) / trend.length) : 0;
+  const yesterdayCount = trend.length >= 2 ? trend[trend.length - 2].count : null;
+
+  // Current "wave": the day the most of today's hosts first appeared.
+  const perFirstDay = new Map();
+  for (const host of new Set(t.map((x) => x.host))) {
+    const hfs = t.find((x) => x.host === host)?.hostFirstSeen;
+    if (!hfs) continue;
+    const d = hfs.slice(0, 10);
+    perFirstDay.set(d, (perFirstDay.get(d) || 0) + 1);
+  }
+  const waveSince = [...perFirstDay.entries()].sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0]?.[0] || null;
   return {
     ok: current.ok, fetchedAt: current.fetchedAt, feedLastModified: current.feedLastModified,
     totals: { targets: t.length, hosts: new Set(t.map((x) => x.host)).size, ips: new Set(t.map((x) => x.ip)).size, countries: new Set(t.map((x) => x.countryCode)).size, newHosts24h: newHosts.length },
     byType: tally(t, 'type'), byCountry: tally(t, 'country'), byPort: tally(t, 'port'), byMethod: tally(t, 'method'),
     topHosts: tally(t, 'host').slice(0, 15), topPaths: topPaths(t), newHosts,
     trend, trendPeak: peak, trendAvg: avg, historyDays: trend.length,
+    yesterdayCount, waveSince,
   };
 }
 
@@ -209,6 +221,17 @@ async function serveStatic(req, res) {
     res.writeHead(200, { 'Content-Type': MIME[extname(filePath)] || 'application/octet-stream' });
     res.end(buf);
   } catch { res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found'); }
+}
+
+// public "am I a target?" check — no auth needed
+function checkTarget(raw) {
+  const parsed = parseAsset(raw);
+  if (!parsed) return { ok: false, error: 'Enter a valid domain or IPv4', query: raw };
+  const hosts = buildHosts();
+  const matches = hosts
+    .filter((h) => (parsed.type === 'ip' ? h.ips.includes(parsed.value) : (h.host === parsed.value || h.host.endsWith('.' + parsed.value))))
+    .map((h) => ({ host: h.host, ips: h.ips, vectors: h.targetCount, types: Object.keys(h.types), ports: h.ports, country: h.country, city: h.city }));
+  return { ok: true, query: parsed.value, type: parsed.type, targeted: matches.length > 0, matches };
 }
 
 // asset value normalisation
@@ -295,6 +318,10 @@ async function handleApi(req, res, pathname) {
   // public data endpoints
   if (pathname === '/api/targets') return sendJson(res, current);
   if (pathname === '/api/stats') return sendJson(res, buildStats());
+  if (pathname === '/api/check') {
+    const q = new URL(req.url, 'http://localhost').searchParams.get('q') || '';
+    return sendJson(res, checkTarget(q));
+  }
   if (pathname === '/api/hosts') return sendJson(res, { ok: current.ok, fetchedAt: current.fetchedAt, hosts: buildHosts() });
   if (pathname === '/api/health') return sendJson(res, { ok: current.ok, fetchedAt: current.fetchedAt, error: current.error });
 
