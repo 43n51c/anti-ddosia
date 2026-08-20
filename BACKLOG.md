@@ -27,6 +27,20 @@
   - *Config.* Off by default; gate behind an env flag (e.g. `PROBE_TARGETS=1`)
     so a deployer explicitly opts in to originating probe traffic.
 
+## UI polish (next editing session)
+
+- [ ] **FEED tab: no inner scroll — let the full list flow down the page.**
+  The feed table (`#targetsTable`) sits in `.tbl-wrap.tall`, which caps height
+  at `max-height: 74vh; overflow-y: auto` (styles.css). Drop the inner scroll
+  for this view so the whole target list renders at page length and the page
+  itself scrolls. Options: give the feed table its own wrapper class without
+  the `.tall` cap (keep the sticky header working, keep `overflow-x: auto` for
+  narrow screens), or scope a `#view-feed .tbl-wrap { max-height: none;
+  overflow-y: visible; }` override. Note: the sticky `thead` currently pins to
+  the scroll container — verify it still behaves (or make it stick to the page)
+  once the cap is removed. Leave `#hostAllTbl` (HOSTS) as-is unless we want the
+  same treatment there.
+
 ## Fixed in the second audit pass (with tests)
 
 - [x] **Static path traversal to sibling dirs.** The old guard used
