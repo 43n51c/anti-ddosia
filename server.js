@@ -13,6 +13,7 @@ import * as dbx from './db.js';
 import * as auth from './auth.js';
 import * as oauth from './oauth.js';
 import { deliverAlert, emailConfigured, webhookUrlIssue } from './notify.js';
+import { parseAsset, hostMatchesAsset } from './match.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, 'public');
@@ -131,13 +132,6 @@ async function poll() {
 }
 
 // ---------- asset matching / alerts ----------
-function hostMatchesAsset(host, hostIps, asset) {
-  const v = asset.value;
-  if (asset.type === 'ip') return hostIps.includes(v);
-  // domain: exact or subdomain
-  return host === v || host.endsWith('.' + v);
-}
-
 function runMatching() {
   let assets;
   try { assets = dbx.allAssets(); } catch (e) { console.error('[match] load assets failed:', e.message); return; }
@@ -263,9 +257,14 @@ function rateLimited(key, max, windowMs) {
 setInterval(() => { const now = Date.now(); for (const [k, arr] of rlHits) { const keep = arr.filter((t) => now - t < 3600000); if (keep.length) rlHits.set(k, keep); else rlHits.delete(k); } }, 600000).unref?.();
 function readBody(req, limit = 64 * 1024) {
   return new Promise((resolve, reject) => {
-    let data = ''; let size = 0;
-    req.on('data', (c) => { size += c.length; if (size > limit) { reject(new Error('body too large')); req.destroy(); } else data += c; });
-    req.on('end', () => { try { resolve(data ? JSON.parse(data) : {}); } catch { reject(new Error('invalid JSON')); } });
+    let data = ''; let size = 0; let over = false;
+    req.on('data', (c) => {
+      if (over) return; // stop buffering once past the limit; drain quietly so a clean 400 can still be sent
+      size += c.length;
+      if (size > limit) { over = true; reject(new Error('body too large')); return; }
+      data += c;
+    });
+    req.on('end', () => { if (over) return; try { resolve(data ? JSON.parse(data) : {}); } catch { reject(new Error('invalid JSON')); } });
     req.on('error', reject);
   });
 }
@@ -290,16 +289,6 @@ function checkTarget(raw) {
     .filter((h) => (parsed.type === 'ip' ? h.ips.includes(parsed.value) : (h.host === parsed.value || h.host.endsWith('.' + parsed.value))))
     .map((h) => ({ host: h.host, ips: h.ips, vectors: h.targetCount, types: Object.keys(h.types), ports: h.ports, country: h.country, city: h.city }));
   return { ok: true, query: parsed.value, type: parsed.type, targeted: matches.length > 0, matches };
-}
-
-// asset value normalisation
-function parseAsset(raw) {
-  const v = String(raw || '').trim().toLowerCase();
-  if (!v) return null;
-  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(v) && v.split('.').every((o) => Number(o) <= 255)) return { type: 'ip', value: v };
-  const host = v.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].replace(/\.$/, '');
-  if (/^[a-z0-9.-]+\.[a-z]{2,}$/.test(host) && host.length <= 253) return { type: 'domain', value: host };
-  return null;
 }
 
 // ---------- API ----------
@@ -453,13 +442,19 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(CONFIG.port, () => {
-  console.log(`anti-DDoSia running → http://localhost:${CONFIG.port}`);
-  console.log(`feed: ${CONFIG.feedUrl}  poll: every ${CONFIG.pollMs / 60000} min  email: ${emailConfigured() ? 'configured' : 'off'}`);
-  dbx.gcSessions(new Date().toISOString());
-  refreshConfigCount();
-  setInterval(refreshConfigCount, 6 * 3600 * 1000);
-  poll();
-  setInterval(poll, CONFIG.pollMs);
-  setInterval(() => dbx.gcSessions(new Date().toISOString()), 3600 * 1000);
-});
+// Bootstrap network + timers only when run as the app entrypoint.
+// Tests import this module with NO_LISTEN=1 to exercise handlers without side effects.
+if (!process.env.NO_LISTEN) {
+  server.listen(CONFIG.port, () => {
+    console.log(`anti-DDoSia running → http://localhost:${CONFIG.port}`);
+    console.log(`feed: ${CONFIG.feedUrl}  poll: every ${CONFIG.pollMs / 60000} min  email: ${emailConfigured() ? 'configured' : 'off'}`);
+    dbx.gcSessions(new Date().toISOString());
+    refreshConfigCount();
+    setInterval(refreshConfigCount, 6 * 3600 * 1000);
+    poll();
+    setInterval(poll, CONFIG.pollMs);
+    setInterval(() => dbx.gcSessions(new Date().toISOString()), 3600 * 1000);
+  });
+}
+
+export { server, checkTarget, buildStats, buildHosts };
