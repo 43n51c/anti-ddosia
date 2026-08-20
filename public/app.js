@@ -161,7 +161,6 @@ function renderOps(rows) {
 
   renderOpsFeed(rows);
   renderRanks(s);
-  renderResources(s.topPaths || []);
   renderTrend($('#trendChart'), s.trend || []);
   $('#trendMeta').textContent = s.trendPeak?.day ? `peak ${s.trendPeak.count} · avg ${s.trendAvg}` : '';
   $('#iocIps').textContent = new Set(rows.map((r) => r.ip).filter(Boolean)).size;
@@ -255,14 +254,6 @@ function renderMap(data) {
   </svg>`;
 }
 
-function renderResources(paths) {
-  $('#resCount').textContent = paths.length ? `(${paths.length})` : '';
-  $('#resList').innerHTML = paths.length ? paths.map((p) => `<div class="res-row">
-    <span class="res-p mono" title="${esc(p.path)}">${esc(p.path)}</span>
-    <span class="res-m">${p.count}× · ${p.hosts} host${p.hosts > 1 ? 's' : ''}</span>
-    <button class="mini-copy" data-copy="${esc(p.path)}">copy</button>
-  </div>`).join('') + `<div class="res-foot"><button class="mini-copy" data-export="paths">copy all paths</button></div>` : '<div class="empty">no path-based targets right now</div>';
-}
 function rankBar(frac, color) { return `<span class="rk-track"><span class="rk-fill" style="width:${(Math.max(0.03, frac) * 100).toFixed(1)}%;background:${color}"></span></span>`; }
 function renderRanks(s) {
   const most = s.mostTargeted || [];
@@ -493,8 +484,16 @@ async function openDrawer(host) {
       const dur = ongoing ? `<span class="dur" data-since="${esc(s.started)}"></span>` : fmtSpan(s.days);
       return `<tr><td class="cc">${s.started.slice(0, 10)}</td><td class="cc">${ongoing ? '<span class="on">ongoing</span>' : s.ended.slice(0, 10)}</td><td>${dur}</td></tr>`;
     }).join('') : '<tr><td colspan="3" class="empty">no recorded sessions</td></tr>';
+    const surf = d.surface;
+    const surfHtml = surf ? `
+      <details class="pnl res drawer-res" ${surf.paths.length && surf.paths.length <= 8 ? 'open' : ''}>
+        <summary><span class="res-title">ATTACKED RESOURCES <span class="res-count">(${surf.paths.length} path${surf.paths.length === 1 ? '' : 's'})</span></span><span class="res-hint">ports ${surf.ports.join(', ') || '—'}</span></summary>
+        <div class="res-list">${surf.paths.length ? surf.paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors recorded</div>'}</div>
+      </details>
+      <div class="surf-chips">${Object.entries(surf.types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${surf.methods.map((m) => `<span class="tag t-default">${esc(m)}</span>`).join('')}</div>` : '';
     $('#drawerHist').innerHTML = `<h3>ATTACK HISTORY (${sm.count} session${sm.count === 1 ? '' : 's'})</h3>
       <div class="facts">${sumFacts.map((f) => `<div class="fact"><div class="k">${f.k}</div><div class="v">${esc(f.v)}</div></div>`).join('')}</div>
+      ${surfHtml}
       <table class="vec-tbl"><thead><tr><th>started</th><th>ended</th><th>duration</th></tr></thead><tbody>${list}</tbody></table>`;
     tickDurations();
   } catch { $('#drawerHist').innerHTML = '<h3>ATTACK HISTORY</h3><div class="empty">could not load history</div>'; }

@@ -211,6 +211,8 @@ a:hover { text-decoration: underline; }
 .res-p { color: #dfe9f4; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .res-m { color: var(--tx2); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .res-foot { margin-top: 8px; }
+.drawer-res { margin: 0 0 12px; }
+.surf-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
 
 /* rank lists (most targeted / longest attacks) */
 .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }

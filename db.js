@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS attack_session (
 CREATE INDEX IF NOT EXISTS idx_as_host ON attack_session(host);
 CREATE INDEX IF NOT EXISTS idx_as_active ON attack_session(host) WHERE ended IS NULL;
 CREATE TABLE IF NOT EXISTS host_country ( host TEXT PRIMARY KEY, code TEXT, country TEXT );
+CREATE TABLE IF NOT EXISTS host_surface ( host TEXT PRIMARY KEY, paths TEXT, ports TEXT, types TEXT, methods TEXT );
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -175,6 +176,9 @@ const S = {
   })(),
   hcPut: db.prepare('INSERT OR REPLACE INTO host_country(host,code,country) VALUES(?,?,?)'),
   hcClear: db.prepare('DELETE FROM host_country'),
+  hsurfGet: db.prepare('SELECT paths, ports, types, methods FROM host_surface WHERE host = ?'),
+  hsurfPut: db.prepare('INSERT OR REPLACE INTO host_surface(host,paths,ports,types,methods) VALUES(?,?,?,?,?)'),
+  hsurfClear: db.prepare('DELETE FROM host_surface'),
 
   cntHosts: db.prepare('SELECT COUNT(*) c FROM host_first_seen'),
   cntGeo: db.prepare('SELECT COUNT(*) c FROM geoip'),
@@ -250,6 +254,13 @@ export function hostsAll(q = '', sort = 'sessions', country = '', limit = 200) {
 }
 export function putHostCountry(host, code, country) { S.hcPut.run(host, code, country); }
 export function clearHostCountry() { S.hcClear.run(); }
+export function putHostSurface(host, paths, ports, types, methods) { S.hsurfPut.run(host, JSON.stringify(paths), JSON.stringify(ports), JSON.stringify(types), JSON.stringify(methods)); }
+export function clearHostSurface() { S.hsurfClear.run(); }
+export function getHostSurface(host) {
+  const r = S.hsurfGet.get(host);
+  if (!r) return null;
+  try { return { paths: JSON.parse(r.paths || '[]'), ports: JSON.parse(r.ports || '[]'), types: JSON.parse(r.types || '{}'), methods: JSON.parse(r.methods || '[]') }; } catch { return null; }
+}
 export function hostSessions(host, limit = 200) {
   const sessions = S.asByHost.all(host, limit);
   const summary = {
@@ -260,7 +271,7 @@ export function hostSessions(host, limit = 200) {
     lastSeen: sessions.length ? (sessions[0].ended || sessions[0].last_seen) : null,
     active: sessions.some((r) => !r.ended),
   };
-  return { host, sessions, summary };
+  return { host, sessions, summary, surface: getHostSurface(host) };
 }
 
 // cumulative all-time counts
