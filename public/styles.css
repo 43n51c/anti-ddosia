@@ -196,6 +196,22 @@ a:hover { text-decoration: underline; }
 .ioc b { color: #eaf1fa; }
 .ioc .cp { color: var(--grn); }
 
+/* attacked resources (collapsible) */
+.res { margin-top: 16px; padding: 0; }
+.res > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 15px 18px; }
+.res > summary::-webkit-details-marker { display: none; }
+.res-title { color: var(--tx2); font-size: 11px; letter-spacing: 0.1em; }
+.res-count { color: var(--tx); }
+.res-hint { color: var(--dim); font-size: 11px; }
+.res-title::before { content: "▸ "; color: var(--grn); }
+.res[open] .res-title::before { content: "▾ "; }
+.res-list { padding: 0 18px 16px; display: flex; flex-direction: column; gap: 2px; max-height: 360px; overflow-y: auto; }
+.res-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; padding: 6px 8px; border-radius: 7px; }
+.res-row:hover { background: var(--bg2); }
+.res-p { color: #dfe9f4; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.res-m { color: var(--tx2); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.res-foot { margin-top: 8px; }
+
 /* rank lists (most targeted / longest attacks) */
 .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
 @media (max-width: 1050px) { .duo { grid-template-columns: 1fr; } }

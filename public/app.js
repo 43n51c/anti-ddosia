@@ -161,6 +161,7 @@ function renderOps(rows) {
 
   renderOpsFeed(rows);
   renderRanks(s);
+  renderResources(s.topPaths || []);
   renderTrend($('#trendChart'), s.trend || []);
   $('#trendMeta').textContent = s.trendPeak?.day ? `peak ${s.trendPeak.count} · avg ${s.trendAvg}` : '';
   $('#iocIps').textContent = new Set(rows.map((r) => r.ip).filter(Boolean)).size;
@@ -254,6 +255,14 @@ function renderMap(data) {
   </svg>`;
 }
 
+function renderResources(paths) {
+  $('#resCount').textContent = paths.length ? `(${paths.length})` : '';
+  $('#resList').innerHTML = paths.length ? paths.map((p) => `<div class="res-row">
+    <span class="res-p mono" title="${esc(p.path)}">${esc(p.path)}</span>
+    <span class="res-m">${p.count}× · ${p.hosts} host${p.hosts > 1 ? 's' : ''}</span>
+    <button class="mini-copy" data-copy="${esc(p.path)}">copy</button>
+  </div>`).join('') + `<div class="res-foot"><button class="mini-copy" data-export="paths">copy all paths</button></div>` : '<div class="empty">no path-based targets right now</div>';
+}
 function rankBar(frac, color) { return `<span class="rk-track"><span class="rk-fill" style="width:${(Math.max(0.03, frac) * 100).toFixed(1)}%;background:${color}"></span></span>`; }
 function renderRanks(s) {
   const most = s.mostTargeted || [];
