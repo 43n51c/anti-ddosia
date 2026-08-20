@@ -27,6 +27,14 @@ a { color: var(--cyan); text-decoration: none; }
 a:hover { text-decoration: underline; }
 ::selection { background: rgba(61,220,132,0.25); }
 
+/* scrollbars — themed */
+* { scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+::-webkit-scrollbar-corner { background: transparent; }
+
 .app { display: grid; grid-template-columns: 210px 1fr; min-height: 100vh; }
 
 /* ===== RAIL ===== */
