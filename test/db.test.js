@@ -122,6 +122,12 @@ test('periodStats: distinct union across days + windowing', () => {
   dbx.putHostFirstSeen('a.com', '2026-03-01T00:00:00Z');
   dbx.putHostFirstSeen('c.com', '2026-03-02T00:00:00Z');
 
+  // per-day count breakdowns (summed over the window)
+  dbx.clearDayBreakdown();
+  dbx.putDayBreakdown('2026-03-01', { US: 5 }, { GET: 4, syn: 1 });
+  dbx.putDayBreakdown('2026-03-02', { US: 3, CA: 6 }, { GET: 2, POST: 7 });
+  dbx.putCountry('US', 'United States', 1, 1); dbx.putCountry('CA', 'Canada', 1, 1);
+
   const both = dbx.periodStats('2026-03-01', '2026-03-02', '2026-03-01T00:00:00Z', '2026-03-02T23:59:59Z');
   assert.equal(both.hosts, 3);       // a,b,c distinct across the window
   assert.equal(both.ips, 2);
@@ -132,6 +138,12 @@ test('periodStats: distinct union across days + windowing', () => {
   assert.equal(both.avg, 20);
   assert.equal(both.days, 2);
   assert.equal(both.newHosts, 2);
+  // byCountry summed + ranked, with names resolved
+  assert.deepEqual(both.byCountry[0], { code: 'US', key: 'United States', count: 8 }); // 5+3
+  assert.equal(both.byCountry.find((c) => c.code === 'CA').count, 6);
+  // byMethod summed + ranked
+  assert.equal(both.byMethod.find((m) => m.key === 'GET').count, 6); // 4+2
+  assert.equal(both.byMethod.find((m) => m.key === 'POST').count, 7);
 
   const d1 = dbx.periodStats('2026-03-01', '2026-03-01', '2026-03-01T00:00:00Z', '2026-03-01T23:59:59Z');
   assert.equal(d1.hosts, 2);         // only a,b

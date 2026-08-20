@@ -143,13 +143,9 @@ function renderOps(rows) {
   renderPulse(T, s);
   loadPeriod(); // period-windowed metric tiles (async)
 
-  const allT = s.byCountryAllTime || [];
-  renderMap(s.byCountry); // map always shows current attacks only
+  renderMap(s.byCountry); // map always shows current attacks (live)
   $('#mapMeta').textContent = `${T.countries} ${T.countries === 1 ? 'country' : 'countries'} · ${T.hosts} hosts now`;
-  $$('.geo-toggle .seg').forEach((b) => b.classList.toggle('on', b.dataset.geo === state.geoMode));
-  const countryData = state.geoMode === 'all' ? allT : s.byCountry;
-  bars($('#countryBars'), countryData.slice(0, state.geoMode === 'all' ? 10 : 6), (r) => `${flag(codeOf(r))} ${esc(r.key)}`, '#34e0d0');
-  bars($('#methodBars'), s.byMethod.slice(0, 6), (r) => esc(r.key || '—'), '#f5b301');
+  // BY COUNTRY / ATTACK METHODS bars are period-scoped — rendered by renderPeriodTiles
 
   renderOpsFeed(rows);
   renderRanks(s);
@@ -251,7 +247,10 @@ function countUp(el, to, dur = 560) {
 let periodLastKey = null;
 function renderPeriodTiles(p) {
   const span = p.from === p.to ? p.from : `${p.from} → ${p.to}`;
-  $('#periodRange').innerHTML = `<span class="pr-win">${PRESET_LABEL[PERIOD.range] || 'custom'}</span> ${span} · ${p.days} day${p.days === 1 ? '' : 's'}`;
+  const winLabel = PRESET_LABEL[PERIOD.range] || 'custom';
+  $('#periodRange').innerHTML = `<span class="pr-win">${winLabel}</span> ${span} · ${p.days} day${p.days === 1 ? '' : 's'}`;
+  $('#countryWin').textContent = winLabel;
+  $('#methodWin').textContent = winLabel;
   const tiles = [
     { l: 'HOSTS', v: p.hosts, d: 'distinct in window' },
     { l: 'UNIQUE IPS', v: p.ips, d: 'geo-resolved' },
@@ -264,6 +263,9 @@ function renderPeriodTiles(p) {
   const animate = key !== periodLastKey && !prefersReducedMotion(); // only when the window actually changes
   periodLastKey = key;
   $('#tiles').innerHTML = tiles.map((c) => `<div class="tile"><div class="l">${c.l}</div><div class="v" data-val="${c.v}">${animate ? '0' : fmt(c.v)}</div>${c.d ? `<div class="d">${c.d}</div>` : ''}<span class="tile-bar"></span></div>`).join('');
+  // period-scoped breakdown bars (share the same one-shot animation)
+  bars($('#countryBars'), (p.byCountry || []).slice(0, 8), (r) => `${flag(r.code)} ${esc(r.key)}`, '#34e0d0', animate);
+  bars($('#methodBars'), (p.byMethod || []).slice(0, 6), (r) => esc(r.key || '—'), '#f5b301', animate);
   if (!animate) return;
   $$('#tiles .tile').forEach((tile) => {
     countUp(tile.querySelector('.v'), Number(tile.querySelector('.v').dataset.val));
@@ -273,9 +275,16 @@ function renderPeriodTiles(p) {
   });
 }
 
-function bars(el, rows, labelFn, color) {
+function bars(el, rows, labelFn, color, animate) {
   const max = Math.max(1, ...rows.map((r) => r.count));
-  el.innerHTML = rows.length ? rows.map((r) => `<div class="bar"><span class="n" title="${esc(r.key)}">${labelFn(r)}</span><span class="tk"><span class="fl" style="width:${(r.count / max * 100).toFixed(1)}%;background:${color}"></span></span><span class="p">${r.count}</span></div>`).join('') : '<div class="empty">no data</div>';
+  if (!rows.length) { el.innerHTML = '<div class="empty">no data</div>'; return; }
+  el.innerHTML = rows.map((r) => {
+    const w = (r.count / max * 100).toFixed(1);
+    return `<div class="bar"><span class="n" title="${esc(r.key)}">${labelFn(r)}</span><span class="tk"><span class="fl" style="width:${animate ? 0 : w}%;background:${color}" data-w="${w}"></span></span><span class="p" data-val="${r.count}">${animate ? 0 : fmt(r.count)}</span></div>`;
+  }).join('');
+  if (!animate) return;
+  requestAnimationFrame(() => el.querySelectorAll('.fl').forEach((f) => { f.style.width = f.dataset.w + '%'; }));
+  el.querySelectorAll('.p').forEach((p) => countUp(p, Number(p.dataset.val)));
 }
 
 function renderMap(data) {

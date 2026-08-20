@@ -109,6 +109,13 @@ async function poll() {
     dbx.putDay(day, nowIso, targets.length, new Set(targets.map((x) => x.host)).size, new Set(targets.map((x) => x.ip)).size, typeCounts);
     // accumulate today's distinct sets so windowed hosts/ips/countries stay accurate
     dbx.mergeDayAgg(day, [...new Set(targets.map((x) => x.host))], [...new Set(targets.map((x) => x.ip).filter(Boolean))], [...new Set(targets.map((x) => x.countryCode).filter((c) => c && c !== 'XX'))]);
+    // today's representative breakdown (last poll wins) for period-scoped bars
+    const ccCounts = {}, methodCounts = {};
+    for (const t of targets) {
+      if (t.countryCode && t.countryCode !== 'XX') ccCounts[t.countryCode] = (ccCounts[t.countryCode] || 0) + 1;
+      if (t.method) methodCounts[t.method] = (methodCounts[t.method] || 0) + 1;
+    }
+    dbx.putDayBreakdown(day, ccCounts, methodCounts);
     // per-(host,day) surface so the current (ongoing) session has detail for today too
     const dayHostSurf = new Map();
     for (const t of raw) {

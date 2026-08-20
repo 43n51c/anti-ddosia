@@ -30,6 +30,10 @@ CREATE TABLE IF NOT EXISTS history (
 CREATE TABLE IF NOT EXISTS day_agg (
   day TEXT PRIMARY KEY, hosts TEXT NOT NULL DEFAULT '[]', ips TEXT NOT NULL DEFAULT '[]', ccs TEXT NOT NULL DEFAULT '[]'
 );
+-- per-day count breakdowns (representative snapshot of the day) for windowed bars
+CREATE TABLE IF NOT EXISTS day_breakdown (
+  day TEXT PRIMARY KEY, cc_counts TEXT NOT NULL DEFAULT '{}', method_counts TEXT NOT NULL DEFAULT '{}'
+);
 CREATE TABLE IF NOT EXISTS host_first_seen ( host TEXT PRIMARY KEY, first_seen TEXT );
 CREATE TABLE IF NOT EXISTS target_first_seen ( target_id TEXT PRIMARY KEY, first_seen TEXT );
 CREATE TABLE IF NOT EXISTS country_alltime ( code TEXT PRIMARY KEY, country TEXT, hosts INTEGER, targets INTEGER );
@@ -138,6 +142,9 @@ const S = {
   dayAggPut: db.prepare('INSERT OR REPLACE INTO day_agg(day,hosts,ips,ccs) VALUES(?,?,?,?)'),
   dayAggRange: db.prepare('SELECT hosts, ips, ccs FROM day_agg WHERE day BETWEEN ? AND ?'),
   dayAggClear: db.prepare('DELETE FROM day_agg'),
+  dayBrkPut: db.prepare('INSERT OR REPLACE INTO day_breakdown(day,cc_counts,method_counts) VALUES(?,?,?)'),
+  dayBrkRange: db.prepare('SELECT cc_counts, method_counts FROM day_breakdown WHERE day BETWEEN ? AND ?'),
+  dayBrkClear: db.prepare('DELETE FROM day_breakdown'),
   newHostsBetween: db.prepare('SELECT COUNT(*) c FROM host_first_seen WHERE first_seen BETWEEN ? AND ?'),
   hfsGet: db.prepare('SELECT first_seen FROM host_first_seen WHERE host = ?'),
   // earliest-wins upsert: keeps the minimum date seen for a host/target
@@ -231,7 +238,11 @@ export function mergeDayAgg(day, hosts, ips, ccs) {
   const C = new Set(cur ? JSON.parse(cur.ccs) : []); for (const c of ccs) C.add(c);
   S.dayAggPut.run(day, JSON.stringify([...H]), JSON.stringify([...I]), JSON.stringify([...C]));
 }
-// aggregate distinct hosts/ips/countries + request totals over an inclusive day range
+export function clearDayBreakdown() { S.dayBrkClear.run(); }
+export function putDayBreakdown(day, ccCounts, methodCounts) { S.dayBrkPut.run(day, JSON.stringify(ccCounts || {}), JSON.stringify(methodCounts || {})); }
+
+// aggregate distinct hosts/ips/countries + request totals + country/method
+// breakdowns over an inclusive day range
 export function periodStats(fromDay, toDay, fromIso, toIso) {
   const H = new Set(), I = new Set(), C = new Set();
   for (const r of S.dayAggRange.all(fromDay, toDay)) {
@@ -242,7 +253,19 @@ export function periodStats(fromDay, toDay, fromIso, toIso) {
   for (const d of hist) { requests += d.count || 0; if ((d.count || 0) > peak.count) peak = { day: d.day, count: d.count }; }
   const avg = hist.length ? Math.round(requests / hist.length) : 0;
   const newHosts = S.newHostsBetween.get(fromIso, toIso).c;
-  return { hosts: H.size, ips: I.size, countries: C.size, requests, peak, avg, days: hist.length, newHosts };
+
+  // summed country/method breakdowns over the window
+  const cc = new Map(), me = new Map();
+  for (const r of S.dayBrkRange.all(fromDay, toDay)) {
+    try {
+      for (const [k, v] of Object.entries(JSON.parse(r.cc_counts))) cc.set(k, (cc.get(k) || 0) + v);
+      for (const [k, v] of Object.entries(JSON.parse(r.method_counts))) me.set(k, (me.get(k) || 0) + v);
+    } catch { /* skip */ }
+  }
+  const names = new Map(S.countryAll.all().map((c) => [c.code, c.country]));
+  const byCountry = [...cc.entries()].map(([code, count]) => ({ code, key: names.get(code) || code, count })).sort((a, b) => b.count - a.count).slice(0, 10);
+  const byMethod = [...me.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count).slice(0, 8);
+  return { hosts: H.size, ips: I.size, countries: C.size, requests, peak, avg, days: hist.length, newHosts, byCountry, byMethod };
 }
 export function getHostFirstSeen(host) { return S.hfsGet.get(host)?.first_seen || null; }
 export function putHostFirstSeen(host, iso) { S.hfsPut.run(host, iso); }
