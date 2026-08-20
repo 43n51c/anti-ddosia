@@ -447,6 +447,22 @@ function fmtSpan(days) {
   if (h > 0) return mins > 0 ? `${h}h ${mins}m` : `${h}h`;
   return `${mins}m`;
 }
+// one collapsible per IP with that IP's live target entries (type/method/port/path)
+function renderIpTargets(ip, vecs, openIt) {
+  const ports = [...new Set(vecs.map((v) => v.port))].sort((a, b) => a - b);
+  const paths = [...new Set(vecs.map((v) => v.path).filter(Boolean))];
+  const copyBtns = `<div class="dsc-copyall"><button class="mini-copy" data-copy="${esc(ip)}">copy IP</button>${paths.length ? ` <button class="mini-copy" data-copy="${esc(paths.join('\n'))}">copy paths</button>` : ''}</div>`;
+  const table = `<table class="vec-tbl"><thead><tr><th>type</th><th>method</th><th>port</th><th>path</th></tr></thead><tbody>${vecs.map((v) => `<tr><td><span class="tag ${typeCls(v.type)}">${esc(v.type)}</span></td><td class="cc">${esc(v.method || '—')}</td><td class="cc">${esc(v.port)}</td><td class="p">${esc(v.path || '—')}</td></tr>`).join('')}</tbody></table>`;
+  return dsecC(`${ip} · ${vecs.length} target${vecs.length === 1 ? '' : 's'}`, copyBtns + table, openIt, `ports ${ports.join(', ') || '—'}`);
+}
+// one collapsible per IP with that IP's all-time paths (from the stored surface)
+function renderIpPathsHist(ip, e, openIt) {
+  const paths = e.paths || [], ports = e.ports || [], types = e.types || {}, methods = e.methods || [];
+  const copyBtns = `<div class="dsc-copyall"><button class="mini-copy" data-copy="${esc(ip)}">copy IP</button>${paths.length ? ` <button class="mini-copy" data-copy="${esc(paths.map((p) => p[0]).join('\n'))}">copy paths</button>` : ''}</div>`;
+  const rows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based targets on this IP</div>';
+  const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(m)}</span>`).join('')}</div>` : '';
+  return dsecC(`${ip} · ${paths.length} path${paths.length === 1 ? '' : 's'}`, copyBtns + rows + chips, openIt, `ports ${ports.join(', ') || '—'}`);
+}
 async function openDrawer(host) {
   const rows = state.targets.filter((t) => t.host === host);
   const isCurrent = rows.length > 0;
@@ -468,21 +484,19 @@ async function openDrawer(host) {
     : [{ k: 'attack sessions', v: String(sm.count) }, { k: 'longest stint', v: sm.longest ? fmtSpan(sm.longest) : '—' }, { k: 'total under attack', v: sm.totalDays ? fmtSpan(sm.totalDays) : '—' }, { k: 'first seen', v: (sm.firstSeen || '').slice(0, 10) || '—' }];
   const factsHtml = `<div class="facts">${facts.map((f) => `<div class="fact"><div class="k">${f.k}</div><div class="v">${f.raw ? f.v : esc(f.v)}</div></div>`).join('')}</div>`;
 
-  // one flat list of every target for this host (as it appears in the data)
+  // paths grouped per IP: one collapsible section per IP with that IP's targets
   let targetsHtml;
   if (isCurrent) {
-    const body = `<table class="vec-tbl"><thead><tr><th>ip</th><th>type</th><th>method</th><th>port</th><th>path</th></tr></thead><tbody>${h.vectors.map((v) => `<tr><td class="cc mono">${esc(v.ip)}</td><td><span class="tag ${typeCls(v.type)}">${esc(v.type)}</span></td><td class="cc">${esc(v.method || '—')}</td><td class="cc">${esc(v.port)}</td><td class="p">${esc(v.path || '—')}</td></tr>`).join('')}</tbody></table>`;
-    targetsHtml = `<div class="dsec-label">TARGETS <span class="dsc-hint">${h.vectors.length} entries · live</span></div>${body}`;
+    const byIp = {};
+    for (const v of h.vectors) (byIp[v.ip] ||= []).push(v);
+    const ips = Object.keys(byIp).sort((a, b) => byIp[b].length - byIp[a].length);
+    const secs = ips.map((ip) => renderIpTargets(ip, byIp[ip], ips.length === 1)).join('');
+    targetsHtml = `<div class="dsec-label">TARGETS BY IP <span class="dsc-hint">${ips.length} IP${ips.length === 1 ? '' : 's'} · ${h.vectors.length} entries · live</span></div>${secs}`;
   } else {
     const byIp = surf && surf.byIp ? surf.byIp : {};
-    const flat = [];
-    for (const [ip, e] of Object.entries(byIp)) for (const [p, c] of (e.paths || [])) flat.push({ ip, path: p, count: c });
-    flat.sort((a, b) => a.ip.localeCompare(b.ip) || b.count - a.count);
-    const body = flat.length
-      ? `<table class="vec-tbl"><thead><tr><th>ip</th><th>path</th><th>seen</th></tr></thead><tbody>${flat.map((r) => `<tr><td class="cc mono">${esc(r.ip)}</td><td class="p">${esc(r.path || '(no path)')}</td><td class="cc">${r.count}×</td></tr>`).join('')}</tbody></table>`
-      : '<div class="empty">no path-based targets recorded</div>';
-    const chips = surf ? `<div class="surf-chips">${Object.entries(surf.types || {}).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${(surf.methods || []).map((m) => `<span class="tag t-default">${esc(m)}</span>`).join('')}</div>` : '';
-    targetsHtml = `<div class="dsec-label">TARGETS <span class="dsc-hint">${flat.length} entries · all-time · ports ${surf ? surf.ports.join(', ') : '—'}</span></div>${body}${chips}`;
+    const ips = Object.keys(byIp).sort((a, b) => (byIp[b].paths ? byIp[b].paths.length : 0) - (byIp[a].paths ? byIp[a].paths.length : 0));
+    const secs = ips.length ? ips.map((ip) => renderIpPathsHist(ip, byIp[ip], ips.length === 1)).join('') : '<div class="empty">no per-IP path data recorded</div>';
+    targetsHtml = `<div class="dsec-label">TARGETS BY IP <span class="dsc-hint">${ips.length} IP${ips.length === 1 ? '' : 's'} · all-time</span></div>${secs}`;
   }
 
   const list = ss.length ? ss.map((s) => {
