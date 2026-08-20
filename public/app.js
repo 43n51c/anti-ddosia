@@ -125,6 +125,8 @@ function render() {
   // type/country/port/new filter the current snapshot; hide them where they don't apply (all-time hosts)
   const liveFilterView = (state.view === 'ops' || state.view === 'targets' || (state.view === 'hosts' && state.hostsMode === 'live'));
   $('#toolbar').style.display = liveFilterView ? '' : 'none';
+  // grep filters tables/lists; the OPS "check" box is its own thing, so keep grep to the list views only
+  $('.search-wrap').style.display = (state.view === 'hosts' || state.view === 'targets') ? '' : 'none';
   if (state.view === 'ops') renderOps(rows);
   if (state.view === 'hosts') renderHosts(rows);
   if (state.view === 'targets') renderTargets(rows);
@@ -582,6 +584,8 @@ async function markSeen() { try { await api('/api/alerts/seen', { method: 'POST'
 // ---------- events ----------
 function switchView(v) {
   if ((v === 'assets' || v === 'alerts') && !account.user) { pendingView = v; openAuth('login'); return; }
+  // grep only applies to list views — clear a stale term when leaving them so it can't filter invisibly
+  if (v !== 'hosts' && v !== 'targets' && state.search) { state.search = ''; $('#search').value = ''; $('#searchClear').hidden = true; }
   state.view = v;
   $$('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.view === v));
   $$('.view').forEach((s) => { s.hidden = s.id !== `view-${v}`; });
