@@ -26,6 +26,10 @@ CREATE TABLE IF NOT EXISTS geoip (
 CREATE TABLE IF NOT EXISTS history (
   day TEXT PRIMARY KEY, t TEXT, count INTEGER, hosts INTEGER, ips INTEGER, types_json TEXT
 );
+-- per-day distinct sets, so hosts/ips/countries can be counted over any window
+CREATE TABLE IF NOT EXISTS day_agg (
+  day TEXT PRIMARY KEY, hosts TEXT NOT NULL DEFAULT '[]', ips TEXT NOT NULL DEFAULT '[]', ccs TEXT NOT NULL DEFAULT '[]'
+);
 CREATE TABLE IF NOT EXISTS host_first_seen ( host TEXT PRIMARY KEY, first_seen TEXT );
 CREATE TABLE IF NOT EXISTS target_first_seen ( target_id TEXT PRIMARY KEY, first_seen TEXT );
 CREATE TABLE IF NOT EXISTS country_alltime ( code TEXT PRIMARY KEY, country TEXT, hosts INTEGER, targets INTEGER );
@@ -128,6 +132,13 @@ const S = {
   geoPut: db.prepare('INSERT OR REPLACE INTO geoip(ip,country,country_code,city,region_name,org,asn) VALUES(?,?,?,?,?,?,?)'),
   histPut: db.prepare('INSERT OR REPLACE INTO history(day,t,count,hosts,ips,types_json) VALUES(?,?,?,?,?,?)'),
   histTrend: db.prepare('SELECT day,count,hosts,ips FROM history ORDER BY day ASC'),
+  histBounds: db.prepare('SELECT MIN(day) mn, MAX(day) mx FROM history'),
+  histRange: db.prepare('SELECT day, count FROM history WHERE day BETWEEN ? AND ?'),
+  dayAggGet: db.prepare('SELECT hosts, ips, ccs FROM day_agg WHERE day = ?'),
+  dayAggPut: db.prepare('INSERT OR REPLACE INTO day_agg(day,hosts,ips,ccs) VALUES(?,?,?,?)'),
+  dayAggRange: db.prepare('SELECT hosts, ips, ccs FROM day_agg WHERE day BETWEEN ? AND ?'),
+  dayAggClear: db.prepare('DELETE FROM day_agg'),
+  newHostsBetween: db.prepare('SELECT COUNT(*) c FROM host_first_seen WHERE first_seen BETWEEN ? AND ?'),
   hfsGet: db.prepare('SELECT first_seen FROM host_first_seen WHERE host = ?'),
   // earliest-wins upsert: keeps the minimum date seen for a host/target
   hfsPut: db.prepare('INSERT INTO host_first_seen(host,first_seen) VALUES(?,?) ON CONFLICT(host) DO UPDATE SET first_seen=excluded.first_seen WHERE excluded.first_seen < host_first_seen.first_seen'),
@@ -207,6 +218,32 @@ export function putGeo(ip, v) { S.geoPut.run(ip, v.country || '', v.countryCode 
 // history + first-seen
 export function putDay(day, t, count, hosts, ips, types) { S.histPut.run(day, t, count, hosts, ips, JSON.stringify(types || {})); }
 export function getTrend() { return S.histTrend.all(); }
+export function historyBounds() { const r = S.histBounds.get(); return { min: r?.mn || null, max: r?.mx || null }; }
+
+// ---- per-day distinct sets (for windowed hosts/ips/countries) ----
+export function clearDayAgg() { S.dayAggClear.run(); }
+export function putDayAgg(day, hosts, ips, ccs) { S.dayAggPut.run(day, JSON.stringify(hosts || []), JSON.stringify(ips || []), JSON.stringify(ccs || [])); }
+// union today's snapshot into the stored per-day set (accumulate across polls)
+export function mergeDayAgg(day, hosts, ips, ccs) {
+  const cur = S.dayAggGet.get(day);
+  const H = new Set(cur ? JSON.parse(cur.hosts) : []); for (const h of hosts) H.add(h);
+  const I = new Set(cur ? JSON.parse(cur.ips) : []); for (const i of ips) I.add(i);
+  const C = new Set(cur ? JSON.parse(cur.ccs) : []); for (const c of ccs) C.add(c);
+  S.dayAggPut.run(day, JSON.stringify([...H]), JSON.stringify([...I]), JSON.stringify([...C]));
+}
+// aggregate distinct hosts/ips/countries + request totals over an inclusive day range
+export function periodStats(fromDay, toDay, fromIso, toIso) {
+  const H = new Set(), I = new Set(), C = new Set();
+  for (const r of S.dayAggRange.all(fromDay, toDay)) {
+    try { for (const h of JSON.parse(r.hosts)) H.add(h); for (const i of JSON.parse(r.ips)) I.add(i); for (const c of JSON.parse(r.ccs)) C.add(c); } catch { /* skip */ }
+  }
+  const hist = S.histRange.all(fromDay, toDay);
+  let requests = 0, peak = { day: null, count: 0 };
+  for (const d of hist) { requests += d.count || 0; if ((d.count || 0) > peak.count) peak = { day: d.day, count: d.count }; }
+  const avg = hist.length ? Math.round(requests / hist.length) : 0;
+  const newHosts = S.newHostsBetween.get(fromIso, toIso).c;
+  return { hosts: H.size, ips: I.size, countries: C.size, requests, peak, avg, days: hist.length, newHosts };
+}
 export function getHostFirstSeen(host) { return S.hfsGet.get(host)?.first_seen || null; }
 export function putHostFirstSeen(host, iso) { S.hfsPut.run(host, iso); }
 export function getTargetFirstSeen(id) { return S.tfsGet.get(id)?.first_seen || null; }

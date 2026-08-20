@@ -86,6 +86,18 @@ test('POST /api/settings rejects SSRF webhook URLs', async () => {
   assert.match(bad.body.error, /private|reserved|internal/i);
 });
 
+test('GET /api/period returns windowed metrics with clamped dates', async () => {
+  const { status, body } = await j('/api/period?from=2026-01-01&to=2026-01-07');
+  assert.equal(status, 200);
+  for (const k of ['from', 'to', 'hosts', 'ips', 'countries', 'newHosts', 'peak', 'avg', 'days']) assert.ok(k in body, `missing ${k}`);
+  // swapped/garbage dates must not error
+  const swapped = await j('/api/period?from=2026-12-31&to=2026-01-01');
+  assert.equal(swapped.status, 200);
+  assert.ok(swapped.body.from <= swapped.body.to);
+  const garbage = await j('/api/period?from=notadate&to=x');
+  assert.equal(garbage.status, 200);
+});
+
 test('unknown API route → 404', async () => {
   const { status } = await j('/api/does-not-exist');
   assert.equal(status, 404);

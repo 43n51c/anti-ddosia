@@ -111,6 +111,44 @@ test('updateSessions: opens at publish time, touches, and closes stints', () => 
   assert.ok(hs.summary.count >= 1);
 });
 
+test('periodStats: distinct union across days + windowing', () => {
+  dbx.clearDayAgg();
+  // day 1: hosts a,b / ips 1.1.1.1 / cc US ; day 2: hosts b,c / ips 2.2.2.2 / cc US,CA
+  dbx.putDayAgg('2026-03-01', ['a.com', 'b.com'], ['1.1.1.1'], ['US']);
+  dbx.putDayAgg('2026-03-02', ['b.com', 'c.com'], ['2.2.2.2'], ['US', 'CA']);
+  dbx.putDay('2026-03-01', '2026-03-01T12:00:00Z', 10, 2, 1, {});
+  dbx.putDay('2026-03-02', '2026-03-02T12:00:00Z', 30, 2, 1, {});
+  // host_first_seen for "new in window"
+  dbx.putHostFirstSeen('a.com', '2026-03-01T00:00:00Z');
+  dbx.putHostFirstSeen('c.com', '2026-03-02T00:00:00Z');
+
+  const both = dbx.periodStats('2026-03-01', '2026-03-02', '2026-03-01T00:00:00Z', '2026-03-02T23:59:59Z');
+  assert.equal(both.hosts, 3);       // a,b,c distinct across the window
+  assert.equal(both.ips, 2);
+  assert.equal(both.countries, 2);   // US,CA
+  assert.equal(both.requests, 40);   // 10 + 30
+  assert.equal(both.peak.count, 30);
+  assert.equal(both.peak.day, '2026-03-02');
+  assert.equal(both.avg, 20);
+  assert.equal(both.days, 2);
+  assert.equal(both.newHosts, 2);
+
+  const d1 = dbx.periodStats('2026-03-01', '2026-03-01', '2026-03-01T00:00:00Z', '2026-03-01T23:59:59Z');
+  assert.equal(d1.hosts, 2);         // only a,b
+  assert.equal(d1.countries, 1);     // US
+  assert.equal(d1.newHosts, 1);      // only a.com first-seen that day
+});
+
+test('mergeDayAgg unions into an existing day without dropping prior entries', () => {
+  dbx.clearDayAgg();
+  dbx.putDayAgg('2026-04-01', ['x.com'], ['1.1.1.1'], ['US']);
+  dbx.mergeDayAgg('2026-04-01', ['y.com'], ['2.2.2.2'], ['CA']);
+  const p = dbx.periodStats('2026-04-01', '2026-04-01', '2026-04-01T00:00:00Z', '2026-04-01T23:59:59Z');
+  assert.equal(p.hosts, 2); // x + y
+  assert.equal(p.ips, 2);
+  assert.equal(p.countries, 2);
+});
+
 test('hostsAll: LIKE query escapes wildcards (no injection via %/_)', () => {
   dbx.clearSessions();
   dbx.insertSession('alpha.com', '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z', '2026-01-02T00:00:00Z');

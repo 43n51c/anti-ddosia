@@ -102,13 +102,27 @@
       <!-- pulse -->
       <div class="pulse" id="pulse" hidden></div>
 
-      <!-- current stat tiles -->
-      <div class="tiles" id="tiles"></div>
-
-      <!-- all-time cumulative strip -->
-      <div class="cum-wrap">
-        <div class="cum-h mono">ALL-TIME <span>since 2023 · full archive</span></div>
-        <div class="cum" id="cum"></div>
+      <!-- period-windowed metrics -->
+      <div class="period">
+        <div class="period-bar">
+          <span class="seg-group period-seg" id="periodSeg" role="group" aria-label="time window">
+            <button type="button" class="seg" data-range="1">24h</button>
+            <button type="button" class="seg on" data-range="7">7d</button>
+            <button type="button" class="seg" data-range="30">30d</button>
+            <button type="button" class="seg" data-range="365">365d</button>
+            <button type="button" class="seg" data-range="all">all</button>
+            <button type="button" class="seg" data-range="custom">custom</button>
+          </span>
+          <span class="period-custom" id="periodCustom" hidden>
+            <input type="date" id="periodFrom" class="date-in mono" />
+            <span class="dash mono">→</span>
+            <input type="date" id="periodTo" class="date-in mono" />
+            <button type="button" class="run sm mono" id="periodApply">apply</button>
+          </span>
+          <span class="spacer"></span>
+          <span class="period-range mono" id="periodRange"></span>
+        </div>
+        <div class="tiles" id="tiles"></div>
       </div>
 
       <!-- map + right rail -->

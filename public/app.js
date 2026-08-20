@@ -140,20 +140,8 @@ function render() {
 function renderOps(rows) {
   const s = state.stats; if (!s || !s.totals) return;
   const T = s.totals;
-  const delta = s.yesterdayCount != null ? T.targets - s.yesterdayCount : null;
-  const dStr = delta == null ? '' : (delta === 0 ? '±0 vs yday' : (delta > 0 ? `▲ ${delta} vs yday` : `▼ ${-delta} vs yday`));
-  const tiles = [
-    { l: 'TARGETS', v: T.targets, d: dStr, dc: delta > 0 ? 'up' : 'down' },
-    { l: 'HOSTS', v: T.hosts },
-    { l: 'UNIQUE IPS', v: T.ips },
-    { l: 'COUNTRIES', v: T.countries },
-    { l: 'NEW / 24H', v: T.newHosts24h, d: T.newHosts24h ? 'fresh hosts' : '', dc: 'up' },
-    { l: 'WAVE SINCE', v: (s.waveSince || '—'), sm: true, d: s.waveSince ? `running <span class="dur" data-since="${dayIso(s.waveSince)}"></span>` : 'dominant onset' },
-  ];
-  $('#tiles').innerHTML = tiles.map((c) => `<div class="tile"><div class="l">${c.l}</div><div class="v ${c.sm ? 'sm' : ''}">${c.v}</div>${c.d ? `<div class="d ${c.dc || ''}">${c.d}</div>` : ''}</div>`).join('');
-
   renderPulse(T, s);
-  renderCumulative(s);
+  loadPeriod(); // period-windowed metric tiles (async)
 
   const allT = s.byCountryAllTime || [];
   renderMap(s.byCountry); // map always shows current attacks only
@@ -194,7 +182,7 @@ function renderPulse(T, s) {
   const last7 = (s.trend || []).slice(-8).map((d) => d.count);
   const cc = s.byCountry.slice(0, 3).map((c) => `${flag(codeFor(c.key))} ${esc(c.key)}`).join('&nbsp; ');
   const sigs = [
-    { l: 'NEW · 24H', v: `${T.newHosts24h} host${T.newHosts24h === 1 ? '' : 's'}`, d: newNames, vc: T.newHosts24h ? 'up' : '' },
+    { l: 'LIVE NOW', v: `${T.targets}&nbsp;<span class="sig-sub">targets</span>`, d: `${T.hosts} hosts · ${T.ips} IPs · ${T.countries} ${T.countries === 1 ? 'country' : 'countries'}`, vc: '' },
     { l: 'TRAJECTORY', v: `${trajV}&nbsp;<span class="sig-sub">vs yday</span>&nbsp;${miniSpark(last7, 56, 16, delta > 0 ? '#ff5566' : '#3ddc84')}`, d: `${T.targets} now &larr; ${s.yesterdayCount ?? '—'} yesterday`, vc: trajCls },
     { l: 'CURRENT WAVE', v: s.waveSince ? `<span class="dur" data-since="${dayIso(s.waveSince)}"></span>` : '—', d: `since ${s.waveSince || '—'}${cc ? ' · ' + cc : ''}` },
     { l: 'HOT TARGET', v: hot ? esc(hot.host) : '—', d: hot ? `${hot.targetCount} vectors · ${Object.keys(hot.types).join('/')}` : '' },
@@ -205,17 +193,42 @@ function renderPulse(T, s) {
     <div class="pulse-grid">${sigs.map((x) => `<div class="sig"><div class="sig-l">${x.l}</div><div class="sig-v ${x.vc || ''}">${x.v}</div><div class="sig-d">${x.d}</div></div>`).join('')}</div>`;
 }
 
-function renderCumulative(s) {
-  const c = s.cumulative || {};
-  const items = [
-    { l: 'CONFIGURATIONS', v: fmt(c.configs), i: 'snapshots archived' },
-    { l: 'HOSTS TRACKED', v: fmt(c.hosts), i: 'distinct, all-time' },
-    { l: 'UNIQUE IPS', v: fmt(c.ips), i: 'geo-resolved' },
-    { l: 'TARGET-REQUESTS', v: fmt(c.requests), i: 'logged across archive' },
-    { l: 'COUNTRIES HIT', v: fmt((s.byCountryAllTime || []).length), i: 'all-time reach' },
-    { l: 'DAYS MONITORED', v: fmt(c.days), i: 'since Jun 2023' },
+// ---------- period-windowed metrics ----------
+const PERIOD = { range: '7', from: null, to: null };
+const PRESET_LABEL = { '1': '24h', '7': '7d', '30': '30d', '365': '365d', all: 'all-time', custom: 'custom' };
+function periodDates() {
+  const s = state.stats || {};
+  const today = (s.fetchedAt || new Date().toISOString()).slice(0, 10);
+  const start = s.historyStart || '2023-06-01';
+  if (PERIOD.range === 'all') return { from: start, to: today };
+  if (PERIOD.range === 'custom') return { from: PERIOD.from || start, to: PERIOD.to || today };
+  const n = Number(PERIOD.range) || 1;
+  const d = new Date(today + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - (n - 1));
+  const from = d.toISOString().slice(0, 10);
+  return { from: from < start ? start : from, to: today };
+}
+let periodToken = 0;
+async function loadPeriod() {
+  if (!state.stats) return;
+  const { from, to } = periodDates();
+  const mine = ++periodToken;
+  let p;
+  try { p = await api(`/api/period?from=${from}&to=${to}`); } catch { return; }
+  if (mine !== periodToken) return; // a newer request superseded this one
+  renderPeriodTiles(p);
+}
+function renderPeriodTiles(p) {
+  const span = p.from === p.to ? p.from : `${p.from} → ${p.to}`;
+  $('#periodRange').innerHTML = `<span class="pr-win">${PRESET_LABEL[PERIOD.range] || 'custom'}</span> ${span} · ${p.days} day${p.days === 1 ? '' : 's'}`;
+  const tiles = [
+    { l: 'HOSTS', v: fmt(p.hosts), d: 'distinct in window' },
+    { l: 'UNIQUE IPS', v: fmt(p.ips), d: 'geo-resolved' },
+    { l: 'COUNTRIES', v: fmt(p.countries), d: 'targeted' },
+    { l: 'NEW HOSTS', v: fmt(p.newHosts), d: 'first appeared' },
+    { l: 'PEAK / DAY', v: fmt(p.peak.count), d: p.peak.day ? `on ${p.peak.day}` : '', sm: false },
+    { l: 'AVG / DAY', v: fmt(p.avg), d: 'targets/day' },
   ];
-  $('#cum').innerHTML = items.map((x) => `<div class="ctile"><div class="cv">${x.v}</div><div class="cl">${x.l}</div><div class="ci">${x.i}</div></div>`).join('');
+  $('#tiles').innerHTML = tiles.map((c) => `<div class="tile"><div class="l">${c.l}</div><div class="v ${c.sm ? 'sm' : ''}">${c.v}</div>${c.d ? `<div class="d">${c.d}</div>` : ''}</div>`).join('');
 }
 
 function bars(el, rows, labelFn, color) {
@@ -727,6 +740,30 @@ $('#refreshBtn').addEventListener('click', () => load());
 document.addEventListener('click', (e) => {
   const g = e.target.closest('.seg[data-geo]'); if (g) { e.stopPropagation(); state.geoMode = g.dataset.geo; render(); return; }
   const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); }
+});
+// period switcher
+$('#periodSeg').addEventListener('click', (e) => {
+  const seg = e.target.closest('.seg[data-range]'); if (!seg) return;
+  PERIOD.range = seg.dataset.range;
+  $$('#periodSeg .seg').forEach((s) => s.classList.toggle('on', s === seg));
+  const custom = PERIOD.range === 'custom';
+  $('#periodCustom').hidden = !custom;
+  if (custom) {
+    const { min } = { min: (state.stats && state.stats.historyStart) || '2023-06-01' };
+    const today = ((state.stats && state.stats.fetchedAt) || new Date().toISOString()).slice(0, 10);
+    const f = $('#periodFrom'), t = $('#periodTo');
+    f.min = min; f.max = today; t.min = min; t.max = today;
+    if (!f.value) f.value = PERIOD.from || min;
+    if (!t.value) t.value = PERIOD.to || today;
+  } else {
+    loadPeriod();
+  }
+});
+$('#periodApply').addEventListener('click', () => {
+  const f = $('#periodFrom').value, t = $('#periodTo').value;
+  if (!f || !t) return;
+  PERIOD.from = f; PERIOD.to = t; PERIOD.range = 'custom';
+  loadPeriod();
 });
 
 // map marker hover tooltip

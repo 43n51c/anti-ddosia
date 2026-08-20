@@ -107,6 +107,8 @@ async function poll() {
     const typeCounts = {};
     for (const t of targets) typeCounts[t.type] = (typeCounts[t.type] || 0) + 1;
     dbx.putDay(day, nowIso, targets.length, new Set(targets.map((x) => x.host)).size, new Set(targets.map((x) => x.ip)).size, typeCounts);
+    // accumulate today's distinct sets so windowed hosts/ips/countries stay accurate
+    dbx.mergeDayAgg(day, [...new Set(targets.map((x) => x.host))], [...new Set(targets.map((x) => x.ip).filter(Boolean))], [...new Set(targets.map((x) => x.countryCode).filter((c) => c && c !== 'XX'))]);
     // per-(host,day) surface so the current (ongoing) session has detail for today too
     const dayHostSurf = new Map();
     for (const t of raw) {
@@ -222,6 +224,7 @@ function buildStats() {
     byType: tally(t, 'type'), byCountry: tally(t, 'country'), byPort: tally(t, 'port'), byMethod: tally(t, 'method'),
     topHosts: tally(t, 'host').slice(0, 15), topPaths: topPaths(t), newHosts,
     trend, trendPeak: peak, trendAvg: avg, historyDays: trend.length,
+    historyStart: dbx.historyBounds().min,
     yesterdayCount, waveSince,
     byCountryAllTime: dbx.allCountries().map((c) => ({ key: c.country, code: c.code, count: c.targets, hosts: c.hosts })),
     cumulative: { ...dbx.cumulative(), configs: configsTotal },
@@ -383,6 +386,17 @@ async function handleApi(req, res, pathname) {
   if (rateLimited('read:' + clientIp(req), 240, 60 * 1000)) return sendJson(res, { error: 'Too many requests — slow down' }, 429);
   if (pathname === '/api/targets') return sendJson(res, current);
   if (pathname === '/api/stats') return sendJson(res, buildStats());
+  if (pathname === '/api/period') {
+    const u = new URL(req.url, 'http://localhost').searchParams;
+    const dayRe = /^\d{4}-\d{2}-\d{2}$/;
+    const bounds = dbx.historyBounds();
+    let from = u.get('from') || '', to = u.get('to') || '';
+    if (!dayRe.test(from)) from = bounds.min || '2023-06-01';
+    if (!dayRe.test(to)) to = bounds.max || new Date().toISOString().slice(0, 10);
+    if (from > to) { const t = from; from = to; to = t; }
+    const stats = dbx.periodStats(from, to, from + 'T00:00:00.000Z', to + 'T23:59:59.999Z');
+    return sendJson(res, { from, to, ...stats });
+  }
   if (pathname === '/api/check') {
     const q = new URL(req.url, 'http://localhost').searchParams.get('q') || '';
     return sendJson(res, checkTarget(q));
