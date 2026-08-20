@@ -102,6 +102,7 @@ async function main() {
   const summary = [];
   const recs = [];          // [host, ip] per target appearance across all days
   const uniqIps = new Set();
+  const hostDays = new Map(); // host -> Set(day) for attack-session reconstruction
 
   await pool(days, async ([day, file]) => {
     let targets = [];
@@ -125,6 +126,7 @@ async function main() {
       }
       dbx.putDay(day, `${day}T12:00:00.000Z`, targets.length, hosts.size, ips.size, types);
     });
+    for (const host of hosts) { let hs = hostDays.get(host); if (!hs) { hs = new Set(); hostDays.set(host, hs); } hs.add(day); }
     summary.push({ day, count: targets.length });
   }, CONCURRENCY);
 
@@ -145,9 +147,32 @@ async function main() {
   dbx.clearCountries();
   dbx.tx(() => { for (const [code, e] of byCode) dbx.putCountry(code, e.country, e.hosts.size, e.targets); });
 
+  // ---- reconstruct attack sessions (runs of consecutive days on the list) ----
+  const GAP = 2; // tolerate up to 2 missing archived days within one stint
+  const latest = days[days.length - 1][0];
+  const toNum = (d) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86400000;
+  let sessCount = 0, longest = { host: '—', days: 0 };
+  dbx.clearSessions();
+  dbx.tx(() => {
+    for (const [host, set] of hostDays) {
+      const ds = [...set].sort();
+      let runStart = ds[0], prev = ds[0];
+      const flush = (endDay) => {
+        const ongoing = endDay === latest;
+        dbx.insertSession(host, `${runStart}T00:00:00.000Z`, `${endDay}T12:00:00.000Z`, ongoing ? null : `${endDay}T12:00:00.000Z`);
+        const len = toNum(endDay) - toNum(runStart) + 1;
+        if (len > longest.days) longest = { host, days: len };
+        sessCount++;
+      };
+      for (let i = 1; i < ds.length; i++) { if (toNum(ds[i]) - toNum(prev) > GAP) { flush(prev); runStart = ds[i]; } prev = ds[i]; }
+      flush(prev);
+    }
+  });
+
   console.log(`\nDone. Wrote ${summary.length} daily points to SQLite (data/ddosia.db)`);
   console.log(`  Distinct hosts tracked: ${hostSet.size}`);
   console.log(`  Countries targeted all-time: ${byCode.size}`);
+  console.log(`  Attack sessions reconstructed: ${sessCount} (longest: ${longest.host} ~${Math.round(longest.days)}d)`);
   console.log(`  Peak day: ${peak.day} with ${peak.count} targets`);
   console.log(`  Avg targets/day: ${summary.length ? Math.round(totalTargets / summary.length) : 0}`);
 }

@@ -29,6 +29,12 @@ CREATE TABLE IF NOT EXISTS history (
 CREATE TABLE IF NOT EXISTS host_first_seen ( host TEXT PRIMARY KEY, first_seen TEXT );
 CREATE TABLE IF NOT EXISTS target_first_seen ( target_id TEXT PRIMARY KEY, first_seen TEXT );
 CREATE TABLE IF NOT EXISTS country_alltime ( code TEXT PRIMARY KEY, country TEXT, hosts INTEGER, targets INTEGER );
+CREATE TABLE IF NOT EXISTS attack_session (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  host TEXT NOT NULL, started TEXT NOT NULL, last_seen TEXT NOT NULL, ended TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_as_host ON attack_session(host);
+CREATE INDEX IF NOT EXISTS idx_as_active ON attack_session(host) WHERE ended IS NULL;
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -146,6 +152,16 @@ const S = {
   countryAll: db.prepare('SELECT code,country,hosts,targets FROM country_alltime ORDER BY targets DESC'),
   countryClear: db.prepare('DELETE FROM country_alltime'),
 
+  asActiveStart: db.prepare('SELECT started FROM attack_session WHERE host = ? AND ended IS NULL ORDER BY started DESC LIMIT 1'),
+  asActiveHosts: db.prepare('SELECT host FROM attack_session WHERE ended IS NULL'),
+  asOpen: db.prepare('INSERT INTO attack_session(host,started,last_seen) VALUES(?,?,?)'),
+  asTouch: db.prepare('UPDATE attack_session SET last_seen = ? WHERE host = ? AND ended IS NULL'),
+  asClose: db.prepare('UPDATE attack_session SET ended = last_seen WHERE host = ? AND ended IS NULL'),
+  asInsertFull: db.prepare('INSERT INTO attack_session(host,started,last_seen,ended) VALUES(?,?,?,?)'),
+  asClear: db.prepare('DELETE FROM attack_session'),
+  asMost: db.prepare('SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last_seen, SUM(ended IS NULL) active FROM attack_session GROUP BY host ORDER BY sessions DESC, last_seen DESC LIMIT ?'),
+  asLongest: db.prepare("SELECT host, started, ended, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session ORDER BY days DESC LIMIT ?"),
+
   cntHosts: db.prepare('SELECT COUNT(*) c FROM host_first_seen'),
   cntGeo: db.prepare('SELECT COUNT(*) c FROM geoip'),
   sumReq: db.prepare('SELECT COALESCE(SUM(targets),0) s FROM country_alltime'),
@@ -197,6 +213,21 @@ export function markAlertsSeen(userId) { S.alertMarkSeen.run(userId); }
 export function putCountry(code, country, hosts, targets) { S.countryPut.run(code, country, hosts, targets); }
 export function allCountries() { return S.countryAll.all(); }
 export function clearCountries() { S.countryClear.run(); }
+
+// attack sessions (a host's continuous stint on the target list)
+export function activeSessionStart(host) { return S.asActiveStart.get(host)?.started || null; }
+export function updateSessions(currentHosts, iso) {
+  tx(() => {
+    const active = new Set(S.asActiveHosts.all().map((r) => r.host));
+    for (const h of currentHosts) { if (active.has(h)) S.asTouch.run(iso, h); else S.asOpen.run(h, iso, iso); }
+    const cur = new Set(currentHosts);
+    for (const h of active) if (!cur.has(h)) S.asClose.run(h);
+  });
+}
+export function clearSessions() { S.asClear.run(); }
+export function insertSession(host, started, lastSeen, ended) { S.asInsertFull.run(host, started, lastSeen, ended); }
+export function mostTargeted(limit = 10) { return S.asMost.all(limit); }
+export function longestAttacks(limit = 10) { return S.asLongest.all(limit); }
 
 // cumulative all-time counts
 export function cumulative() {

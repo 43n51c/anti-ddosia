@@ -85,6 +85,9 @@ async function poll() {
       }
     });
 
+    // Update attack sessions (start on first appearance, end on removal).
+    dbx.updateSessions([...new Set(raw.map((t) => t.host).filter(Boolean))], nowIso);
+
     const targets = raw.map((t) => {
       const geo = geoFor(t.ip);
       return {
@@ -92,6 +95,7 @@ async function poll() {
         port: t.port, use_ssl: t.use_ssl, path: t.path || '', ...geo,
         firstSeen: dbx.getTargetFirstSeen(t.target_id) || nowIso,
         hostFirstSeen: dbx.getHostFirstSeen(t.host) || nowIso,
+        sessionStart: dbx.activeSessionStart(t.host) || nowIso,
       };
     });
 
@@ -208,6 +212,8 @@ function buildStats() {
     yesterdayCount, waveSince,
     byCountryAllTime: dbx.allCountries().map((c) => ({ key: c.country, code: c.code, count: c.targets, hosts: c.hosts })),
     cumulative: { ...dbx.cumulative(), configs: configsTotal },
+    mostTargeted: dbx.mostTargeted(10),
+    longestAttacks: dbx.longestAttacks(10),
   };
 }
 

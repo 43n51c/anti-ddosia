@@ -100,7 +100,7 @@ function groupHosts(rows) {
   const m = new Map();
   for (const t of rows) {
     let h = m.get(t.host);
-    if (!h) { h = { host: t.host, country: t.country, countryCode: t.countryCode, city: t.city, org: t.org, ips: new Set(), types: {}, methods: new Set(), ports: new Set(), paths: new Set(), ssl: false, targetCount: 0, firstSeen: t.hostFirstSeen, vectors: [] }; m.set(t.host, h); }
+    if (!h) { h = { host: t.host, country: t.country, countryCode: t.countryCode, city: t.city, org: t.org, ips: new Set(), types: {}, methods: new Set(), ports: new Set(), paths: new Set(), ssl: false, targetCount: 0, firstSeen: t.hostFirstSeen, sessionStart: t.sessionStart || t.hostFirstSeen, vectors: [] }; m.set(t.host, h); }
     if (t.ip) h.ips.add(t.ip);
     h.types[t.type] = (h.types[t.type] || 0) + 1;
     if (t.method) h.methods.add(t.method);
@@ -158,6 +158,7 @@ function renderOps(rows) {
   bars($('#methodBars'), s.byMethod.slice(0, 6), (r) => esc(r.key || '—'), '#f5b301');
 
   renderOpsFeed(rows);
+  renderRanks(s);
   renderTrend($('#trendChart'), s.trend || []);
   $('#trendMeta').textContent = s.trendPeak?.day ? `peak ${s.trendPeak.count} · avg ${s.trendAvg}` : '';
   $('#iocIps').textContent = new Set(rows.map((r) => r.ip).filter(Boolean)).size;
@@ -251,6 +252,29 @@ function renderMap(data) {
   </svg>`;
 }
 
+function renderRanks(s) {
+  const most = s.mostTargeted || [];
+  const live = new Set(state.targets.map((t) => t.host));
+  $('#mostTargeted').innerHTML = most.length ? most.map((r, i) => `
+    <div class="rk" data-host="${esc(r.host)}">
+      <span class="rk-i">${i + 1}</span>
+      <span class="rk-h">${esc(r.host)}${live.has(r.host) ? ' <span class="rk-live">●</span>' : ''}</span>
+      <span class="rk-v">${r.sessions}× <span class="rk-sub">${r.active ? 'active' : timeAgo(r.last_seen) + ' ago'}</span></span>
+    </div>`).join('') : '<div class="empty">no session data — run backfill</div>';
+
+  const longest = s.longestAttacks || [];
+  $('#longestAttacks').innerHTML = longest.length ? longest.map((r, i) => {
+    const ongoing = !r.ended;
+    const dur = ongoing ? `<span class="dur" data-since="${esc(r.started)}"></span>` : `${Math.round(r.days)}d`;
+    return `<div class="rk" data-host="${esc(r.host)}">
+      <span class="rk-i">${i + 1}</span>
+      <span class="rk-h">${esc(r.host)}</span>
+      <span class="rk-v">${dur} <span class="rk-sub ${ongoing ? 'on' : ''}">${ongoing ? 'ongoing' : 'ended'}</span></span>
+    </div>`;
+  }).join('') : '<div class="empty">no session data — run backfill</div>';
+  tickDurations();
+}
+
 function renderOpsFeed(rows) {
   let hosts = groupHosts(rows);
   const { fSortKey: k, fSortDir: dir } = state;
@@ -271,7 +295,7 @@ function renderOpsFeed(rows) {
       <td>${h.targetCount}</td>
       <td class="tt">${Object.keys(h.types).join(' ')}</td>
       <td class="cc">${h.ports.join(' ')}</td>
-      <td class="cc"><span class="dur" data-since="${esc(h.firstSeen)}"></span></td>
+      <td class="cc"><span class="dur" data-since="${esc(h.sessionStart)}"></span></td>
     </tr>`;
   }).join('');
   markSort('#opsFeed', state.fSortKey, state.fSortDir);
@@ -374,7 +398,8 @@ function openDrawer(host) {
   $('#drawerSub').innerHTML = `${flag(h.countryCode)} ${esc(h.country)}${h.city ? ' · ' + esc(h.city) : ''}${h.org ? ' · ' + esc(h.org) : ''}`;
   const facts = [
     { k: 'vectors', v: h.targetCount }, { k: 'unique IPs', v: h.ips.length }, { k: 'ports', v: h.ports.join(', ') || '—' },
-    { k: 'targeted for', v: `<span class="dur" data-since="${esc(h.firstSeen)}"></span>`, raw: true },
+    { k: 'targeted for', v: `<span class="dur" data-since="${esc(h.sessionStart)}"></span>`, raw: true },
+    { k: 'first seen ever', v: (h.firstSeen || '').slice(0, 10) || '—' },
   ];
   const paths = h.paths.filter(Boolean);
   $('#drawerBody').innerHTML = `
