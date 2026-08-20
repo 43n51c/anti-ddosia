@@ -213,6 +213,16 @@ a:hover { text-decoration: underline; }
 .res-foot { margin-top: 8px; }
 .drawer-res { margin: 0 0 12px; }
 .surf-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
+.dsec-c { border: 1px solid var(--line); border-radius: 9px; margin-bottom: 12px; overflow: hidden; }
+.dsec-c > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 13px; }
+.dsec-c > summary::-webkit-details-marker { display: none; }
+.dsec-c > summary:hover { background: var(--bg1); }
+.dsc-t { font-size: 10.5px; letter-spacing: 0.08em; color: var(--tx2); }
+.dsc-t::before { content: "▸ "; color: var(--grn); }
+.dsec-c[open] .dsc-t::before { content: "▾ "; }
+.dsc-hint { color: var(--dim); font-size: 10.5px; }
+.dsc-body { padding: 4px 13px 13px; }
+.dsc-copyall { margin-bottom: 8px; }
 
 /* rank lists (most targeted / longest attacks) */
 .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }

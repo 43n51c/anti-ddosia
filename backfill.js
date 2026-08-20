@@ -126,11 +126,12 @@ async function main() {
         if (t.host && t.ip) recs.push([t.host, t.ip]);
         if (t.host) {
           let hs = hostSurf.get(t.host);
-          if (!hs) { hs = { paths: new Map(), ports: new Set(), types: new Map(), methods: new Set() }; hostSurf.set(t.host, hs); }
+          if (!hs) { hs = { paths: new Map(), ports: new Set(), types: new Map(), methods: new Set(), ips: new Set() }; hostSurf.set(t.host, hs); }
           if (t.path && (hs.paths.size < 400 || hs.paths.has(t.path))) hs.paths.set(t.path, (hs.paths.get(t.path) || 0) + 1);
           if (t.port != null) hs.ports.add(t.port);
           if (t.type) hs.types.set(t.type, (hs.types.get(t.type) || 0) + 1);
           if (t.method) hs.methods.add(t.method);
+          if (t.ip && hs.ips.size < 50) hs.ips.add(t.ip);
         }
       }
       dbx.putDay(day, `${day}T12:00:00.000Z`, targets.length, hosts.size, ips.size, types);
@@ -178,7 +179,7 @@ async function main() {
   dbx.tx(() => {
     for (const [host, hs] of hostSurf) {
       const paths = [...hs.paths.entries()].sort((a, b) => b[1] - a[1]).slice(0, 200);
-      dbx.putHostSurface(host, paths, [...hs.ports].sort((a, b) => a - b), Object.fromEntries(hs.types), [...hs.methods]);
+      dbx.putHostSurface(host, paths, [...hs.ports].sort((a, b) => a - b), Object.fromEntries(hs.types), [...hs.methods], [...hs.ips]);
     }
   });
 
