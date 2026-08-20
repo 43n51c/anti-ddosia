@@ -225,20 +225,21 @@ function bars(el, rows, labelFn, color) {
 function renderMap(data) {
   const W = MAP_W, H = MAP_H;
   const proj = (lng, lat) => [(lng + 180) / 360 * W, (90 - lat) / 180 * H];
-  const max = Math.max(1, ...data.map((c) => c.count));
-  // hosts per country (from the current snapshot) for the hover tooltip
+  // markers are sized/labelled by HOST count per country (target-requests go in the tooltip)
   const hostsBy = {};
   for (const t of state.targets) { (hostsBy[t.countryCode] ||= new Set()).add(t.host); }
   const codes = data.map((c) => [codeOf(c), c]).filter(([cc]) => cc && cc !== 'XX');
+  const hostsOf = (cc) => (hostsBy[cc] ? hostsBy[cc].size : (data.find((c) => codeOf(c) === cc)?.hosts || 0));
+  const max = Math.max(1, ...codes.map(([cc]) => hostsOf(cc)));
   const hi = codes.map(([cc]) => world.byCode.get(cc)).filter(Boolean)
     .map((d) => `<path d="${d}" fill="rgba(255,85,102,0.16)" stroke="#8a3a45" stroke-width="0.5"/>`).join('');
   const labelN = 14; // label the top-N; long tail shown as plain dots to avoid clutter
   const markers = codes.map(([cc, c], i) => {
     const ce = CENTROID[cc]; if (!ce) return '';
     const [x, y] = proj(ce[0], ce[1]);
-    const r = 4 + Math.sqrt(c.count / max) * 20;
-    const hostsN = (hostsBy[cc] ? hostsBy[cc].size : 0);
-    const dataAttr = `class="mk" data-code="${cc}" data-country="${esc(c.key)}" data-count="${c.count}" data-hosts="${hostsN}"`;
+    const n = hostsOf(cc);
+    const r = 4 + Math.sqrt(n / max) * 20;
+    const dataAttr = `class="mk" data-code="${cc}" data-country="${esc(c.key)}" data-hosts="${n}" data-targets="${c.count}"`;
     const base = `${i === 0 ? `<circle cx="${x}" cy="${y}" r="${r}" fill="#ff5566" opacity="0.12"><animate attributeName="r" values="${r};${r + 16};${r}" dur="2.6s" repeatCount="indefinite"/></circle>` : ''}
       <circle cx="${x}" cy="${y}" r="${Math.max(r, 9)}" fill="transparent" ${dataAttr} style="cursor:pointer"/>
       <circle cx="${x}" cy="${y}" r="${r}" fill="rgba(255,85,102,0.18)" stroke="#ff5566" stroke-width="1" pointer-events="none"/>
@@ -247,7 +248,7 @@ function renderMap(data) {
     const fw = 22, fh = 15;
     return `${base}
       <image href="/flags/${cc.toLowerCase()}.svg" x="${x - fw / 2}" y="${y - r - fh - 5}" width="${fw}" height="${fh}" preserveAspectRatio="xMidYMid slice"/>
-      <text x="${x + fw / 2 + 4}" y="${y - r - fh / 2 - 3}" fill="#dbe6f2" font-size="15" font-family="JetBrains Mono, monospace">${c.count}</text>`;
+      <text x="${x + fw / 2 + 4}" y="${y - r - fh / 2 - 3}" fill="#dbe6f2" font-size="15" font-family="JetBrains Mono, monospace">${n}</text>`;
   }).join('');
   const land = world.loaded ? `<path d="${world.all}" fill="#0e1a2a" stroke="#22384f" stroke-width="0.35"/>${hi}` : '';
   const y0 = (90 - 84) / 180 * H, y1 = (90 - -58) / 180 * H;
@@ -635,8 +636,8 @@ document.addEventListener('click', (e) => {
   map.addEventListener('mouseover', (e) => {
     const mk = e.target.closest('.mk'); if (!mk) return;
     tip.innerHTML = `<div class="tt-h">${flag(mk.dataset.code)} ${esc(mk.dataset.country)}</div>
-      <div class="tt-r"><span>target-requests</span><b>${mk.dataset.count}</b></div>
       <div class="tt-r"><span>hosts targeted</span><b>${mk.dataset.hosts}</b></div>
+      <div class="tt-r"><span>target-requests</span><b>${mk.dataset.targets}</b></div>
       <div class="tt-hint">open the feed below for host-level detail</div>`;
     const r = mk.getBoundingClientRect(), b = box.getBoundingClientRect();
     tip.style.left = (r.left + r.width / 2 - b.left) + 'px';

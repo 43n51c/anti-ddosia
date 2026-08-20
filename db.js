@@ -87,6 +87,7 @@ try { db.exec('ALTER TABLE host_surface ADD COLUMN by_ip TEXT'); } catch { /* co
 
 // ---------------- one-time migration from JSON ----------------
 (function migrateFromJson() {
+  if (process.env.DB_FILE) return; // custom DB (e.g. tests) — don't import the app's JSON
   const have = db.prepare('SELECT COUNT(*) c FROM history').get().c;
   if (have > 0) return;
   const stateFile = join(DATA_DIR, 'state.json');
