@@ -195,17 +195,37 @@ function renderPulse(T, s) {
 
 // ---------- period-windowed metrics ----------
 const PERIOD = { range: '7', from: null, to: null };
-const PRESET_LABEL = { '1': '24h', '7': '7d', '30': '30d', '365': '365d', all: 'all-time', custom: 'custom' };
+const PRESET_LABEL = { today: 'today', '7': '7d', '30': '30d', '365': '365d', all: 'all-time', custom: 'custom' };
 function periodDates() {
   const s = state.stats || {};
   const today = (s.fetchedAt || new Date().toISOString()).slice(0, 10);
   const start = s.historyStart || '2023-06-01';
+  if (PERIOD.range === 'today') return { from: today, to: today };
   if (PERIOD.range === 'all') return { from: start, to: today };
   if (PERIOD.range === 'custom') return { from: PERIOD.from || start, to: PERIOD.to || today };
-  const n = Number(PERIOD.range) || 1;
+  const n = Number(PERIOD.range) || 7;
   const d = new Date(today + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - (n - 1));
   const from = d.toISOString().slice(0, 10);
   return { from: from < start ? start : from, to: today };
+}
+// remember the chosen window across reloads and shareable links
+function persistPeriod() {
+  try { localStorage.setItem('ddosia.period', JSON.stringify(PERIOD)); } catch { /* private mode */ }
+  const q = new URLSearchParams(location.search);
+  if (PERIOD.range === 'custom' && PERIOD.from && PERIOD.to) { q.set('period', 'custom'); q.set('from', PERIOD.from); q.set('to', PERIOD.to); }
+  else { q.set('period', PERIOD.range); q.delete('from'); q.delete('to'); }
+  history.replaceState(null, '', location.pathname + '?' + q.toString());
+}
+function restorePeriod() {
+  const q = new URLSearchParams(location.search);
+  let range = q.get('period'), from = q.get('from'), to = q.get('to');
+  if (!range) { try { const sv = JSON.parse(localStorage.getItem('ddosia.period') || 'null'); if (sv) { range = sv.range; from = sv.from; to = sv.to; } } catch { /* ignore */ } }
+  const valid = ['today', '7', '30', '365', 'all', 'custom'];
+  if (!valid.includes(range)) return; // keep the 7d default
+  if (range === 'custom' && !(from && to)) range = '7';
+  PERIOD.range = range; PERIOD.from = from || null; PERIOD.to = to || null;
+  $$('#periodSeg .seg').forEach((sg) => sg.classList.toggle('on', sg.dataset.range === range));
+  if (range === 'custom') { $('#periodCustom').hidden = false; if (from) setDateField('from', from); if (to) setDateField('to', to); }
 }
 let periodToken = 0;
 async function loadPeriod() {
@@ -217,18 +237,40 @@ async function loadPeriod() {
   if (mine !== periodToken) return; // a newer request superseded this one
   renderPeriodTiles(p);
 }
+const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function countUp(el, to, dur = 560) {
+  if (prefersReducedMotion() || !to) { el.textContent = fmt(to); return; }
+  const start = performance.now();
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+  (function frame(now) {
+    const t = Math.min(1, (now - start) / dur);
+    el.textContent = fmt(Math.round(to * ease(t)));
+    if (t < 1) requestAnimationFrame(frame); else el.textContent = fmt(to);
+  })(start);
+}
+let periodLastKey = null;
 function renderPeriodTiles(p) {
   const span = p.from === p.to ? p.from : `${p.from} → ${p.to}`;
   $('#periodRange').innerHTML = `<span class="pr-win">${PRESET_LABEL[PERIOD.range] || 'custom'}</span> ${span} · ${p.days} day${p.days === 1 ? '' : 's'}`;
   const tiles = [
-    { l: 'HOSTS', v: fmt(p.hosts), d: 'distinct in window' },
-    { l: 'UNIQUE IPS', v: fmt(p.ips), d: 'geo-resolved' },
-    { l: 'COUNTRIES', v: fmt(p.countries), d: 'targeted' },
-    { l: 'NEW HOSTS', v: fmt(p.newHosts), d: 'first appeared' },
-    { l: 'PEAK / DAY', v: fmt(p.peak.count), d: p.peak.day ? `on ${p.peak.day}` : '', sm: false },
-    { l: 'AVG / DAY', v: fmt(p.avg), d: 'targets/day' },
+    { l: 'HOSTS', v: p.hosts, d: 'distinct in window' },
+    { l: 'UNIQUE IPS', v: p.ips, d: 'geo-resolved' },
+    { l: 'COUNTRIES', v: p.countries, d: 'targeted' },
+    { l: 'NEW HOSTS', v: p.newHosts, d: 'first appeared' },
+    { l: 'PEAK / DAY', v: p.peak.count, d: p.peak.day ? `on ${p.peak.day}` : '' },
+    { l: 'AVG / DAY', v: p.avg, d: 'targets/day' },
   ];
-  $('#tiles').innerHTML = tiles.map((c) => `<div class="tile"><div class="l">${c.l}</div><div class="v ${c.sm ? 'sm' : ''}">${c.v}</div>${c.d ? `<div class="d">${c.d}</div>` : ''}</div>`).join('');
+  const key = p.from + '|' + p.to;
+  const animate = key !== periodLastKey && !prefersReducedMotion(); // only when the window actually changes
+  periodLastKey = key;
+  $('#tiles').innerHTML = tiles.map((c) => `<div class="tile"><div class="l">${c.l}</div><div class="v" data-val="${c.v}">${animate ? '0' : fmt(c.v)}</div>${c.d ? `<div class="d">${c.d}</div>` : ''}<span class="tile-bar"></span></div>`).join('');
+  if (!animate) return;
+  $$('#tiles .tile').forEach((tile) => {
+    countUp(tile.querySelector('.v'), Number(tile.querySelector('.v').dataset.val));
+    const bar = tile.querySelector('.tile-bar');
+    requestAnimationFrame(() => { bar.classList.add('grow'); });
+    setTimeout(() => bar.classList.add('fade'), 620);
+  });
 }
 
 function bars(el, rows, labelFn, color) {
@@ -741,6 +783,61 @@ document.addEventListener('click', (e) => {
   const g = e.target.closest('.seg[data-geo]'); if (g) { e.stopPropagation(); state.geoMode = g.dataset.geo; render(); return; }
   const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); }
 });
+// ---- custom in-style date picker ----
+const calMin = () => (state.stats && state.stats.historyStart) || '2023-06-01';
+const calMax = () => ((state.stats && state.stats.fetchedAt) || new Date().toISOString()).slice(0, 10);
+const setDateField = (field, val) => { const b = $('#period' + (field === 'from' ? 'From' : 'To')); b.dataset.value = val; b.textContent = val; };
+const getDateField = (field) => $('#period' + (field === 'from' ? 'From' : 'To')).dataset.value || '';
+const cal = { field: null, y: 0, m: 0 };
+function openCal(field, anchor) {
+  cal.field = field;
+  const cur = getDateField(field) || (field === 'from' ? calMin() : calMax());
+  const d = new Date(cur + 'T00:00:00Z'); cal.y = d.getUTCFullYear(); cal.m = d.getUTCMonth();
+  renderCal();
+  const pop = $('#calPop'), a = anchor.getBoundingClientRect(), host = $('#periodCustom').getBoundingClientRect();
+  pop.style.left = (a.left - host.left) + 'px';
+  pop.hidden = false;
+  $$('.date-in').forEach((b) => b.classList.toggle('open', b === anchor));
+}
+function closeCal() { $('#calPop').hidden = true; cal.field = null; $$('.date-in').forEach((b) => b.classList.remove('open')); }
+function renderCal() {
+  const min = calMin(), max = calMax();
+  const first = new Date(Date.UTC(cal.y, cal.m, 1));
+  const startDow = (first.getUTCDay() + 6) % 7; // Mon=0
+  const days = new Date(Date.UTC(cal.y, cal.m + 1, 0)).getUTCDate();
+  const sel = getDateField(cal.field);
+  let cells = '';
+  for (let i = 0; i < startDow; i++) cells += '<span class="cal-d empty"></span>';
+  for (let d = 1; d <= days; d++) {
+    const iso = `${cal.y}-${String(cal.m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const dis = iso < min || iso > max;
+    const cls = 'cal-d' + (dis ? ' dis' : '') + (iso === sel ? ' sel' : '') + (iso === max ? ' today' : '');
+    cells += `<button type="button" class="${cls}" ${dis ? 'disabled' : ''} data-iso="${iso}">${d}</button>`;
+  }
+  const prevOk = `${cal.y}-${String(cal.m + 1).padStart(2, '0')}-01` > min;
+  const nextOk = new Date(Date.UTC(cal.y, cal.m + 1, 1)).toISOString().slice(0, 10) <= max;
+  $('#calPop').innerHTML = `
+    <div class="cal-head">
+      <button type="button" class="cal-nav" data-nav="-1" ${prevOk ? '' : 'disabled'}>‹</button>
+      <span class="cal-title mono">${MONTHS[cal.m]} ${cal.y}</span>
+      <button type="button" class="cal-nav" data-nav="1" ${nextOk ? '' : 'disabled'}>›</button>
+    </div>
+    <div class="cal-dow mono">${['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((w) => `<span>${w}</span>`).join('')}</div>
+    <div class="cal-grid">${cells}</div>`;
+}
+$('#calPop').addEventListener('click', (e) => {
+  const nav = e.target.closest('[data-nav]');
+  if (nav) { const step = Number(nav.dataset.nav); cal.m += step; if (cal.m < 0) { cal.m = 11; cal.y--; } if (cal.m > 11) { cal.m = 0; cal.y++; } renderCal(); return; }
+  const day = e.target.closest('.cal-d[data-iso]');
+  if (day) { setDateField(cal.field, day.dataset.iso); closeCal(); }
+});
+document.addEventListener('click', (e) => {
+  if ($('#calPop').hidden) return;
+  if (!e.target.closest('#calPop') && !e.target.closest('.date-in')) closeCal();
+});
+$('#periodFrom').addEventListener('click', (e) => { e.stopPropagation(); openCal('from', e.currentTarget); });
+$('#periodTo').addEventListener('click', (e) => { e.stopPropagation(); openCal('to', e.currentTarget); });
+
 // period switcher
 $('#periodSeg').addEventListener('click', (e) => {
   const seg = e.target.closest('.seg[data-range]'); if (!seg) return;
@@ -748,21 +845,20 @@ $('#periodSeg').addEventListener('click', (e) => {
   $$('#periodSeg .seg').forEach((s) => s.classList.toggle('on', s === seg));
   const custom = PERIOD.range === 'custom';
   $('#periodCustom').hidden = !custom;
+  closeCal();
   if (custom) {
-    const { min } = { min: (state.stats && state.stats.historyStart) || '2023-06-01' };
-    const today = ((state.stats && state.stats.fetchedAt) || new Date().toISOString()).slice(0, 10);
-    const f = $('#periodFrom'), t = $('#periodTo');
-    f.min = min; f.max = today; t.min = min; t.max = today;
-    if (!f.value) f.value = PERIOD.from || min;
-    if (!t.value) t.value = PERIOD.to || today;
+    if (!getDateField('from')) setDateField('from', PERIOD.from || calMin());
+    if (!getDateField('to')) setDateField('to', PERIOD.to || calMax());
   } else {
+    persistPeriod();
     loadPeriod();
   }
 });
 $('#periodApply').addEventListener('click', () => {
-  const f = $('#periodFrom').value, t = $('#periodTo').value;
+  const f = getDateField('from'), t = getDateField('to');
   if (!f || !t) return;
   PERIOD.from = f; PERIOD.to = t; PERIOD.range = 'custom';
+  persistPeriod();
   loadPeriod();
 });
 
@@ -856,6 +952,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (!$('
 
 // ---------- boot ----------
 tick(); setInterval(tick, 1000);
+restorePeriod(); // restore the saved/shared time window before the first render
 loadWorld();
 loadProviders();
 load(); loadMe();

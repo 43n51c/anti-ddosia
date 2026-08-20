@@ -106,7 +106,7 @@
       <div class="period">
         <div class="period-bar">
           <span class="seg-group period-seg" id="periodSeg" role="group" aria-label="time window">
-            <button type="button" class="seg" data-range="1">24h</button>
+            <button type="button" class="seg" data-range="today">today</button>
             <button type="button" class="seg on" data-range="7">7d</button>
             <button type="button" class="seg" data-range="30">30d</button>
             <button type="button" class="seg" data-range="365">365d</button>
@@ -114,10 +114,11 @@
             <button type="button" class="seg" data-range="custom">custom</button>
           </span>
           <span class="period-custom" id="periodCustom" hidden>
-            <input type="date" id="periodFrom" class="date-in mono" />
+            <button type="button" id="periodFrom" class="date-in mono" data-field="from" data-value=""></button>
             <span class="dash mono">→</span>
-            <input type="date" id="periodTo" class="date-in mono" />
+            <button type="button" id="periodTo" class="date-in mono" data-field="to" data-value=""></button>
             <button type="button" class="run sm mono" id="periodApply">apply</button>
+            <div class="cal-pop" id="calPop" hidden></div>
           </span>
           <span class="spacer"></span>
           <span class="period-range mono" id="periodRange"></span>
