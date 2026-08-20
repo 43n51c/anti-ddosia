@@ -42,7 +42,7 @@ a:hover { text-decoration: underline; }
 .brand { font-size: 17px; font-weight: 700; color: #eaf1fa; letter-spacing: 0.02em; padding: 0 8px 22px; }
 .brand span { color: var(--grn); }
 .nav { display: flex; flex-direction: column; gap: 2px; }
-.nav-item { display: flex; align-items: center; gap: 9px; background: none; border: none; color: var(--tx2); padding: 10px 10px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12.5px; text-align: left; width: 100%; letter-spacing: 0.04em; }
+.nav-item { display: flex; align-items: center; gap: 9px; background: none; border: none; color: var(--tx2); padding: 10px 10px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12.5px; text-align: left; width: 100%; letter-spacing: 0.04em; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
 .nav-item:hover { background: var(--bg2); color: var(--tx); }
 .nav-item.active { background: var(--bg3); color: #eaf1fa; box-shadow: inset 2px 0 0 var(--grn); }
 .nav-item .k { color: var(--dim); font-size: 10px; }
@@ -80,7 +80,7 @@ a:hover { text-decoration: underline; }
 .signin { background: var(--grn); color: #04180d; border: none; border-radius: 7px; padding: 9px 14px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; letter-spacing: 0.05em; }
 .acct { width: 36px; height: 36px; border-radius: 7px; background: var(--bg3); border: 1px solid var(--line2); color: #eaf1fa; font-weight: 700; cursor: pointer; text-transform: uppercase; }
 .menu { position: relative; }
-.menu-list { position: absolute; right: 0; top: 42px; z-index: 50; background: var(--bg2); border: 1px solid var(--line2); border-radius: 9px; padding: 5px; min-width: 165px; box-shadow: 0 14px 40px rgba(0,0,0,.55); }
+.menu-list { position: absolute; right: 0; top: 42px; z-index: 50; background: var(--bg2); border: 1px solid var(--line2); border-radius: 9px; padding: 5px; min-width: 165px; box-shadow: 0 14px 40px rgba(0,0,0,.55); transform-origin: top right; animation: popIn .14s ease both; }
 .menu-list.wide { min-width: 300px; }
 .menu-list button { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--tx); padding: 8px 10px; border-radius: 6px; font-family: inherit; font-size: 12px; cursor: pointer; }
 .menu-list button:hover { background: var(--bg3); }
@@ -109,7 +109,7 @@ a:hover { text-decoration: underline; }
 .spacer { flex: 1; }
 .rc { color: var(--tx2); font-size: 12px; }
 
-.view { padding-top: 4px; }
+.view { padding-top: 4px; animation: viewIn .24s ease both; }
 
 /* panels */
 .pnl { background: var(--bg1); border: 1px solid var(--line); border-radius: 10px; padding: 15px; }
@@ -412,7 +412,7 @@ a:hover { text-decoration: underline; }
 
 /* modal */
 .modal-overlay { position: fixed; inset: 0; background: rgba(3,5,9,.75); z-index: 80; animation: fade .2s; }
-.modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); width: min(400px, 94vw); background: var(--bg1); border: 1px solid var(--line2); border-radius: 14px; z-index: 90; padding: 26px; box-shadow: 0 28px 66px rgba(0,0,0,.6); }
+.modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); width: min(400px, 94vw); background: var(--bg1); border: 1px solid var(--line2); border-radius: 14px; z-index: 90; padding: 26px; box-shadow: 0 28px 66px rgba(0,0,0,.6); animation: modalIn .18s ease both; }
 .modal-x { position: absolute; top: 14px; right: 14px; }
 .modal-brand { font-size: 18px; font-weight: 700; text-align: center; color: #eaf1fa; margin-bottom: 18px; }
 .modal-brand span { color: var(--grn); }
@@ -453,4 +453,21 @@ a:hover { text-decoration: underline; }
 /* misc */
 .empty { padding: 30px; text-align: center; color: var(--tx2); font-size: 12px; }
 .foot { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--dim); font-size: 11px; }
-.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--bg3); border: 1px solid var(--line2); color: var(--tx); padding: 10px 18px; border-radius: 8px; font-size: 12px; z-index: 95; box-shadow: 0 12px 34px rgba(0,0,0,.5); }
+.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--bg3); border: 1px solid var(--line2); color: var(--tx); padding: 10px 18px; border-radius: 8px; font-size: 12px; z-index: 95; box-shadow: 0 12px 34px rgba(0,0,0,.5); animation: toastIn .2s ease both; }
+
+/* ---------- global micro-animations ---------- */
+@keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes popIn { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes modalIn { from { opacity: 0; transform: translate(-50%,-50%) scale(.96); } to { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+@keyframes revealDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translateX(-50%); } }
+
+/* expanding collapsibles: fade+slide the revealed content in */
+.dsec-c[open] > *:not(summary), .res[open] > *:not(summary) { animation: revealDown .2s ease both; }
+/* caret nudges toward its open glyph */
+.dsc-t::before, .res-title::before { display: inline-block; transition: transform .18s ease; }
+.dsec-c[open] .dsc-t::before, .res[open] .res-title::before { transform: translateY(1px); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
