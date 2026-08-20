@@ -503,9 +503,9 @@ async function openDrawer(host) {
   const sessRows = ss.length ? ss.map((s) => {
     const ongoing = !s.ended;
     const from = s.started.slice(0, 10);
-    const lastDay = ongoing ? new Date().toISOString().slice(0, 10) : new Date(new Date(s.ended).getTime() - 86400000).toISOString().slice(0, 10);
+    const lastDay = ongoing ? new Date().toISOString().slice(0, 10) : s.ended.slice(0, 10);
     const title = from === lastDay ? from : `${from} → ${lastDay}`;
-    const dur = ongoing ? `<span class="dur" data-since="${esc(s.started)}"></span>` : fmtSpan(s.days);
+    const dur = ongoing ? `<span class="dur" data-since="${esc(s.started)}"></span>` : (s.started === s.ended ? 'once' : fmtSpan(s.days));
     const hint = `${ongoing ? '<span class="on">ongoing</span> · ' : ''}${dur}`;
     return `<details class="dsec-c sess" data-shost="${esc(host)}" data-from="${from}" data-to="${lastDay}"><summary><span class="dsc-t">${title}</span><span class="dsc-hint">${hint}</span></summary><div class="dsc-body sess-body"><div class="empty">…</div></div></details>`;
   }).join('') : '<div class="empty">no recorded sessions</div>';

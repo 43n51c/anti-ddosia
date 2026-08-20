@@ -241,10 +241,11 @@ export function clearCountries() { S.countryClear.run(); }
 
 // attack sessions (a host's continuous stint on the target list)
 export function activeSessionStart(host) { return S.asActiveStart.get(host)?.started || null; }
-export function updateSessions(currentHosts, iso) {
+export function updateSessions(currentHosts, nowIso, openIso) {
+  const startIso = openIso || nowIso; // new stints start when the config was published, not "now"
   tx(() => {
     const active = new Set(S.asActiveHosts.all().map((r) => r.host));
-    for (const h of currentHosts) { if (active.has(h)) S.asTouch.run(iso, h); else S.asOpen.run(h, iso, iso); }
+    for (const h of currentHosts) { if (active.has(h)) S.asTouch.run(nowIso, h); else S.asOpen.run(h, startIso, nowIso); }
     const cur = new Set(currentHosts);
     for (const h of active) if (!cur.has(h)) S.asClose.run(h);
   });

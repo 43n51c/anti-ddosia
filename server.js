@@ -86,7 +86,10 @@ async function poll() {
     });
 
     // Update attack sessions (start on first appearance, end on removal).
-    dbx.updateSessions([...new Set(raw.map((t) => t.host).filter(Boolean))], nowIso);
+    // New stints are anchored to the config publication time (feed last-modified) for accurate onset.
+    let openIso = nowIso;
+    if (lastModified) { const d = new Date(lastModified); if (!isNaN(d)) openIso = d.toISOString(); }
+    dbx.updateSessions([...new Set(raw.map((t) => t.host).filter(Boolean))], nowIso, openIso);
 
     const targets = raw.map((t) => {
       const geo = geoFor(t.ip);
