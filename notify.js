@@ -19,6 +19,27 @@ const SMTP = {
 export const emailConfigured = () => !!SMTP.host;
 export const appBaseUrl = () => process.env.APP_URL || 'http://localhost:3000';
 
+// Reject webhook URLs that point at internal/reserved space (SSRF guard).
+// Note: this blocks literal private IPs and internal hostnames at save
+// time; it does not defeat DNS-rebinding — for hostile multi-tenant use,
+// pair it with an egress allowlist / at-send DNS pinning.
+export function webhookUrlIssue(url) {
+  let u;
+  try { u = new URL(url); } catch { return 'not a valid URL'; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'must be an http(s) URL';
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return 'internal hosts are not allowed';
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const o = v4.slice(1).map(Number);
+    if (o.some((n) => n > 255)) return 'invalid IP';
+    if (o[0] === 10 || o[0] === 127 || o[0] === 0 || (o[0] === 169 && o[1] === 254) || (o[0] === 172 && o[1] >= 16 && o[1] <= 31) || (o[0] === 192 && o[1] === 168) || o[0] >= 224) return 'private/reserved IPs are not allowed';
+  }
+  if (host === '::1' || host === '::' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80') || host.startsWith('::ffff:')) return 'private IPv6 is not allowed';
+  return null;
+}
+const stripCrlf = (s) => String(s ?? '').replace(/[\r\n]+/g, ' ');
+
 // ---------- webhook ----------
 export async function sendWebhook(url, payload) {
   const ctrl = new AbortController();
@@ -66,6 +87,8 @@ async function expect(sess, code) {
 
 export async function sendEmail(to, subject, text) {
   if (!SMTP.host) return false;
+  // header-injection guard: no CRLF in envelope/header fields
+  to = stripCrlf(to); subject = stripCrlf(subject).slice(0, 200);
   return new Promise((resolve, reject) => {
     const onErr = (e) => reject(e);
     const connect = SMTP.secure ? tls.connect : net.connect;

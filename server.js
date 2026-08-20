@@ -12,7 +12,7 @@ import { dirname, join, extname, normalize } from 'node:path';
 import * as dbx from './db.js';
 import * as auth from './auth.js';
 import * as oauth from './oauth.js';
-import { deliverAlert, emailConfigured } from './notify.js';
+import { deliverAlert, emailConfigured, webhookUrlIssue } from './notify.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, 'public');
@@ -215,6 +215,30 @@ function buildStats() {
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
 function sendJson(res, obj, status = 200) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); }
 function isSecure(req) { return req.socket.encrypted || req.headers['x-forwarded-proto'] === 'https'; }
+function clientIp(req) { return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown'; }
+
+const CSP = [
+  "default-src 'self'", "base-uri 'none'", "frame-ancestors 'none'", "form-action 'self'", "object-src 'none'",
+  "img-src 'self' data:", "script-src 'self'", "connect-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src https://fonts.gstatic.com",
+].join('; ');
+function setSecurityHeaders(res) {
+  res.setHeader('Content-Security-Policy', CSP);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+}
+
+// simple in-memory fixed-window rate limiter (per key)
+const rlHits = new Map();
+function rateLimited(key, max, windowMs) {
+  const now = Date.now();
+  const arr = (rlHits.get(key) || []).filter((t) => now - t < windowMs);
+  arr.push(now); rlHits.set(key, arr);
+  return arr.length > max;
+}
+setInterval(() => { const now = Date.now(); for (const [k, arr] of rlHits) { const keep = arr.filter((t) => now - t < 3600000); if (keep.length) rlHits.set(k, keep); else rlHits.delete(k); } }, 600000).unref?.();
 function readBody(req, limit = 64 * 1024) {
   return new Promise((resolve, reject) => {
     let data = ''; let size = 0;
@@ -261,6 +285,9 @@ async function handleApi(req, res, pathname) {
   const method = req.method;
 
   // --- auth ---
+  if ((pathname === '/api/register' || pathname === '/api/login') && method === 'POST') {
+    if (rateLimited('auth:' + clientIp(req), 12, 5 * 60 * 1000)) return sendJson(res, { error: 'Too many attempts — try again in a few minutes' }, 429);
+  }
   if (pathname === '/api/register' && method === 'POST') {
     const b = await readBody(req);
     if (!auth.validEmail(b.email)) return sendJson(res, { error: 'Invalid email' }, 400);
@@ -323,7 +350,7 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/settings' && method === 'POST') {
     const b = await readBody(req);
     let webhook = String(b.webhook_url || '').trim();
-    if (webhook && !/^https?:\/\//i.test(webhook)) return sendJson(res, { error: 'Webhook must be an http(s) URL' }, 400);
+    if (webhook) { const issue = webhookUrlIssue(webhook); if (issue) return sendJson(res, { error: `Webhook ${issue}` }, 400); }
     dbx.updateUserSettings(user.id, webhook, b.email_alerts ? 1 : 0, b.inapp_alerts ? 1 : 0);
     return sendJson(res, { ok: true });
   }
@@ -382,6 +409,7 @@ async function handleOAuth(req, res, pathname) {
 
 const server = http.createServer(async (req, res) => {
   try {
+    setSecurityHeaders(res);
     const { pathname } = new URL(req.url, 'http://localhost');
     if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname);
     if (pathname.startsWith('/auth/')) return await handleOAuth(req, res, pathname);

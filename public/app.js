@@ -51,7 +51,9 @@ const state = { targets: [], stats: null, view: 'ops', geoMode: 'live', search: 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-function flag(cc) { if (!cc || cc.length !== 2 || cc === 'XX') return '<span class="flag flag-x"></span>'; return `<img class="flag" src="/flags/${cc.toLowerCase()}.svg" alt="${esc(cc)}" loading="lazy" onerror="this.replaceWith(document.createTextNode('${esc(cc)}'))">`; }
+function flag(cc) { if (!cc || cc.length !== 2 || cc === 'XX') return '<span class="flag flag-x"></span>'; return `<img class="flag" src="/flags/${cc.toLowerCase()}.svg" alt="${esc(cc)}" loading="lazy">`; }
+// CSP-friendly flag fallback: replace a broken flag image with its code (no inline onerror)
+document.addEventListener('error', (e) => { const t = e.target; if (t && t.tagName === 'IMG' && t.classList.contains('flag')) t.replaceWith(document.createTextNode(t.getAttribute('alt') || '')); }, true);
 const codeOf = (c) => c.code || codeFor(c.key);
 function timeAgo(iso) { if (!iso) return '—'; const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000); if (s < 60) return `${s}s`; if (s < 3600) return `${Math.floor(s / 60)}m`; if (s < 86400) return `${Math.floor(s / 3600)}h`; return `${Math.floor(s / 86400)}d`; }
 function fmtDur(iso) {
