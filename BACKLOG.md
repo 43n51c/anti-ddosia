@@ -1,5 +1,32 @@
 # Backlog — next iteration
 
+## Feature ideas (research)
+
+- [ ] **Live reachability of currently-targeted hosts.** Show, next to each
+  target on the current list, whether it is actually reachable right now — a
+  rough "is the DDoS having visible impact?" signal for defenders.
+  **Research before building:**
+  - *Signal source.* Two paths: (a) active probe from our server — HTTP(S)
+    `HEAD`/`GET` with a short timeout, record status/latency/up-down; (b) a
+    third-party uptime/observability API (e.g. a status-check provider) so we
+    don't originate the traffic ourselves.
+  - *Ethics / legality / optics.* We only ever probe hosts that are **already
+    on the public target list** (never user assets without consent), at a
+    **low, fixed rate**, single lightweight request — never anything that
+    resembles load generation. This must stay unambiguously a *read* to avoid
+    contributing to the very attack we track. Document this in the probe code
+    and the UI.
+  - *Accuracy.* Down-from-here ≠ down-globally (geo/CDN/anycast, our egress IP
+    could be blocked, WAF/anti-bot 403s). Present it as "reachable from our
+    probe" with latency + last-checked, not an authoritative "offline".
+    Consider multi-region probes or a provider to reduce false positives.
+  - *Mechanics.* Cache results per host with a TTL (e.g. 60–120 s), reuse the
+    existing rate-limiter/queue pattern (cf. GeoIP batching), set a tight
+    timeout and `User-Agent`, and surface state in the host drawer + a column
+    in the feed/hosts table (up / slow / unreachable / unknown).
+  - *Config.* Off by default; gate behind an env flag (e.g. `PROBE_TARGETS=1`)
+    so a deployer explicitly opts in to originating probe traffic.
+
 ## Fixed in the second audit pass (with tests)
 
 - [x] **Static path traversal to sibling dirs.** The old guard used

@@ -425,6 +425,16 @@ a:hover { text-decoration: underline; }
 .auth-note { color: var(--dim); font-size: 10.5px; margin: 14px 0 0; text-align: center; }
 .set-acct { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 11px; color: var(--tx2); background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; margin-bottom: 16px; }
 .set-acct b { color: var(--tx); font-weight: 400; }
+.modal.sm { width: min(360px, 92vw); padding: 22px; }
+.cf-title { font-size: 14px; color: #eaf1fa; font-weight: 700; letter-spacing: 0.04em; }
+.cf-msg { font-size: 12px; color: var(--tx2); margin: 10px 0 20px; line-height: 1.5; }
+.cf-msg b { color: var(--tx); font-weight: 700; word-break: break-all; }
+.cf-btns { display: flex; gap: 9px; justify-content: flex-end; }
+.btn-ghost, .btn-danger { border-radius: 7px; padding: 9px 16px; font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; cursor: pointer; }
+.btn-ghost { background: none; border: 1px solid var(--line2); color: var(--tx2); }
+.btn-ghost:hover { color: var(--tx); border-color: var(--dim); }
+.btn-danger { background: var(--red); border: none; color: #2a0509; }
+.btn-danger:hover { background: #ff6b7a; }
 
 /* flags */
 .flag { width: 18px; height: 13px; border-radius: 2px; object-fit: cover; vertical-align: -2px; display: inline-block; box-shadow: 0 0 0 1px rgba(0,0,0,.35); }

@@ -294,6 +294,17 @@
   </div>
 </div>
 
+<!-- confirm dialog -->
+<div class="modal-overlay" id="confirmOverlay" hidden></div>
+<div class="modal sm" id="confirmModal" hidden role="alertdialog" aria-modal="true">
+  <div class="cf-title mono" id="confirmTitle">Are you sure?</div>
+  <p class="cf-msg mono" id="confirmMsg"></p>
+  <div class="cf-btns">
+    <button class="btn-ghost mono" id="confirmCancel">CANCEL</button>
+    <button class="btn-danger mono" id="confirmYes">DELETE</button>
+  </div>
+</div>
+
 <div class="toast mono" id="toast" hidden></div>
 <script src="/app.js"></script>
 </body>
