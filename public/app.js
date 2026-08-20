@@ -490,12 +490,12 @@ async function openDrawer(host) {
     const byIp = {};
     for (const v of h.vectors) (byIp[v.ip] ||= []).push(v);
     const ips = Object.keys(byIp).sort((a, b) => byIp[b].length - byIp[a].length);
-    const secs = ips.map((ip) => renderIpTargets(ip, byIp[ip], ips.length === 1)).join('');
+    const secs = ips.map((ip) => renderIpTargets(ip, byIp[ip], false)).join('');
     targetsHtml = `<div class="dsec-label">TARGETS BY IP <span class="dsc-hint">${ips.length} IP${ips.length === 1 ? '' : 's'} · ${h.vectors.length} entries · live</span></div>${secs}`;
   } else {
     const byIp = surf && surf.byIp ? surf.byIp : {};
     const ips = Object.keys(byIp).sort((a, b) => (byIp[b].paths ? byIp[b].paths.length : 0) - (byIp[a].paths ? byIp[a].paths.length : 0));
-    const secs = ips.length ? ips.map((ip) => renderIpPathsHist(ip, byIp[ip], ips.length === 1)).join('') : '<div class="empty">no per-IP path data recorded</div>';
+    const secs = ips.length ? ips.map((ip) => renderIpPathsHist(ip, byIp[ip], false)).join('') : '<div class="empty">no per-IP path data recorded</div>';
     targetsHtml = `<div class="dsec-label">TARGETS BY IP <span class="dsc-hint">${ips.length} IP${ips.length === 1 ? '' : 's'} · all-time</span></div>${secs}`;
   }
 
