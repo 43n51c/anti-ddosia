@@ -18,7 +18,33 @@ const YEAR = process.argv[2] || '2026'; // a 4-digit year, or "all" for the whol
 const ALL = /^all$/i.test(YEAR);
 const CONCURRENCY = 10;
 
+const GEOIP_URL = 'http://ip-api.com/batch?fields=query,country,countryCode,city,regionName,org,as';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// GeoIP unique IPs not already cached (rate-limited for ip-api free tier)
+async function enrichGeoIp(ips) {
+  const missing = ips.filter((ip) => ip && !dbx.getGeo(ip));
+  if (!missing.length) return;
+  console.log(`  geoip: resolving ${missing.length} new IPs…`);
+  let done = 0;
+  for (let i = 0; i < missing.length; i += 100) {
+    const chunk = missing.slice(i, i + 100);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        const res = await fetch(GEOIP_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(chunk.map((q) => ({ query: q }))) });
+        if (res.status === 429) { await sleep(6000); continue; } // rate limited — back off and retry same chunk
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const rows = await res.json();
+        dbx.tx(() => { for (const r of rows) if (r && r.query) dbx.putGeo(r.query, r); });
+        done += chunk.length;
+        break;
+      } catch (e) { if (attempt === 4) console.error('  [warn] geoip chunk gave up:', e.message); else await sleep(3000); }
+    }
+    if (done % 500 < 100) process.stdout.write(`\r  geoip: ${done}/${missing.length}…`);
+    await sleep(1600); // stay under ip-api's 45 req/min
+  }
+  process.stdout.write('\n');
+}
 
 async function fetchText(url, tries = 3) {
   for (let i = 0; i < tries; i++) {
@@ -74,6 +100,8 @@ async function main() {
 
   const hostSet = new Set();
   const summary = [];
+  const recs = [];          // [host, ip] per target appearance across all days
+  const uniqIps = new Set();
 
   await pool(days, async ([day, file]) => {
     let targets = [];
@@ -91,8 +119,9 @@ async function main() {
     dbx.tx(() => {
       for (const t of targets) {
         if (t.host) { hosts.add(t.host); hostSet.add(t.host); dbx.putHostFirstSeen(t.host, dayStartIso); }
-        if (t.ip) ips.add(t.ip);
+        if (t.ip) { ips.add(t.ip); uniqIps.add(t.ip); }
         if (t.type) types[t.type] = (types[t.type] || 0) + 1;
+        if (t.host && t.ip) recs.push([t.host, t.ip]);
       }
       dbx.putDay(day, `${day}T12:00:00.000Z`, targets.length, hosts.size, ips.size, types);
     });
@@ -102,8 +131,23 @@ async function main() {
   summary.sort((a, b) => a.day.localeCompare(b.day));
   const totalTargets = summary.reduce((s, h) => s + h.count, 0);
   const peak = summary.reduce((m, h) => (h.count > m.count ? h : m), summary[0] || { count: 0, day: '—' });
+
+  // ---- all-time country aggregation (needs GeoIP of every historical IP) ----
+  await enrichGeoIp([...uniqIps]);
+  const byCode = new Map(); // code -> { country, hosts:Set, targets }
+  for (const [host, ip] of recs) {
+    const g = dbx.getGeo(ip); if (!g) continue;
+    const code = g.country_code || 'XX';
+    let e = byCode.get(code);
+    if (!e) { e = { country: g.country || 'Unknown', hosts: new Set(), targets: 0 }; byCode.set(code, e); }
+    e.hosts.add(host); e.targets++;
+  }
+  dbx.clearCountries();
+  dbx.tx(() => { for (const [code, e] of byCode) dbx.putCountry(code, e.country, e.hosts.size, e.targets); });
+
   console.log(`\nDone. Wrote ${summary.length} daily points to SQLite (data/ddosia.db)`);
   console.log(`  Distinct hosts tracked: ${hostSet.size}`);
+  console.log(`  Countries targeted all-time: ${byCode.size}`);
   console.log(`  Peak day: ${peak.day} with ${peak.count} targets`);
   console.log(`  Avg targets/day: ${summary.length ? Math.round(totalTargets / summary.length) : 0}`);
 }

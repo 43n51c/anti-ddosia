@@ -95,17 +95,26 @@
         <div class="verdict" id="checkVerdict" hidden></div>
       </div>
 
-      <!-- stat tiles -->
+      <!-- pulse -->
+      <div class="pulse" id="pulse" hidden></div>
+
+      <!-- current stat tiles -->
       <div class="tiles" id="tiles"></div>
+
+      <!-- all-time cumulative strip -->
+      <div class="cum-wrap">
+        <div class="cum-h mono">ALL-TIME <span>since 2023 · full archive</span></div>
+        <div class="cum" id="cum"></div>
+      </div>
 
       <!-- map + right rail -->
       <div class="grid-map">
         <div class="pnl map-pnl">
-          <div class="pnl-h"><span>GLOBAL TARGET MAP</span><span class="mono" id="mapMeta"></span></div>
+          <div class="pnl-h"><span>GLOBAL TARGET MAP <span class="live-tag">live</span></span><span class="mono" id="mapMeta"></span></div>
           <div id="map" class="map"></div>
         </div>
         <div class="pnl">
-          <div class="pnl-h"><span>BY COUNTRY</span></div>
+          <div class="pnl-h"><span>BY COUNTRY <span class="geo-toggle"><button class="seg on" data-geo="live">NOW</button><button class="seg" data-geo="all">ALL-TIME</button></span></span></div>
           <div id="countryBars" class="bars"></div>
           <div class="pnl-h" style="margin-top:16px"><span>ATTACK METHODS</span></div>
           <div id="methodBars" class="bars"></div>

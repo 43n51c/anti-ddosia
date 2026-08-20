@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS history (
 );
 CREATE TABLE IF NOT EXISTS host_first_seen ( host TEXT PRIMARY KEY, first_seen TEXT );
 CREATE TABLE IF NOT EXISTS target_first_seen ( target_id TEXT PRIMARY KEY, first_seen TEXT );
+CREATE TABLE IF NOT EXISTS country_alltime ( code TEXT PRIMARY KEY, country TEXT, hosts INTEGER, targets INTEGER );
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -138,6 +139,15 @@ const S = {
   alertList: db.prepare('SELECT * FROM alerts WHERE user_id = ? ORDER BY first_matched DESC LIMIT 200'),
   alertUnseen: db.prepare('SELECT COUNT(*) c FROM alerts WHERE user_id = ? AND seen = 0'),
   alertMarkSeen: db.prepare('UPDATE alerts SET seen = 1 WHERE user_id = ?'),
+
+  countryPut: db.prepare('INSERT OR REPLACE INTO country_alltime(code,country,hosts,targets) VALUES(?,?,?,?)'),
+  countryAll: db.prepare('SELECT code,country,hosts,targets FROM country_alltime ORDER BY targets DESC'),
+  countryClear: db.prepare('DELETE FROM country_alltime'),
+
+  cntHosts: db.prepare('SELECT COUNT(*) c FROM host_first_seen'),
+  cntGeo: db.prepare('SELECT COUNT(*) c FROM geoip'),
+  sumReq: db.prepare('SELECT COALESCE(SUM(targets),0) s FROM country_alltime'),
+  cntDays: db.prepare('SELECT COUNT(*) c FROM history'),
 };
 
 // GeoIP
@@ -178,3 +188,18 @@ export function insertAlert(a) { const r = S.alertInsert.run(a.userId, a.assetId
 export function listAlerts(userId) { return S.alertList.all(userId); }
 export function unseenCount(userId) { return S.alertUnseen.get(userId).c; }
 export function markAlertsSeen(userId) { S.alertMarkSeen.run(userId); }
+
+// all-time country aggregation
+export function putCountry(code, country, hosts, targets) { S.countryPut.run(code, country, hosts, targets); }
+export function allCountries() { return S.countryAll.all(); }
+export function clearCountries() { S.countryClear.run(); }
+
+// cumulative all-time counts
+export function cumulative() {
+  return {
+    hosts: S.cntHosts.get().c,
+    ips: S.cntGeo.get().c,
+    requests: S.sumReq.get().s,
+    days: S.cntDays.get().c,
+  };
+}

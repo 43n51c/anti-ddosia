@@ -26,6 +26,15 @@ const CONFIG = {
 // In-memory snapshot served to clients.
 let current = { ok: false, fetchedAt: null, feedLastModified: null, error: 'not fetched yet', targets: [] };
 let feedETag = null; // for conditional requests (avoid re-downloading unchanged feed)
+let configsTotal = null; // total archived config files (from the /data/ index)
+async function refreshConfigCount() {
+  try {
+    const dir = new URL('.', CONFIG.feedUrl).href;
+    const html = await fetch(dir, { headers: { 'User-Agent': 'anti-ddosia-monitor/1.0' } }).then((r) => r.text());
+    const m = html.match(/href="[^"]*_DDoSia-target-list-full\.json"/g);
+    if (m) configsTotal = m.length;
+  } catch (e) { /* keep previous value */ }
+}
 
 // ---------- GeoIP enrichment ----------
 async function enrichGeoIp(ips) {
@@ -196,6 +205,8 @@ function buildStats() {
     topHosts: tally(t, 'host').slice(0, 15), topPaths: topPaths(t), newHosts,
     trend, trendPeak: peak, trendAvg: avg, historyDays: trend.length,
     yesterdayCount, waveSince,
+    byCountryAllTime: dbx.allCountries().map((c) => ({ key: c.country, code: c.code, count: c.targets, hosts: c.hosts })),
+    cumulative: { ...dbx.cumulative(), configs: configsTotal },
   };
 }
 
@@ -342,6 +353,8 @@ server.listen(CONFIG.port, () => {
   console.log(`anti-DDoSia running → http://localhost:${CONFIG.port}`);
   console.log(`feed: ${CONFIG.feedUrl}  poll: every ${CONFIG.pollMs / 60000} min  email: ${emailConfigured() ? 'configured' : 'off'}`);
   dbx.gcSessions(new Date().toISOString());
+  refreshConfigCount();
+  setInterval(refreshConfigCount, 6 * 3600 * 1000);
   poll();
   setInterval(poll, CONFIG.pollMs);
   setInterval(() => dbx.gcSessions(new Date().toISOString()), 3600 * 1000);

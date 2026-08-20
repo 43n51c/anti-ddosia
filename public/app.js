@@ -16,6 +16,10 @@ const CENTROID = {
   DK: [10, 56], IS: [-19, 65], TR: [35, 39], IL: [35, 31], JP: [138, 36], KR: [128, 36],
   AU: [134, -25], NZ: [172, -41], ZA: [24, -29], IN: [79, 22], SG: [104, 1.3], AE: [54, 24],
   TW: [121, 24], MT: [14.4, 35.9], CY: [33, 35], AL: [20, 41], MK: [21.7, 41.6], ME: [19.3, 42.7], XK: [21, 42.6],
+  BY: [28, 53.5], GE: [43.4, 42], AM: [45, 40], AZ: [48, 40], KZ: [67, 48], SA: [45, 24], EG: [30, 27],
+  NG: [8, 9.5], KE: [38, 0.5], MA: [-6, 32], TH: [101, 15], VN: [107, 16], PH: [122, 12], ID: [118, -2],
+  MY: [110, 3.5], PK: [70, 30], BD: [90, 24], LK: [81, 7.5], CL: [-71, -35], CO: [-73, 4], PE: [-76, -10],
+  UY: [-56, -33], VE: [-66, 7], RU: [90, 62],
 };
 // world map (real Natural Earth 110m geometry), projected equirectangular
 const MAP_W = 1000, MAP_H = 500;
@@ -40,13 +44,14 @@ async function loadWorld() {
   } catch (e) { console.error('world map load failed', e.message); }
 }
 
-const state = { targets: [], stats: null, view: 'ops', search: '', filterType: '', filterCountry: '', filterPort: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
+const state = { targets: [], stats: null, view: 'ops', geoMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
 
 // ---------- helpers ----------
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-function flag(cc) { if (!cc || cc.length !== 2 || cc === 'XX') return '🏴'; return cc.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0))); }
+function flag(cc) { if (!cc || cc.length !== 2 || cc === 'XX') return '<span class="flag flag-x"></span>'; return `<img class="flag" src="/flags/${cc.toLowerCase()}.svg" alt="${esc(cc)}" loading="lazy" onerror="this.replaceWith(document.createTextNode('${esc(cc)}'))">`; }
+const codeOf = (c) => c.code || codeFor(c.key);
 function timeAgo(iso) { if (!iso) return '—'; const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000); if (s < 60) return `${s}s`; if (s < 3600) return `${Math.floor(s / 60)}m`; if (s < 86400) return `${Math.floor(s / 3600)}h`; return `${Math.floor(s / 86400)}d`; }
 const isNew = (t) => t.hostFirstSeen && (Date.now() - new Date(t.hostFirstSeen).getTime()) < DAY;
 const typeCls = (ty) => (['http', 'http2', 'http3', 'tcp', 'udp', 'nginx_loris'].includes(ty) ? 't-' + ty : 't-default');
@@ -126,9 +131,15 @@ function renderOps(rows) {
   ];
   $('#tiles').innerHTML = tiles.map((c) => `<div class="tile"><div class="l">${c.l}</div><div class="v ${c.sm ? 'sm' : ''}">${c.v}</div>${c.d ? `<div class="d ${c.dc || ''}">${c.d}</div>` : ''}</div>`).join('');
 
-  renderMap(s.byCountry);
-  $('#mapMeta').textContent = `${T.countries} countries · ${T.hosts} hosts`;
-  bars($('#countryBars'), s.byCountry.slice(0, 6), (r) => `${flag(codeFor(r.key))} ${esc(r.key)}`, '#34e0d0');
+  renderPulse(T, s);
+  renderCumulative(s);
+
+  const allT = s.byCountryAllTime || [];
+  renderMap(s.byCountry); // map always shows current attacks only
+  $('#mapMeta').textContent = `${T.countries} ${T.countries === 1 ? 'country' : 'countries'} · ${T.hosts} hosts now`;
+  $$('.geo-toggle .seg').forEach((b) => b.classList.toggle('on', b.dataset.geo === state.geoMode));
+  const countryData = state.geoMode === 'all' ? allT : s.byCountry;
+  bars($('#countryBars'), countryData.slice(0, state.geoMode === 'all' ? 10 : 6), (r) => `${flag(codeOf(r))} ${esc(r.key)}`, '#34e0d0');
   bars($('#methodBars'), s.byMethod.slice(0, 6), (r) => esc(r.key || '—'), '#f5b301');
 
   renderOpsFeed(rows);
@@ -138,36 +149,66 @@ function renderOps(rows) {
   $('#iocPaths').textContent = new Set(rows.map((r) => r.path).filter(Boolean)).size;
 }
 
+const fmt = (n) => (n == null ? '—' : Math.round(n).toLocaleString('en-US').replace(/,/g, ' '));
+
+function renderPulse(T, s) {
+  const el = $('#pulse');
+  const hosts = groupHosts(state.targets).sort((a, b) => b.targetCount - a.targetCount);
+  const top3 = hosts.slice(0, 3);
+  const cc = s.byCountry.slice(0, 3).map((c) => `${flag(codeFor(c.key))} ${esc(c.key)} (${c.count})`).join(', ');
+  const top3html = top3.map((h) => `<b>${esc(h.host)}</b> (${h.targetCount})`).join(', ');
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="pulse-h"><span class="pulse-dot"></span> PULSE <span class="pulse-tag">last 24h</span><span class="pulse-upd mono">updated ${timeAgo(s.fetchedAt)} ago</span></div>
+    <div class="pulse-body">In the current configuration, <b>${T.targets}</b> target-requests are live across <b>${T.hosts}</b> hosts in <b>${T.countries}</b> ${T.countries === 1 ? 'country' : 'countries'}${cc ? ` — most-targeted: ${cc}` : ''}.
+      <b>${T.newHosts24h}</b> host${T.newHosts24h === 1 ? '' : 's'} are new in the last 24h${s.waveSince ? ` (current wave since ${s.waveSince})` : ''}.
+      ${top3.length ? `Highest attack surface right now: ${top3html}.` : ''}</div>`;
+}
+
+function renderCumulative(s) {
+  const c = s.cumulative || {};
+  const items = [
+    { l: 'CONFIGURATIONS', v: fmt(c.configs), i: 'snapshots archived' },
+    { l: 'HOSTS TRACKED', v: fmt(c.hosts), i: 'distinct, all-time' },
+    { l: 'UNIQUE IPS', v: fmt(c.ips), i: 'geo-resolved' },
+    { l: 'TARGET-REQUESTS', v: fmt(c.requests), i: 'logged across archive' },
+    { l: 'COUNTRIES HIT', v: fmt((s.byCountryAllTime || []).length), i: 'all-time reach' },
+    { l: 'DAYS MONITORED', v: fmt(c.days), i: 'since Jun 2023' },
+  ];
+  $('#cum').innerHTML = items.map((x) => `<div class="ctile"><div class="cv">${x.v}</div><div class="cl">${x.l}</div><div class="ci">${x.i}</div></div>`).join('');
+}
+
 function bars(el, rows, labelFn, color) {
   const max = Math.max(1, ...rows.map((r) => r.count));
   el.innerHTML = rows.length ? rows.map((r) => `<div class="bar"><span class="n" title="${esc(r.key)}">${labelFn(r)}</span><span class="tk"><span class="fl" style="width:${(r.count / max * 100).toFixed(1)}%;background:${color}"></span></span><span class="p">${r.count}</span></div>`).join('') : '<div class="empty">no data</div>';
 }
 
-function renderMap(byCountry) {
+function renderMap(data) {
   const W = MAP_W, H = MAP_H;
   const proj = (lng, lat) => [(lng + 180) / 360 * W, (90 - lat) / 180 * H];
-  const max = Math.max(1, ...byCountry.map((c) => c.count));
-  const targetedCodes = new Set(byCountry.map((c) => codeFor(c.key)).filter(Boolean));
-  const hi = [...targetedCodes].map((cc) => world.byCode.get(cc)).filter(Boolean)
-    .map((d) => `<path d="${d}" fill="rgba(255,85,102,0.14)" stroke="#8a3a45" stroke-width="0.5"/>`).join('');
-  const markers = byCountry.map((c, i) => {
-    const cc = codeFor(c.key); const ce = CENTROID[cc]; if (!ce) return '';
+  const max = Math.max(1, ...data.map((c) => c.count));
+  const codes = data.map((c) => [codeOf(c), c]).filter(([cc]) => cc && cc !== 'XX');
+  const hi = codes.map(([cc]) => world.byCode.get(cc)).filter(Boolean)
+    .map((d) => `<path d="${d}" fill="rgba(255,85,102,0.16)" stroke="#8a3a45" stroke-width="0.5"/>`).join('');
+  const labelN = 14; // label the top-N; long tail shown as plain dots to avoid clutter
+  const markers = codes.map(([cc, c], i) => {
+    const ce = CENTROID[cc]; if (!ce) return '';
     const [x, y] = proj(ce[0], ce[1]);
-    const r = 5 + Math.sqrt(c.count / max) * 22;
-    return `${i === 0 ? `<circle cx="${x}" cy="${y}" r="${r}" fill="#ff5566" opacity="0.12"><animate attributeName="r" values="${r};${r + 16};${r}" dur="2.6s" repeatCount="indefinite"/></circle>` : ''}
-      <circle cx="${x}" cy="${y}" r="${r}" fill="rgba(255,85,102,0.18)" stroke="#ff5566" stroke-width="1"/>
-      <circle cx="${x}" cy="${y}" r="3" fill="#ff5566"/>
-      <text x="${x}" y="${y - r - 6}" text-anchor="middle" fill="#dbe6f2" font-size="16" font-family="JetBrains Mono, monospace">${flag(cc)} ${c.count}</text>`;
+    const r = 4 + Math.sqrt(c.count / max) * 20;
+    const base = `${i === 0 ? `<circle cx="${x}" cy="${y}" r="${r}" fill="#ff5566" opacity="0.12"><animate attributeName="r" values="${r};${r + 16};${r}" dur="2.6s" repeatCount="indefinite"/></circle>` : ''}
+      <circle cx="${x}" cy="${y}" r="${r}" fill="rgba(255,85,102,0.18)" stroke="#ff5566" stroke-width="1"><title>${esc(c.key)}: ${c.count}</title></circle>
+      <circle cx="${x}" cy="${y}" r="2.5" fill="#ff5566"/>`;
+    if (i >= labelN) return base;
+    const fw = 22, fh = 15;
+    return `${base}
+      <image href="/flags/${cc.toLowerCase()}.svg" x="${x - fw / 2}" y="${y - r - fh - 5}" width="${fw}" height="${fh}" preserveAspectRatio="xMidYMid slice"/>
+      <text x="${x + fw / 2 + 4}" y="${y - r - fh / 2 - 3}" fill="#dbe6f2" font-size="15" font-family="JetBrains Mono, monospace">${c.count}</text>`;
   }).join('');
-  const land = world.loaded
-    ? `<path d="${world.all}" fill="#0e1a2a" stroke="#22384f" stroke-width="0.35"/>${hi}`
-    : '';
-  // crop to the populated latitude band (~ -60..85) so the ocean isn't mostly empty
+  const land = world.loaded ? `<path d="${world.all}" fill="#0e1a2a" stroke="#22384f" stroke-width="0.35"/>${hi}` : '';
   const y0 = (90 - 84) / 180 * H, y1 = (90 - -58) / 180 * H;
   $('#map').innerHTML = `<svg viewBox="0 ${y0.toFixed(0)} ${W} ${(y1 - y0).toFixed(0)}" preserveAspectRatio="xMidYMid meet">
     <rect x="0" y="0" width="${W}" height="${H}" fill="#070d16"/>
-    ${land}
-    ${markers}
+    ${land}${markers}
   </svg>`;
 }
 
@@ -376,6 +417,7 @@ $('#filterCountry').addEventListener('change', (e) => { state.filterCountry = e.
 $('#filterPort').addEventListener('change', (e) => { state.filterPort = e.target.value; render(); });
 $('#filterNew').addEventListener('change', (e) => { state.filterNew = e.target.checked; render(); });
 $('#refreshBtn').addEventListener('click', () => load());
+document.addEventListener('click', (e) => { const g = e.target.closest('.geo-toggle .seg'); if (!g) return; e.stopPropagation(); state.geoMode = g.dataset.geo; render(); });
 $('.sortbar').addEventListener('click', (e) => { const p = e.target.closest('.pill'); if (!p) return; state.hSort = p.dataset.hsort; $$('.sortbar .pill').forEach((x) => x.classList.toggle('active', x === p)); render(); });
 $$('#targetsTable thead th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.sort; if (!k) return; if (state.tSortKey === k) state.tSortDir = state.tSortDir === 'asc' ? 'desc' : 'asc'; else { state.tSortKey = k; state.tSortDir = 'asc'; } render(); }));
 $$('#opsFeed thead th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.sort; if (!k) return; if (state.fSortKey === k) state.fSortDir = state.fSortDir === 'asc' ? 'desc' : 'asc'; else { state.fSortKey = k; state.fSortDir = 'desc'; } render(); }));
