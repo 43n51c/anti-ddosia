@@ -81,6 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 `);
 try { db.exec('ALTER TABLE users ADD COLUMN provider TEXT'); } catch { /* column exists */ }
 try { db.exec('ALTER TABLE host_surface ADD COLUMN ips TEXT'); } catch { /* column exists */ }
+try { db.exec('ALTER TABLE host_surface ADD COLUMN by_ip TEXT'); } catch { /* column exists */ }
 
 // ---------------- one-time migration from JSON ----------------
 (function migrateFromJson() {
@@ -177,8 +178,8 @@ const S = {
   })(),
   hcPut: db.prepare('INSERT OR REPLACE INTO host_country(host,code,country) VALUES(?,?,?)'),
   hcClear: db.prepare('DELETE FROM host_country'),
-  hsurfGet: db.prepare('SELECT paths, ports, types, methods, ips FROM host_surface WHERE host = ?'),
-  hsurfPut: db.prepare('INSERT OR REPLACE INTO host_surface(host,paths,ports,types,methods,ips) VALUES(?,?,?,?,?,?)'),
+  hsurfGet: db.prepare('SELECT paths, ports, types, methods, ips, by_ip FROM host_surface WHERE host = ?'),
+  hsurfPut: db.prepare('INSERT OR REPLACE INTO host_surface(host,paths,ports,types,methods,ips,by_ip) VALUES(?,?,?,?,?,?,?)'),
   hsurfClear: db.prepare('DELETE FROM host_surface'),
 
   cntHosts: db.prepare('SELECT COUNT(*) c FROM host_first_seen'),
@@ -255,12 +256,12 @@ export function hostsAll(q = '', sort = 'sessions', country = '', limit = 200) {
 }
 export function putHostCountry(host, code, country) { S.hcPut.run(host, code, country); }
 export function clearHostCountry() { S.hcClear.run(); }
-export function putHostSurface(host, paths, ports, types, methods, ips) { S.hsurfPut.run(host, JSON.stringify(paths), JSON.stringify(ports), JSON.stringify(types), JSON.stringify(methods), JSON.stringify(ips || [])); }
+export function putHostSurface(host, paths, ports, types, methods, ips, byIp) { S.hsurfPut.run(host, JSON.stringify(paths), JSON.stringify(ports), JSON.stringify(types), JSON.stringify(methods), JSON.stringify(ips || []), JSON.stringify(byIp || {})); }
 export function clearHostSurface() { S.hsurfClear.run(); }
 export function getHostSurface(host) {
   const r = S.hsurfGet.get(host);
   if (!r) return null;
-  try { return { paths: JSON.parse(r.paths || '[]'), ports: JSON.parse(r.ports || '[]'), types: JSON.parse(r.types || '{}'), methods: JSON.parse(r.methods || '[]'), ips: JSON.parse(r.ips || '[]') }; } catch { return null; }
+  try { return { paths: JSON.parse(r.paths || '[]'), ports: JSON.parse(r.ports || '[]'), types: JSON.parse(r.types || '{}'), methods: JSON.parse(r.methods || '[]'), ips: JSON.parse(r.ips || '[]'), byIp: JSON.parse(r.by_ip || '{}') }; } catch { return null; }
 }
 export function hostSessions(host, limit = 200) {
   const sessions = S.asByHost.all(host, limit);

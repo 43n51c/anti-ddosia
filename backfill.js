@@ -103,7 +103,7 @@ async function main() {
   const recs = [];          // [host, ip] per target appearance across all days
   const uniqIps = new Set();
   const hostDays = new Map(); // host -> Set(day) for attack-session reconstruction
-  const hostSurf = new Map(); // host -> { paths:Map, ports:Set, types:Map, methods:Set }
+  const hostIpSurf = new Map(); // host -> Map(ip -> { paths:Map, ports:Set, types:Map, methods:Set })
 
   await pool(days, async ([day, file]) => {
     let targets = [];
@@ -123,15 +123,18 @@ async function main() {
         if (t.host) { hosts.add(t.host); hostSet.add(t.host); dbx.putHostFirstSeen(t.host, dayStartIso); }
         if (t.ip) { ips.add(t.ip); uniqIps.add(t.ip); }
         if (t.type) types[t.type] = (types[t.type] || 0) + 1;
-        if (t.host && t.ip) recs.push([t.host, t.ip]);
-        if (t.host) {
-          let hs = hostSurf.get(t.host);
-          if (!hs) { hs = { paths: new Map(), ports: new Set(), types: new Map(), methods: new Set(), ips: new Set() }; hostSurf.set(t.host, hs); }
-          if (t.path && (hs.paths.size < 400 || hs.paths.has(t.path))) hs.paths.set(t.path, (hs.paths.get(t.path) || 0) + 1);
-          if (t.port != null) hs.ports.add(t.port);
-          if (t.type) hs.types.set(t.type, (hs.types.get(t.type) || 0) + 1);
-          if (t.method) hs.methods.add(t.method);
-          if (t.ip && hs.ips.size < 50) hs.ips.add(t.ip);
+        if (t.host && t.ip) {
+          recs.push([t.host, t.ip]);
+          let hi = hostIpSurf.get(t.host);
+          if (!hi) { hi = new Map(); hostIpSurf.set(t.host, hi); }
+          let e = hi.get(t.ip);
+          if (!e && hi.size < 60) { e = { paths: new Map(), ports: new Set(), types: new Map(), methods: new Set() }; hi.set(t.ip, e); }
+          if (e) {
+            if (t.path && (e.paths.size < 200 || e.paths.has(t.path))) e.paths.set(t.path, (e.paths.get(t.path) || 0) + 1);
+            if (t.port != null) e.ports.add(t.port);
+            if (t.type) e.types.set(t.type, (e.types.get(t.type) || 0) + 1);
+            if (t.method) e.methods.add(t.method);
+          }
         }
       }
       dbx.putDay(day, `${day}T12:00:00.000Z`, targets.length, hosts.size, ips.size, types);
@@ -174,12 +177,21 @@ async function main() {
     }
   });
 
-  // ---- per-host attack surface (paths / ports / types / methods, all-time) ----
+  // ---- per-host attack surface, broken down per IP (all-time) ----
   dbx.clearHostSurface();
   dbx.tx(() => {
-    for (const [host, hs] of hostSurf) {
-      const paths = [...hs.paths.entries()].sort((a, b) => b[1] - a[1]).slice(0, 200);
-      dbx.putHostSurface(host, paths, [...hs.ports].sort((a, b) => a - b), Object.fromEntries(hs.types), [...hs.methods], [...hs.ips]);
+    for (const [host, hi] of hostIpSurf) {
+      const aggPaths = new Map(), aggPorts = new Set(), aggTypes = new Map(), aggMethods = new Set();
+      const byIp = {};
+      for (const [ip, e] of hi) {
+        byIp[ip] = { paths: [...e.paths.entries()].sort((a, b) => b[1] - a[1]).slice(0, 150), ports: [...e.ports].sort((a, b) => a - b), types: Object.fromEntries(e.types), methods: [...e.methods] };
+        for (const [p, c] of e.paths) aggPaths.set(p, (aggPaths.get(p) || 0) + c);
+        for (const p of e.ports) aggPorts.add(p);
+        for (const [t, c] of e.types) aggTypes.set(t, (aggTypes.get(t) || 0) + c);
+        for (const m of e.methods) aggMethods.add(m);
+      }
+      const paths = [...aggPaths.entries()].sort((a, b) => b[1] - a[1]).slice(0, 200);
+      dbx.putHostSurface(host, paths, [...aggPorts].sort((a, b) => a - b), Object.fromEntries(aggTypes), [...aggMethods], Object.keys(byIp), byIp);
     }
   });
 
@@ -187,6 +199,10 @@ async function main() {
   const GAP = 2; // tolerate up to 2 missing archived days within one stint
   const latest = days[days.length - 1][0];
   const toNum = (d) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86400000;
+  // The archive is one snapshot/day, so sessions are only known at day resolution:
+  // a stint spanning firstDay..lastDay ends at the *next* midnight, giving whole-day
+  // durations (1d, 2d, …) rather than a fake 12h from a noon convention.
+  const nextMidnight = (d) => new Date(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) + 86400000).toISOString().slice(0, 10) + 'T00:00:00.000Z';
   let sessCount = 0, longest = { host: '—', days: 0 };
   dbx.clearSessions();
   dbx.tx(() => {
@@ -195,7 +211,8 @@ async function main() {
       let runStart = ds[0], prev = ds[0];
       const flush = (endDay) => {
         const ongoing = endDay === latest;
-        dbx.insertSession(host, `${runStart}T00:00:00.000Z`, `${endDay}T12:00:00.000Z`, ongoing ? null : `${endDay}T12:00:00.000Z`);
+        const endIso = nextMidnight(endDay);
+        dbx.insertSession(host, `${runStart}T00:00:00.000Z`, endIso, ongoing ? null : endIso);
         const len = toNum(endDay) - toNum(runStart) + 1;
         if (len > longest.days) longest = { host, days: len };
         sessCount++;

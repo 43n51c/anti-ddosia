@@ -445,67 +445,65 @@ function fmtSpan(days) {
   if (h > 0) return mins > 0 ? `${h}h ${mins}m` : `${h}h`;
   return `${mins}m`;
 }
+// group a host's live vectors into the same per-IP shape as the stored surface
+function byIpFromTargets(rows) {
+  const m = {};
+  for (const t of rows) {
+    const ip = t.ip || 'unknown';
+    const e = (m[ip] ||= { paths: new Map(), ports: new Set(), types: new Map(), methods: new Set() });
+    if (t.path) e.paths.set(t.path, (e.paths.get(t.path) || 0) + 1);
+    if (t.port != null) e.ports.add(t.port);
+    if (t.type) e.types.set(t.type, (e.types.get(t.type) || 0) + 1);
+    if (t.method) e.methods.add(t.method);
+  }
+  const out = {};
+  for (const [ip, e] of Object.entries(m)) out[ip] = { paths: [...e.paths.entries()].sort((a, b) => b[1] - a[1]), ports: [...e.ports].sort((a, b) => a - b), types: Object.fromEntries(e.types), methods: [...e.methods] };
+  return out;
+}
+function renderIpSection(ip, e, openIt) {
+  const paths = e.paths || [], ports = e.ports || [], types = e.types || {}, methods = e.methods || [];
+  const copyBtns = `<div class="dsc-copyall"><button class="mini-copy" data-copy="${esc(ip)}">copy IP</button>${paths.length ? ` <button class="mini-copy" data-copy="${esc(paths.map((p) => p[0]).join('\n'))}">copy paths</button>` : ''}</div>`;
+  const pathRows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors on this IP</div>';
+  const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(m)}</span>`).join('')}</div>` : '';
+  return dsecC(`${ip} · ${paths.length} path${paths.length === 1 ? '' : 's'}`, copyBtns + pathRows + chips, openIt, `ports ${ports.join(', ') || '—'}`);
+}
 async function openDrawer(host) {
   const rows = state.targets.filter((t) => t.host === host);
   const isCurrent = rows.length > 0;
   const h = isCurrent ? groupHosts(rows)[0] : null;
   const proto = (h && h.ssl) ? 'https' : 'http';
   $('#drawerHost').innerHTML = `${esc(host)} <a href="${proto}://${esc(host)}" target="_blank" rel="noopener">↗</a>`;
+  $('#drawerSub').innerHTML = isCurrent
+    ? `${flag(h.countryCode)} ${esc(h.country)}${h.city ? ' · ' + esc(h.city) : ''}${h.org ? ' · ' + esc(h.org) : ''}`
+    : '<span class="off">not currently on the target list — showing attack history</span>';
+  $('#drawerBody').innerHTML = '<div class="empty">loading…</div>';
+  $('#drawer').hidden = false; $('#drawerOverlay').hidden = false;
 
-  let currentHtml = '';
-  if (isCurrent) {
-    $('#drawerSub').innerHTML = `${flag(h.countryCode)} ${esc(h.country)}${h.city ? ' · ' + esc(h.city) : ''}${h.org ? ' · ' + esc(h.org) : ''}`;
-    const facts = [
-      { k: 'vectors', v: h.targetCount }, { k: 'unique IPs', v: h.ips.length }, { k: 'ports', v: h.ports.join(', ') || '—' },
-      { k: 'targeted for', v: `<span class="dur" data-since="${esc(h.sessionStart)}"></span>`, raw: true },
-    ];
-    const paths = h.paths.filter(Boolean);
-    const copyAll = (arr) => `<div class="dsc-copyall"><button class="mini-copy" data-copy="${esc(arr.join('\n'))}">copy all</button></div>`;
-    const ipsBody = copyAll(h.ips) + h.ips.map((ip) => `<div class="ioc-row"><span class="val">${esc(ip)}</span><button class="mini-copy" data-copy="${esc(ip)}">copy</button></div>`).join('');
-    const pathsBody = paths.length ? copyAll(paths) + paths.map((p) => `<div class="ioc-row"><span class="val" title="${esc(p)}">${esc(p)}</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors</div>';
-    const vecBody = `<table class="vec-tbl"><thead><tr><th>type</th><th>method</th><th>port</th><th>ssl</th><th>path</th></tr></thead><tbody>${h.vectors.map((v) => `<tr><td><span class="tag ${typeCls(v.type)}">${esc(v.type)}</span></td><td class="cc">${esc(v.method || '—')}</td><td class="cc">${esc(v.port)}</td><td>${v.use_ssl ? '🔒' : '—'}</td><td class="p">${esc(v.path || '—')}</td></tr>`).join('')}</tbody></table>`;
-    currentHtml = `
-      <div class="facts">${facts.map((f) => `<div class="fact"><div class="k">${f.k}</div><div class="v">${f.raw ? f.v : esc(f.v)}</div></div>`).join('')}</div>
-      ${dsecC(`IP ADDRESSES (${h.ips.length})`, ipsBody, h.ips.length <= 6)}
-      ${dsecC(`TARGETED PATHS (${paths.length})`, pathsBody, paths.length > 0 && paths.length <= 8)}
-      ${dsecC(`ALL VECTORS (${h.vectors.length})`, vecBody, false)}`;
-  } else {
-    $('#drawerSub').innerHTML = '<span class="off">not currently on the target list — showing attack history</span>';
-  }
-  $('#drawerBody').innerHTML = currentHtml + '<div class="dsec" id="drawerHist"><h3>ATTACK HISTORY</h3><div class="empty">loading…</div></div>';
-  $('#drawer').hidden = false; $('#drawerOverlay').hidden = false; tickDurations();
+  let d = {};
+  try { d = await api('/api/host-sessions?host=' + encodeURIComponent(host)); } catch {}
+  const surf = d.surface, sm = d.summary || { count: 0, totalDays: 0, longest: 0, firstSeen: null }, ss = d.sessions || [];
 
-  try {
-    const d = await api('/api/host-sessions?host=' + encodeURIComponent(host));
-    const sm = d.summary, ss = d.sessions || [];
-    const sumFacts = [
-      { k: 'attack sessions', v: String(sm.count) },
-      { k: 'longest stint', v: sm.longest ? fmtSpan(sm.longest) : '—' },
-      { k: 'total under attack', v: sm.totalDays ? fmtSpan(sm.totalDays) : '—' },
-      { k: 'first seen', v: (sm.firstSeen || '').slice(0, 10) || '—' },
-    ];
-    const list = ss.length ? ss.map((s) => {
-      const ongoing = !s.ended;
-      const dur = ongoing ? `<span class="dur" data-since="${esc(s.started)}"></span>` : fmtSpan(s.days);
-      return `<tr><td class="cc">${s.started.slice(0, 10)}</td><td class="cc">${ongoing ? '<span class="on">ongoing</span>' : s.ended.slice(0, 10)}</td><td>${dur}</td></tr>`;
-    }).join('') : '<tr><td colspan="3" class="empty">no recorded sessions</td></tr>';
-    const surf = d.surface;
-    const ipsHtml = (!isCurrent && surf && surf.ips && surf.ips.length)
-      ? dsecC(`IP ADDRESSES (${surf.ips.length})`, `<div class="dsc-copyall"><button class="mini-copy" data-copy="${esc(surf.ips.join('\n'))}">copy all</button></div>` + surf.ips.map((ip) => `<div class="ioc-row"><span class="val">${esc(ip)}</span><button class="mini-copy" data-copy="${esc(ip)}">copy</button></div>`).join(''), true)
-      : '';
-    const surfHtml = surf ? (
-      dsecC(`ATTACKED RESOURCES (${surf.paths.length} path${surf.paths.length === 1 ? '' : 's'})`,
-        surf.paths.length ? surf.paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors recorded</div>',
-        surf.paths.length > 0 && surf.paths.length <= 8, `ports ${surf.ports.join(', ') || '—'}`)
-      + `<div class="surf-chips">${Object.entries(surf.types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${surf.methods.map((m) => `<span class="tag t-default">${esc(m)}</span>`).join('')}</div>`
-    ) : '';
-    $('#drawerHist').innerHTML = `<h3>ATTACK HISTORY (${sm.count} session${sm.count === 1 ? '' : 's'})</h3>
-      <div class="facts">${sumFacts.map((f) => `<div class="fact"><div class="k">${f.k}</div><div class="v">${esc(f.v)}</div></div>`).join('')}</div>
-      ${ipsHtml}
-      ${surfHtml}
-      <table class="vec-tbl"><thead><tr><th>started</th><th>ended</th><th>duration</th></tr></thead><tbody>${list}</tbody></table>`;
-    tickDurations();
-  } catch { $('#drawerHist').innerHTML = '<h3>ATTACK HISTORY</h3><div class="empty">could not load history</div>'; }
+  const byIp = isCurrent ? byIpFromTargets(rows) : (surf && surf.byIp ? surf.byIp : {});
+  const ipEntries = Object.entries(byIp).sort((a, b) => (b[1].paths ? b[1].paths.length : 0) - (a[1].paths ? a[1].paths.length : 0));
+
+  const facts = isCurrent
+    ? [{ k: 'vectors', v: h.targetCount }, { k: 'unique IPs', v: h.ips.length }, { k: 'ports', v: h.ports.join(', ') || '—' }, { k: 'targeted for', v: `<span class="dur" data-since="${esc(h.sessionStart)}"></span>`, raw: true }]
+    : [{ k: 'attack sessions', v: String(sm.count) }, { k: 'longest stint', v: sm.longest ? fmtSpan(sm.longest) : '—' }, { k: 'total under attack', v: sm.totalDays ? fmtSpan(sm.totalDays) : '—' }, { k: 'first seen', v: (sm.firstSeen || '').slice(0, 10) || '—' }];
+  const factsHtml = `<div class="facts">${facts.map((f) => `<div class="fact"><div class="k">${f.k}</div><div class="v">${f.raw ? f.v : esc(f.v)}</div></div>`).join('')}</div>`;
+
+  const ipSecs = ipEntries.length
+    ? `<div class="dsec-label">TARGETED RESOURCES BY IP <span class="dsc-hint">${ipEntries.length} IP${ipEntries.length === 1 ? '' : 's'}${isCurrent ? ' · live' : ' · all-time'}</span></div>` + ipEntries.map(([ip, e]) => renderIpSection(ip, e, ipEntries.length === 1)).join('')
+    : '<div class="empty">no per-IP path data recorded</div>';
+
+  const list = ss.length ? ss.map((s) => {
+    const ongoing = !s.ended;
+    const dur = ongoing ? `<span class="dur" data-since="${esc(s.started)}"></span>` : fmtSpan(s.days);
+    return `<tr><td class="cc">${s.started.slice(0, 10)}</td><td class="cc">${ongoing ? '<span class="on">ongoing</span>' : s.ended.slice(0, 10)}</td><td>${dur}</td></tr>`;
+  }).join('') : '<tr><td colspan="3" class="empty">no recorded sessions</td></tr>';
+  const histHtml = `<div class="dsec-label">ATTACK HISTORY <span class="dsc-hint">${sm.count} session${sm.count === 1 ? '' : 's'} · daily resolution</span></div><table class="vec-tbl"><thead><tr><th>started</th><th>ended</th><th>duration</th></tr></thead><tbody>${list}</tbody></table>`;
+
+  $('#drawerBody').innerHTML = factsHtml + ipSecs + histHtml;
+  tickDurations();
 }
 function closeDrawer() { $('#drawer').hidden = true; $('#drawerOverlay').hidden = true; }
 
