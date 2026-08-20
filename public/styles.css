@@ -125,9 +125,16 @@ a:hover { text-decoration: underline; }
 .pulse-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--grn); box-shadow: 0 0 0 0 rgba(61,220,132,.6); animation: pulse 1.9s infinite; }
 .pulse-tag { color: var(--tx2); background: var(--bg3); border-radius: 5px; padding: 2px 8px; font-size: 10px; letter-spacing: 0.04em; }
 .pulse-upd { color: var(--dim); margin-left: auto; font-size: 11px; letter-spacing: 0; }
-.pulse-body { color: var(--tx2); font-size: 13px; line-height: 1.65; margin-top: 9px; }
-.pulse-body b { color: #eaf1fa; font-weight: 500; }
-.pulse-body .flag { margin: 0 1px; }
+.pulse-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 11px; }
+@media (max-width: 1050px) { .pulse-grid { grid-template-columns: repeat(2, 1fr); } }
+.sig { background: #0b0f17; padding: 11px 13px; min-width: 0; }
+.sig-l { color: var(--dim); font-size: 10px; letter-spacing: 0.08em; }
+.sig-v { color: #eaf1fa; font-size: 14.5px; margin-top: 6px; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sig-v.up { color: var(--red); } .sig-v.down { color: var(--grn); }
+.sig-v .sig-sub { color: var(--dim); font-size: 10px; }
+.sig-v .spark { flex-shrink: 0; }
+.sig-d { color: var(--tx2); font-size: 11px; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sig-d .flag { margin-right: 1px; }
 
 /* all-time cumulative strip */
 .cum-wrap { margin-bottom: 16px; }
@@ -177,7 +184,12 @@ a:hover { text-decoration: underline; }
 /* feed + trend */
 .grid-feed { display: grid; grid-template-columns: 1.55fr 1fr; gap: 14px; }
 @media (max-width: 1050px) { .grid-feed { grid-template-columns: 1fr; } }
-.trend { min-height: 130px; }
+.trend-box { position: relative; }
+.trend { min-height: 130px; cursor: crosshair; }
+.trend-tip { position: absolute; z-index: 6; pointer-events: none; transform: translate(-50%, -100%); background: #0a1119; border: 1px solid var(--line2); border-radius: 7px; padding: 6px 9px; box-shadow: 0 8px 22px rgba(0,0,0,.5); white-space: nowrap; }
+.trend-tip .tt-day { color: var(--tx2); font-size: 10.5px; }
+.trend-tip .tt-cnt { color: var(--tx); font-size: 12px; margin-top: 2px; }
+.trend-tip .tt-cnt b { color: #eaf1fa; }
 .iocs { display: flex; gap: 8px; flex-wrap: wrap; }
 .ioc { background: var(--bg2); border: 1px solid var(--line2); border-radius: 7px; padding: 8px 12px; color: var(--tx2); font-family: inherit; font-size: 12px; cursor: pointer; }
 .ioc:hover { border-color: var(--grn); }

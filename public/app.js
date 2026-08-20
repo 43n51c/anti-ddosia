@@ -44,6 +44,7 @@ async function loadWorld() {
   } catch (e) { console.error('world map load failed', e.message); }
 }
 
+let trendGeom = null;
 const state = { targets: [], stats: null, view: 'ops', geoMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
 
 // ---------- helpers ----------
@@ -151,18 +152,36 @@ function renderOps(rows) {
 
 const fmt = (n) => (n == null ? '—' : Math.round(n).toLocaleString('en-US').replace(/,/g, ' '));
 
+function miniSpark(vals, w = 60, h = 18, color = '#7f8ea3') {
+  if (vals.length < 2) return '';
+  const max = Math.max(...vals), min = Math.min(...vals);
+  const x = (i) => (i / (vals.length - 1)) * w;
+  const y = (v) => h - 2 - ((v - min) / ((max - min) || 1)) * (h - 4);
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.3"/><circle cx="${x(vals.length - 1).toFixed(1)}" cy="${y(vals[vals.length - 1]).toFixed(1)}" r="1.6" fill="${color}"/></svg>`;
+}
+
 function renderPulse(T, s) {
   const el = $('#pulse');
   const hosts = groupHosts(state.targets).sort((a, b) => b.targetCount - a.targetCount);
-  const top3 = hosts.slice(0, 3);
-  const cc = s.byCountry.slice(0, 3).map((c) => `${flag(codeFor(c.key))} ${esc(c.key)} (${c.count})`).join(', ');
-  const top3html = top3.map((h) => `<b>${esc(h.host)}</b> (${h.targetCount})`).join(', ');
+  const hot = hosts[0];
+  const newHosts = [...new Set(state.targets.filter(isNew).map((t) => t.host))];
+  const newNames = newHosts.length ? esc(newHosts.slice(0, 2).join(', ')) + (newHosts.length > 2 ? ` +${newHosts.length - 2}` : '') : 'no new hosts';
+  const delta = s.yesterdayCount != null ? T.targets - s.yesterdayCount : null;
+  const trajV = delta == null ? '—' : (delta === 0 ? '±0' : (delta > 0 ? `▲ ${delta}` : `▼ ${-delta}`));
+  const trajCls = delta > 0 ? 'up' : (delta < 0 ? 'down' : '');
+  const last7 = (s.trend || []).slice(-8).map((d) => d.count);
+  const cc = s.byCountry.slice(0, 3).map((c) => `${flag(codeFor(c.key))} ${esc(c.key)}`).join('&nbsp; ');
+  const sigs = [
+    { l: 'NEW · 24H', v: `${T.newHosts24h} host${T.newHosts24h === 1 ? '' : 's'}`, d: newNames, vc: T.newHosts24h ? 'up' : '' },
+    { l: 'TRAJECTORY', v: `${trajV}&nbsp;<span class="sig-sub">vs yday</span>&nbsp;${miniSpark(last7, 56, 16, delta > 0 ? '#ff5566' : '#3ddc84')}`, d: `${T.targets} now &larr; ${s.yesterdayCount ?? '—'} yesterday`, vc: trajCls },
+    { l: 'CURRENT WAVE', v: `since ${s.waveSince || '—'}`, d: cc || '—' },
+    { l: 'HOT TARGET', v: hot ? esc(hot.host) : '—', d: hot ? `${hot.targetCount} vectors · ${Object.keys(hot.types).join('/')}` : '' },
+  ];
   el.hidden = false;
   el.innerHTML = `
     <div class="pulse-h"><span class="pulse-dot"></span> PULSE <span class="pulse-tag">last 24h</span><span class="pulse-upd mono">updated ${timeAgo(s.fetchedAt)} ago</span></div>
-    <div class="pulse-body">In the current configuration, <b>${T.targets}</b> target-requests are live across <b>${T.hosts}</b> hosts in <b>${T.countries}</b> ${T.countries === 1 ? 'country' : 'countries'}${cc ? ` — most-targeted: ${cc}` : ''}.
-      <b>${T.newHosts24h}</b> host${T.newHosts24h === 1 ? '' : 's'} are new in the last 24h${s.waveSince ? ` (current wave since ${s.waveSince})` : ''}.
-      ${top3.length ? `Highest attack surface right now: ${top3html}.` : ''}</div>`;
+    <div class="pulse-grid">${sigs.map((x) => `<div class="sig"><div class="sig-l">${x.l}</div><div class="sig-v ${x.vc || ''}">${x.v}</div><div class="sig-d">${x.d}</div></div>`).join('')}</div>`;
 }
 
 function renderCumulative(s) {
@@ -263,12 +282,15 @@ function renderTrend(el, trend) {
   const last = trend[trend.length - 1];
   const peak = trend.reduce((m, d) => (d.count > m.count ? d : m), trend[0]);
   const px = x(trend.indexOf(peak));
+  trendGeom = { W, H, pad, bot, n: trend.length, trend, xAt: x, yAt: y };
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
     <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3ddc84" stop-opacity="0.28"/><stop offset="100%" stop-color="#3ddc84" stop-opacity="0"/></linearGradient></defs>
     ${yt}${xl}
     <polygon points="${area}" fill="url(#tg)"/>
     <polyline points="${pts}" fill="none" stroke="#3ddc84" stroke-width="${many ? 1.4 : 2}"/>
     <circle cx="${px}" cy="${y(peak.count)}" r="3" fill="#ff5566"><title>peak ${peak.day}: ${peak.count}</title></circle>
+    <line id="tCross" x1="0" y1="${pad - 6}" x2="0" y2="${H - bot}" stroke="#3ddc84" stroke-width="0.8" stroke-dasharray="2 3" opacity="0" pointer-events="none"/>
+    <circle id="tDot" r="3.2" fill="#3ddc84" stroke="#0a0f16" stroke-width="1" opacity="0" pointer-events="none"/>
     <text x="${W - pad}" y="11" text-anchor="end" fill="#c4d0de" font-size="10">last ${last.count}</text>
   </svg>`;
 }
@@ -335,7 +357,7 @@ function openDrawer(host) {
   const h = groupHosts(rows)[0];
   const proto = h.ssl ? 'https' : 'http';
   $('#drawerHost').innerHTML = `${esc(h.host)} <a href="${proto}://${esc(h.host)}" target="_blank" rel="noopener">↗</a>`;
-  $('#drawerSub').textContent = `${flag(h.countryCode)} ${h.country}${h.city ? ' · ' + h.city : ''}${h.org ? ' · ' + h.org : ''}`;
+  $('#drawerSub').innerHTML = `${flag(h.countryCode)} ${esc(h.country)}${h.city ? ' · ' + esc(h.city) : ''}${h.org ? ' · ' + esc(h.org) : ''}`;
   const facts = [['vectors', h.targetCount], ['unique IPs', h.ips.length], ['ports', h.ports.join(', ') || '—'], ['first seen', timeAgo(h.firstSeen) + ' ago']];
   const paths = h.paths.filter(Boolean);
   $('#drawerBody').innerHTML = `
@@ -441,6 +463,35 @@ document.addEventListener('click', (e) => { const g = e.target.closest('.geo-tog
     tip.hidden = false;
   });
   map.addEventListener('mouseout', (e) => { if (e.target.closest('.mk')) tip.hidden = true; });
+})();
+
+// interactive trend chart (crosshair + tooltip)
+(() => {
+  const chart = $('#trendChart'), tip = $('#trendTip');
+  if (!chart || !tip) return;
+  chart.addEventListener('mousemove', (e) => {
+    const g = trendGeom; if (!g) return;
+    const svg = chart.querySelector('svg'); if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const scale = rect.width / g.W;
+    const vx = (e.clientX - rect.left) / scale;
+    let i = Math.round(((vx - g.pad) / (g.W - 2 * g.pad)) * (g.n - 1));
+    i = Math.max(0, Math.min(g.n - 1, i));
+    const d = g.trend[i], cx = g.xAt(i), cy = g.yAt(d.count);
+    const cross = svg.querySelector('#tCross'), dot = svg.querySelector('#tDot');
+    if (cross) { cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.setAttribute('opacity', '0.6'); }
+    if (dot) { dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('opacity', '1'); }
+    tip.innerHTML = `<div class="tt-day">${d.day}</div><div class="tt-cnt"><b>${d.count}</b> targets · ${d.hosts} hosts · ${d.ips} IPs</div>`;
+    tip.hidden = false;
+    tip.style.left = (cx * scale) + 'px';
+    tip.style.top = Math.max(2, cy * scale - 8) + 'px';
+  });
+  chart.addEventListener('mouseleave', () => {
+    tip.hidden = true;
+    const svg = chart.querySelector('svg'); if (!svg) return;
+    const c = svg.querySelector('#tCross'), d = svg.querySelector('#tDot');
+    if (c) c.setAttribute('opacity', '0'); if (d) d.setAttribute('opacity', '0');
+  });
 })();
 $('.sortbar').addEventListener('click', (e) => { const p = e.target.closest('.pill'); if (!p) return; state.hSort = p.dataset.hsort; $$('.sortbar .pill').forEach((x) => x.classList.toggle('active', x === p)); render(); });
 $$('#targetsTable thead th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.sort; if (!k) return; if (state.tSortKey === k) state.tSortDir = state.tSortDir === 'asc' ? 'desc' : 'asc'; else { state.tSortKey = k; state.tSortDir = 'asc'; } render(); }));
