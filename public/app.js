@@ -45,7 +45,8 @@ async function loadWorld() {
 }
 
 let trendGeom = null;
-const state = { targets: [], stats: null, view: 'ops', geoMode: 'live', hostsMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
+let drawerHostName = null;
+const state = { targets: [], stats: null, view: 'ops', geoMode: 'live', hostsMode: 'live', resGroup: 'fqdn', search: '', filterType: '', filterCountry: '', filterPort: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
 
 // ---------- helpers ----------
 const $ = (s) => document.querySelector(s);
@@ -462,14 +463,25 @@ function byIpFromTargets(rows) {
   for (const [ip, e] of Object.entries(m)) out[ip] = { paths: [...e.paths.entries()].sort((a, b) => b[1] - a[1]), ports: [...e.ports].sort((a, b) => a - b), types: Object.fromEntries(e.types), methods: [...e.methods] };
   return out;
 }
-function renderIpSection(ip, e, openIt) {
+function aggregateByIp(byIp) {
+  const paths = new Map(), ports = new Set(), types = {}, methods = new Set();
+  for (const e of Object.values(byIp)) {
+    for (const [p, c] of (e.paths || [])) paths.set(p, (paths.get(p) || 0) + c);
+    for (const p of (e.ports || [])) ports.add(p);
+    for (const [t, c] of Object.entries(e.types || {})) types[t] = (types[t] || 0) + c;
+    for (const m of (e.methods || [])) methods.add(m);
+  }
+  return { paths: [...paths.entries()].sort((a, b) => b[1] - a[1]), ports: [...ports].sort((a, b) => a - b), types, methods: [...methods] };
+}
+function renderResSection(label, e, openIt, kind) {
   const paths = e.paths || [], ports = e.ports || [], types = e.types || {}, methods = e.methods || [];
-  const copyBtns = `<div class="dsc-copyall"><button class="mini-copy" data-copy="${esc(ip)}">copy IP</button>${paths.length ? ` <button class="mini-copy" data-copy="${esc(paths.map((p) => p[0]).join('\n'))}">copy paths</button>` : ''}</div>`;
-  const pathRows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors on this IP</div>';
+  const copyBtns = `<div class="dsc-copyall"><button class="mini-copy" data-copy="${esc(label)}">copy ${kind}</button>${paths.length ? ` <button class="mini-copy" data-copy="${esc(paths.map((p) => p[0]).join('\n'))}">copy paths</button>` : ''}</div>`;
+  const pathRows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors</div>';
   const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(m)}</span>`).join('')}</div>` : '';
-  return dsecC(`${ip} · ${paths.length} path${paths.length === 1 ? '' : 's'}`, copyBtns + pathRows + chips, openIt, `ports ${ports.join(', ') || '—'}`);
+  return dsecC(`${label} · ${paths.length} path${paths.length === 1 ? '' : 's'}`, copyBtns + pathRows + chips, openIt, `ports ${ports.join(', ') || '—'}`);
 }
 async function openDrawer(host) {
+  drawerHostName = host;
   const rows = state.targets.filter((t) => t.host === host);
   const isCurrent = rows.length > 0;
   const h = isCurrent ? groupHosts(rows)[0] : null;
@@ -493,9 +505,14 @@ async function openDrawer(host) {
     : [{ k: 'attack sessions', v: String(sm.count) }, { k: 'longest stint', v: sm.longest ? fmtSpan(sm.longest) : '—' }, { k: 'total under attack', v: sm.totalDays ? fmtSpan(sm.totalDays) : '—' }, { k: 'first seen', v: (sm.firstSeen || '').slice(0, 10) || '—' }];
   const factsHtml = `<div class="facts">${facts.map((f) => `<div class="fact"><div class="k">${f.k}</div><div class="v">${f.raw ? f.v : esc(f.v)}</div></div>`).join('')}</div>`;
 
-  const ipSecs = ipEntries.length
-    ? `<div class="dsec-label">TARGETED RESOURCES BY IP <span class="dsc-hint">${ipEntries.length} IP${ipEntries.length === 1 ? '' : 's'}${isCurrent ? ' · live' : ' · all-time'}</span></div>` + ipEntries.map(([ip, e]) => renderIpSection(ip, e, ipEntries.length === 1)).join('')
-    : '<div class="empty">no per-IP path data recorded</div>';
+  const group = state.resGroup || 'fqdn';
+  const scope = isCurrent ? 'live' : 'all-time';
+  const toggle = `<span class="geo-toggle res-group"><button class="seg ${group === 'fqdn' ? 'on' : ''}" data-resgroup="fqdn">BY FQDN</button><button class="seg ${group === 'ip' ? 'on' : ''}" data-resgroup="ip">BY IP</button></span>`;
+  let resBody;
+  if (!ipEntries.length) resBody = '<div class="empty">no path data recorded</div>';
+  else if (group === 'ip') resBody = ipEntries.map(([ip, e]) => renderResSection(ip, e, ipEntries.length === 1, 'IP')).join('');
+  else resBody = renderResSection(host, aggregateByIp(byIp), true, 'FQDN');
+  const ipSecs = `<div class="dsec-label">TARGETED RESOURCES ${toggle}<span class="dsc-hint">${ipEntries.length} IP${ipEntries.length === 1 ? '' : 's'} · ${scope}</span></div>` + resBody;
 
   const list = ss.length ? ss.map((s) => {
     const ongoing = !s.ended;
@@ -601,7 +618,8 @@ $('#filterNew').addEventListener('change', (e) => { state.filterNew = e.target.c
 $('#refreshBtn').addEventListener('click', () => load());
 document.addEventListener('click', (e) => {
   const g = e.target.closest('.seg[data-geo]'); if (g) { e.stopPropagation(); state.geoMode = g.dataset.geo; render(); return; }
-  const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); }
+  const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); return; }
+  const rg = e.target.closest('.seg[data-resgroup]'); if (rg) { e.stopPropagation(); state.resGroup = rg.dataset.resgroup; if (drawerHostName) openDrawer(drawerHostName); }
 });
 
 // map marker hover tooltip
