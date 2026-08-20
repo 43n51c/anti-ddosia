@@ -162,6 +162,12 @@ const S = {
   asMost: db.prepare('SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last_seen, SUM(ended IS NULL) active FROM attack_session GROUP BY host ORDER BY sessions DESC, last_seen DESC LIMIT ?'),
   asLongest: db.prepare("SELECT host, started, ended, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session ORDER BY days DESC LIMIT ?"),
   asByHost: db.prepare("SELECT started, ended, last_seen, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session WHERE host = ? ORDER BY started DESC LIMIT ?"),
+  asAll: {
+    sessions: db.prepare(`${''}SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last, SUM(julianday(COALESCE(ended,'now'))-julianday(started)) total, MAX(julianday(COALESCE(ended,'now'))-julianday(started)) longest, SUM(ended IS NULL) active FROM attack_session WHERE host LIKE ? ESCAPE '\\' GROUP BY host ORDER BY sessions DESC, last DESC LIMIT ?`),
+    recent: db.prepare(`SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last, SUM(julianday(COALESCE(ended,'now'))-julianday(started)) total, MAX(julianday(COALESCE(ended,'now'))-julianday(started)) longest, SUM(ended IS NULL) active FROM attack_session WHERE host LIKE ? ESCAPE '\\' GROUP BY host ORDER BY last DESC LIMIT ?`),
+    longest: db.prepare(`SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last, SUM(julianday(COALESCE(ended,'now'))-julianday(started)) total, MAX(julianday(COALESCE(ended,'now'))-julianday(started)) longest, SUM(ended IS NULL) active FROM attack_session WHERE host LIKE ? ESCAPE '\\' GROUP BY host ORDER BY longest DESC LIMIT ?`),
+    name: db.prepare(`SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last, SUM(julianday(COALESCE(ended,'now'))-julianday(started)) total, MAX(julianday(COALESCE(ended,'now'))-julianday(started)) longest, SUM(ended IS NULL) active FROM attack_session WHERE host LIKE ? ESCAPE '\\' GROUP BY host ORDER BY host ASC LIMIT ?`),
+  },
 
   cntHosts: db.prepare('SELECT COUNT(*) c FROM host_first_seen'),
   cntGeo: db.prepare('SELECT COUNT(*) c FROM geoip'),
@@ -229,6 +235,11 @@ export function clearSessions() { S.asClear.run(); }
 export function insertSession(host, started, lastSeen, ended) { S.asInsertFull.run(host, started, lastSeen, ended); }
 export function mostTargeted(limit = 10) { return S.asMost.all(limit); }
 export function longestAttacks(limit = 10) { return S.asLongest.all(limit); }
+export function hostsAll(q = '', sort = 'sessions', limit = 200) {
+  const like = '%' + String(q || '').replace(/[%_\\]/g, (c) => '\\' + c) + '%';
+  const stmt = S.asAll[sort] || S.asAll.sessions;
+  return { hosts: stmt.all(like, limit) };
+}
 export function hostSessions(host, limit = 200) {
   const sessions = S.asByHost.all(host, limit);
   const summary = {

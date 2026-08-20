@@ -45,7 +45,7 @@ async function loadWorld() {
 }
 
 let trendGeom = null;
-const state = { targets: [], stats: null, view: 'ops', geoMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
+const state = { targets: [], stats: null, view: 'ops', geoMode: 'live', hostsMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
 
 // ---------- helpers ----------
 const $ = (s) => document.querySelector(s);
@@ -360,7 +360,35 @@ $('#checkForm').addEventListener('submit', async (e) => {
 });
 
 // ---------- hosts view ----------
+const HSORT_TO_ALL = { targetCount: 'sessions', host: 'name', firstSeen: 'recent', ports: 'longest' };
+let hostsAllKey = null;
 function renderHosts(rows) {
+  $$('.hosts-toggle .seg').forEach((b) => b.classList.toggle('on', b.dataset.hostmode === state.hostsMode));
+  const all = state.hostsMode === 'all';
+  $('#hostGrid').hidden = all;
+  $('#hostAllWrap').hidden = !all;
+  if (all) return renderHostsAll();
+  renderHostsLive(rows);
+}
+async function renderHostsAll() {
+  const sort = HSORT_TO_ALL[state.hSort] || 'sessions';
+  const key = `${state.search}|${sort}`;
+  if (key === hostsAllKey && $('#hostAllBody').children.length) return; // avoid refetch on poll re-render
+  hostsAllKey = key;
+  try {
+    const d = await api(`/api/hosts-all?q=${encodeURIComponent(state.search)}&sort=${sort}`);
+    const hosts = d.hosts || [];
+    const body = $('#hostAllBody');
+    body.innerHTML = hosts.length ? hosts.map((h) => `<tr data-host="${esc(h.host)}">
+      <td>${h.active ? '<span class="tdot"></span>' : ''}${esc(h.host)}</td>
+      <td>${h.sessions}×</td>
+      <td class="cc">${fmtSpan(h.longest)}</td>
+      <td class="cc">${fmtSpan(h.total)}</td>
+      <td class="cc">${h.active ? '<span class="ssl1">targeted now</span>' : timeAgo(h.last) + ' ago'}</td>
+    </tr>`).join('') : '<tr><td colspan="5" class="empty">no hosts match</td></tr>';
+  } catch { $('#hostAllBody').innerHTML = '<tr><td colspan="5" class="empty">could not load</td></tr>'; }
+}
+function renderHostsLive(rows) {
   let hosts = groupHosts(rows);
   hosts.sort((a, b) => { if (state.hSort === 'host') return a.host.localeCompare(b.host); if (state.hSort === 'firstSeen') return new Date(b.firstSeen) - new Date(a.firstSeen); if (state.hSort === 'ports') return (b.ports.length + b.paths.length) - (a.ports.length + a.paths.length); return b.targetCount - a.targetCount; });
   const g = $('#hostGrid');
@@ -538,7 +566,10 @@ $('#filterCountry').addEventListener('change', (e) => { state.filterCountry = e.
 $('#filterPort').addEventListener('change', (e) => { state.filterPort = e.target.value; render(); });
 $('#filterNew').addEventListener('change', (e) => { state.filterNew = e.target.checked; render(); });
 $('#refreshBtn').addEventListener('click', () => load());
-document.addEventListener('click', (e) => { const g = e.target.closest('.geo-toggle .seg'); if (!g) return; e.stopPropagation(); state.geoMode = g.dataset.geo; render(); });
+document.addEventListener('click', (e) => {
+  const g = e.target.closest('.seg[data-geo]'); if (g) { e.stopPropagation(); state.geoMode = g.dataset.geo; render(); return; }
+  const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); }
+});
 
 // map marker hover tooltip
 (() => {

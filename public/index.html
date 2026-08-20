@@ -162,13 +162,19 @@
     <!-- ===== HOSTS ===== -->
     <section id="view-hosts" class="view" hidden>
       <div class="sortbar">
-        <span class="mono">sort:</span>
+        <span class="hosts-toggle geo-toggle"><button class="seg on" data-hostmode="live">LIVE</button><button class="seg" data-hostmode="all">ALL-TIME</button></span>
+        <span class="mono" style="margin-left:8px">sort:</span>
         <button class="pill active" data-hsort="targetCount">vectors</button>
         <button class="pill" data-hsort="host">name</button>
         <button class="pill" data-hsort="firstSeen">newest</button>
         <button class="pill" data-hsort="ports">surface</button>
       </div>
       <div class="host-grid" id="hostGrid"></div>
+      <div class="pnl tbl-pnl" id="hostAllWrap" hidden>
+        <div class="tbl-wrap tall"><table class="tbl" id="hostAllTbl"><thead><tr>
+          <th>host</th><th>sessions</th><th>longest</th><th>total time</th><th>last seen</th>
+        </tr></thead><tbody id="hostAllBody"></tbody></table></div>
+      </div>
     </section>
 
     <!-- ===== FEED (raw) ===== -->
