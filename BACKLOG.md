@@ -29,7 +29,46 @@ untrusted multi-tenant or public production use.
   "email already registered" (409). Optional: return a generic success
   and email the address instead (ties into email verification above).
 
+## If it goes public (free, open registration)
+
+Open registration flips several "nice-to-have" items into launch blockers,
+because inputs (webhooks, emails, check queries) now come from untrusted
+users at volume.
+
+**Must-have before public launch**
+- [ ] **Email verification on signup** (blocks the pre-hijacking above,
+  stops throwaway/spam accounts). Ties to a real transactional email
+  provider (SES / Postmark / Resend) with SPF+DKIM — the hand-rolled SMTP
+  client is fine for a personal instance, not for deliverability at scale.
+- [ ] **Bot/abuse protection on `/api/register`** (CAPTCHA / Turnstile) and
+  tighter rate limits on `/api/check` and alert creation.
+- [ ] **Webhook SSRF hardening for untrusted users** — at-send DNS pinning
+  or an egress-proxy allowlist (the current save-time check is not enough
+  when anyone can add a webhook). Consider gating webhooks behind a
+  verified email.
+- [ ] **HTTPS + HSTS** via a reverse proxy (Caddy), `APP_URL=https://…`,
+  trust `X-Forwarded-Proto`/`-For` only from that proxy. Required for the
+  `Secure` session cookie and for Google OAuth on a real domain.
+- [ ] **Hash session tokens at rest**; add account deletion / data export
+  (GDPR), a privacy policy and ToS (you store emails + send alerts = PII).
+- [ ] **GeoIP at scale** — ip-api's free tier is 45 req/min; switch to a
+  local MaxMind DB or a paid tier.
+
+**Scaling path (only when load demands it)**
+- [ ] **SQLite → Postgres.** SQLite (WAL) serializes writes; the 1-min
+  poller writes history/sessions constantly and every user action writes
+  too. It can carry a few thousand users on one box, but past that, or for
+  HA / horizontal scale, move to Postgres.
+- [ ] Then split containers: **web (N replicas)** + **worker (exactly one:
+  poller + matching + alerts, to avoid duplicate work/alerts)** + Postgres,
+  behind the reverse proxy. Keep the poller a singleton.
+- [ ] Backups (SQLite file snapshot or Postgres dumps), structured logging,
+  uptime/health monitoring.
+
 ## Notes
 
 - Login already returns a generic "wrong email or password" (no user
   enumeration there) — keep it that way.
+- Current single-container + SQLite design is correct for a personal /
+  small deployment; none of the above is needed until you actually open
+  registration to the public.
