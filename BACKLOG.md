@@ -1,5 +1,22 @@
 # Backlog — next iteration
 
+## Fixed in the second audit pass (with tests)
+
+- [x] **Static path traversal to sibling dirs.** The old guard used
+  `startsWith(PUBLIC_DIR)`, which also matched `/app/public-secret/…`.
+  Now requires `PUBLIC_DIR` exactly or `PUBLIC_DIR + sep`.
+- [x] **Oversized request bodies reset the socket** (`req.destroy()`),
+  surfacing as a connection error instead of a clean 400. Now drains and
+  returns 400.
+- [x] **X-Forwarded-For trusted unconditionally** for rate-limit keying
+  (spoofable → per-request IP rotation bypasses the limiter). Now trusted
+  only when `TRUST_PROXY=1`; otherwise keys on the socket address.
+- [x] **Public read endpoints were unthrottled.** `/api/targets|stats|check|
+  host-sessions|hosts-all|session-detail` each run a scan/DB query with no
+  auth; added a 240-req/min per-IP cap.
+- Test suite added (`npm test`, zero-dep `node:test`): 46 cases across
+  match / auth / notify (SSRF) / oauth / db / API integration.
+
 ## Security hardening (residual risks from the audit)
 
 Non-critical for a single-instance / trusted deployment; address before
@@ -19,10 +36,9 @@ untrusted multi-tenant or public production use.
 - [ ] **Hash session tokens at rest.** Tokens are stored in `sessions`
   in plaintext; a leaked DB file lets them be replayed. Store `sha256(token)`
   and look up by hash.
-- [ ] **Rate-limit trust + scope.** The limiter keys on `X-Forwarded-For`
-  (spoofable unless behind a trusted proxy that sets it) and is in-memory
-  (per instance). For multi-instance, use a shared store and trust only
-  the proxy's XFF.
+- [ ] **Rate-limit scope (multi-instance).** XFF trust is now gated behind
+  `TRUST_PROXY` (done), but the limiter is still in-memory / per-instance.
+  For multi-instance, move to a shared store (Redis) so limits are global.
 - [ ] **Enforce HTTPS in production** so the session cookie ships with
   `Secure` (already wired via `isSecure`); add HSTS behind TLS.
 - [ ] **Registration email enumeration (minor).** `/api/register` returns

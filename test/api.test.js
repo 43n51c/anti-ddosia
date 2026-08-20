@@ -96,3 +96,13 @@ test('oversized request body is rejected', async () => {
   const { status } = await j('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'a@b.com', password: huge }) });
   assert.equal(status, 400);
 });
+
+// Keep this LAST: it exhausts the per-IP public-read budget for the window.
+test('public read endpoints are rate limited', async () => {
+  let got429 = false;
+  for (let i = 0; i < 260; i++) {
+    const { status } = await j('/api/targets');
+    if (status === 429) { got429 = true; break; }
+  }
+  assert.ok(got429, 'expected a 429 after exceeding the public-read rate limit');
+});

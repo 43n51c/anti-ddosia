@@ -8,7 +8,7 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, extname, normalize } from 'node:path';
+import { dirname, join, extname, normalize, sep } from 'node:path';
 import * as dbx from './db.js';
 import * as auth from './auth.js';
 import * as oauth from './oauth.js';
@@ -231,7 +231,14 @@ function buildStats() {
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
 function sendJson(res, obj, status = 200) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); }
 function isSecure(req) { return req.socket.encrypted || req.headers['x-forwarded-proto'] === 'https'; }
-function clientIp(req) { return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown'; }
+// X-Forwarded-For is client-controlled and only meaningful behind a trusted
+// reverse proxy; trusting it when directly exposed lets an attacker forge a
+// fresh IP per request and bypass the rate limiter. Opt in with TRUST_PROXY=1.
+const TRUST_PROXY = /^(1|true|yes)$/i.test(process.env.TRUST_PROXY || '');
+function clientIp(req) {
+  if (TRUST_PROXY) { const xff = (req.headers['x-forwarded-for'] || '').split(',')[0].trim(); if (xff) return xff; }
+  return req.socket.remoteAddress || 'unknown';
+}
 
 const CSP = [
   "default-src 'self'", "base-uri 'none'", "frame-ancestors 'none'", "form-action 'self'", "object-src 'none'",
@@ -272,7 +279,9 @@ async function serveStatic(req, res) {
   let urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
   if (urlPath === '/') urlPath = '/index.html';
   const filePath = normalize(join(PUBLIC_DIR, urlPath));
-  if (!filePath.startsWith(PUBLIC_DIR)) return void res.writeHead(403).end('Forbidden');
+  // Must resolve to PUBLIC_DIR itself or a path strictly beneath it — the
+  // trailing separator prevents escaping to sibling dirs like /app/public-secret.
+  if (filePath !== PUBLIC_DIR && !filePath.startsWith(PUBLIC_DIR + sep)) return void res.writeHead(403).end('Forbidden');
   try {
     const buf = await readFile(filePath);
     res.writeHead(200, { 'Content-Type': MIME[extname(filePath)] || 'application/octet-stream' });
@@ -366,7 +375,9 @@ async function handleApi(req, res, pathname) {
     return sendJson(res, { ok: true });
   }
 
-  // public data endpoints
+  // public data endpoints — unauthenticated but each does a scan/DB query, so
+  // cap per-IP throughput to blunt trivial hammering / enumeration.
+  if (rateLimited('read:' + clientIp(req), 240, 60 * 1000)) return sendJson(res, { error: 'Too many requests — slow down' }, 429);
   if (pathname === '/api/targets') return sendJson(res, current);
   if (pathname === '/api/stats') return sendJson(res, buildStats());
   if (pathname === '/api/check') {
