@@ -187,6 +187,9 @@ function renderMap(data) {
   const W = MAP_W, H = MAP_H;
   const proj = (lng, lat) => [(lng + 180) / 360 * W, (90 - lat) / 180 * H];
   const max = Math.max(1, ...data.map((c) => c.count));
+  // hosts per country (from the current snapshot) for the hover tooltip
+  const hostsBy = {};
+  for (const t of state.targets) { (hostsBy[t.countryCode] ||= new Set()).add(t.host); }
   const codes = data.map((c) => [codeOf(c), c]).filter(([cc]) => cc && cc !== 'XX');
   const hi = codes.map(([cc]) => world.byCode.get(cc)).filter(Boolean)
     .map((d) => `<path d="${d}" fill="rgba(255,85,102,0.16)" stroke="#8a3a45" stroke-width="0.5"/>`).join('');
@@ -195,9 +198,12 @@ function renderMap(data) {
     const ce = CENTROID[cc]; if (!ce) return '';
     const [x, y] = proj(ce[0], ce[1]);
     const r = 4 + Math.sqrt(c.count / max) * 20;
+    const hostsN = (hostsBy[cc] ? hostsBy[cc].size : 0);
+    const dataAttr = `class="mk" data-code="${cc}" data-country="${esc(c.key)}" data-count="${c.count}" data-hosts="${hostsN}"`;
     const base = `${i === 0 ? `<circle cx="${x}" cy="${y}" r="${r}" fill="#ff5566" opacity="0.12"><animate attributeName="r" values="${r};${r + 16};${r}" dur="2.6s" repeatCount="indefinite"/></circle>` : ''}
-      <circle cx="${x}" cy="${y}" r="${r}" fill="rgba(255,85,102,0.18)" stroke="#ff5566" stroke-width="1"><title>${esc(c.key)}: ${c.count}</title></circle>
-      <circle cx="${x}" cy="${y}" r="2.5" fill="#ff5566"/>`;
+      <circle cx="${x}" cy="${y}" r="${Math.max(r, 9)}" fill="transparent" ${dataAttr} style="cursor:pointer"/>
+      <circle cx="${x}" cy="${y}" r="${r}" fill="rgba(255,85,102,0.18)" stroke="#ff5566" stroke-width="1" pointer-events="none"/>
+      <circle cx="${x}" cy="${y}" r="2.5" fill="#ff5566" pointer-events="none"/>`;
     if (i >= labelN) return base;
     const fw = 22, fh = 15;
     return `${base}
@@ -418,6 +424,24 @@ $('#filterPort').addEventListener('change', (e) => { state.filterPort = e.target
 $('#filterNew').addEventListener('change', (e) => { state.filterNew = e.target.checked; render(); });
 $('#refreshBtn').addEventListener('click', () => load());
 document.addEventListener('click', (e) => { const g = e.target.closest('.geo-toggle .seg'); if (!g) return; e.stopPropagation(); state.geoMode = g.dataset.geo; render(); });
+
+// map marker hover tooltip
+(() => {
+  const box = $('#mapBox'), tip = $('#mapTip'), map = $('#map');
+  if (!box || !tip || !map) return;
+  map.addEventListener('mouseover', (e) => {
+    const mk = e.target.closest('.mk'); if (!mk) return;
+    tip.innerHTML = `<div class="tt-h">${flag(mk.dataset.code)} ${esc(mk.dataset.country)}</div>
+      <div class="tt-r"><span>target-requests</span><b>${mk.dataset.count}</b></div>
+      <div class="tt-r"><span>hosts targeted</span><b>${mk.dataset.hosts}</b></div>
+      <div class="tt-hint">open the feed below for host-level detail</div>`;
+    const r = mk.getBoundingClientRect(), b = box.getBoundingClientRect();
+    tip.style.left = (r.left + r.width / 2 - b.left) + 'px';
+    tip.style.top = (r.top - b.top) + 'px';
+    tip.hidden = false;
+  });
+  map.addEventListener('mouseout', (e) => { if (e.target.closest('.mk')) tip.hidden = true; });
+})();
 $('.sortbar').addEventListener('click', (e) => { const p = e.target.closest('.pill'); if (!p) return; state.hSort = p.dataset.hsort; $$('.sortbar .pill').forEach((x) => x.classList.toggle('active', x === p)); render(); });
 $$('#targetsTable thead th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.sort; if (!k) return; if (state.tSortKey === k) state.tSortDir = state.tSortDir === 'asc' ? 'desc' : 'asc'; else { state.tSortKey = k; state.tSortDir = 'asc'; } render(); }));
 $$('#opsFeed thead th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.sort; if (!k) return; if (state.fSortKey === k) state.fSortDir = state.fSortDir === 'asc' ? 'desc' : 'asc'; else { state.fSortKey = k; state.fSortDir = 'desc'; } render(); }));
