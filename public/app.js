@@ -153,6 +153,7 @@ function renderOps(rows) {
   $('#trendWin').textContent = 'all-time';
   $('#trendMeta').textContent = s.trendPeak?.day ? `peak ${s.trendPeak.count} · avg ${s.trendAvg}` : '';
   renderTrend($('#trendChart'), s.trend || []);
+  $('#iocHosts').textContent = new Set(rows.map((r) => r.host).filter(Boolean)).size;
   $('#iocIps').textContent = new Set(rows.map((r) => r.ip).filter(Boolean)).size;
   $('#iocPaths').textContent = new Set(rows.map((r) => r.path).filter(Boolean)).size;
 }
@@ -616,6 +617,7 @@ function exportData(kind) {
   const rows = state.view === 'targets' ? filtered() : state.targets;
   if (kind === 'json') download('ddosia-targets.json', JSON.stringify(rows, null, 2), 'application/json');
   else if (kind === 'csv') { const cols = ['host', 'ip', 'country', 'city', 'org', 'type', 'method', 'port', 'use_ssl', 'path']; const e = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`; download('ddosia-targets.csv', [cols.join(','), ...rows.map((r) => cols.map((c) => e(r[c])).join(','))].join('\n'), 'text/csv'); }
+  else if (kind === 'hosts') copy([...new Set(rows.map((r) => r.host).filter(Boolean))].join('\n'), 'Hosts');
   else if (kind === 'ips') copy([...new Set(rows.map((r) => r.ip).filter(Boolean))].join('\n'), 'IPs');
   else if (kind === 'paths') copy([...new Set(rows.map((r) => r.path).filter(Boolean))].join('\n'), 'Paths');
   $('#exportMenu').hidden = true;

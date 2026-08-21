@@ -46,6 +46,7 @@
           <div class="menu-list" id="exportMenu" hidden>
             <button data-export="csv">download CSV</button>
             <button data-export="json">download JSON</button>
+            <button data-export="hosts">copy all hosts</button>
             <button data-export="ips">copy all IPs</button>
             <button data-export="paths">copy all paths</button>
           </div>
@@ -162,6 +163,7 @@
           <div class="pnl-h">
             <span>LIVE TARGET FEED</span>
             <div class="iocs">
+              <button class="ioc" data-export="hosts">Hosts <b id="iocHosts">0</b> <span class="cp">copy</span></button>
               <button class="ioc" data-export="ips">IPs <b id="iocIps">0</b> <span class="cp">copy</span></button>
               <button class="ioc" data-export="paths">Paths <b id="iocPaths">0</b> <span class="cp">copy</span></button>
               <button class="ioc" data-export="csv">CSV <span class="cp">download</span></button>
