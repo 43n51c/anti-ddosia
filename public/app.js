@@ -363,7 +363,7 @@ function renderMap(data) {
       const w = ub.x1 - ub.x0;
       // the real Ukrainian flag, clipped to the country outline, softened to fit the theme
       overlay += `<defs><clipPath id="uaClip"><path d="${uaPath}"/></clipPath></defs>
-        <image href="/flags/ua.svg" x="${ub.x0}" y="${ub.y0}" width="${w}" height="${ub.y1 - ub.y0}" preserveAspectRatio="none" clip-path="url(#uaClip)" opacity="0.28"/>
+        <image href="/flags/ua.svg" x="${ub.x0}" y="${ub.y0}" width="${w}" height="${ub.y1 - ub.y0}" preserveAspectRatio="none" clip-path="url(#uaClip)" opacity="0.16"/>
         <path d="${uaPath}" fill="none" stroke="#43648f" stroke-width="0.5" opacity="0.7"/>`;
     }
     // anchor over the middle of Russia's Eurasian landmass (computed at load)
