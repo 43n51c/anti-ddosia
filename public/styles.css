@@ -63,7 +63,11 @@ a:hover { text-decoration: underline; }
 .dot.ok { background: var(--grn); box-shadow: 0 0 0 0 rgba(61,220,132,.6); animation: pulse 1.9s infinite; }
 .dot.err { background: var(--red); }
 @keyframes pulse { 70% { box-shadow: 0 0 0 7px rgba(61,220,132,0); } 100% { box-shadow: 0 0 0 0 rgba(61,220,132,0); } }
-.src { color: var(--dim); font-size: 11px; margin-top: 7px; }
+.src-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 7px; }
+.src { color: var(--dim); font-size: 11px; }
+.mini-ico { background: none; border: none; color: var(--tx2); cursor: pointer; font-size: 13px; line-height: 1; padding: 3px 6px; border-radius: 5px; }
+.mini-ico:hover { color: var(--tx); background: var(--bg2); }
+.stat-line .mini-ico { margin-left: auto; }
 
 /* ===== MAIN ===== */
 .main { min-width: 0; padding: 0 20px 40px; }
@@ -84,8 +88,9 @@ a:hover { text-decoration: underline; }
 .signin { background: var(--grn); color: #04180d; border: none; border-radius: 7px; padding: 9px 14px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; letter-spacing: 0.05em; }
 .menu { position: relative; }
 .menu-list { position: absolute; right: 0; top: 42px; z-index: 50; background: var(--bg2); border: 1px solid var(--line2); border-radius: 9px; padding: 5px; min-width: 165px; box-shadow: 0 14px 40px rgba(0,0,0,.55); transform-origin: top right; animation: popIn .14s ease both; }
-/* account menu sits in the rail footer → open upward, aligned left */
+/* menus in the rail footer open upward; .right aligns to the button's right edge */
 .menu-list.up { top: auto; bottom: calc(100% + 6px); left: 0; right: auto; transform-origin: bottom left; }
+.menu-list.up.right { left: auto; right: 0; transform-origin: bottom right; }
 .menu-list.wide { min-width: 300px; }
 .menu-list button { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--tx); padding: 8px 10px; border-radius: 6px; font-family: inherit; font-size: 12px; cursor: pointer; }
 .menu-list button:hover { background: var(--bg3); }

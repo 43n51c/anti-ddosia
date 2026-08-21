@@ -43,8 +43,20 @@
         </div>
       </div>
       <div class="rail-sys">
-        <div class="stat-line"><span class="dot" id="statusDot"></span><span id="statusText">connecting…</span></div>
-        <div class="src">src: <a href="https://witha.name/data/last.json" target="_blank" rel="noopener">last.json</a></div>
+        <div class="stat-line"><span class="dot" id="statusDot"></span><span id="statusText">connecting…</span><button class="mini-ico" id="refreshBtn" title="Refresh now">↻</button></div>
+        <div class="src-line">
+          <span class="src">src: <a href="https://witha.name/data/last.json" target="_blank" rel="noopener">last.json</a></span>
+          <div class="menu" id="exportWrap">
+            <button class="mini-ico" id="exportBtn" title="Export / copy">⤓</button>
+            <div class="menu-list up right" id="exportMenu" hidden>
+              <button data-export="csv">download CSV</button>
+              <button data-export="json">download JSON</button>
+              <button data-export="hosts">copy all hosts</button>
+              <button data-export="ips">copy all IPs</button>
+              <button data-export="paths">copy all paths</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </aside>
@@ -59,17 +71,6 @@
         <button class="clear" id="searchClear" hidden>×</button>
       </div>
       <div class="cmd-actions">
-        <div class="menu">
-          <button class="ico-btn" id="exportBtn" title="Export">⤓</button>
-          <div class="menu-list" id="exportMenu" hidden>
-            <button data-export="csv">download CSV</button>
-            <button data-export="json">download JSON</button>
-            <button data-export="hosts">copy all hosts</button>
-            <button data-export="ips">copy all IPs</button>
-            <button data-export="paths">copy all paths</button>
-          </div>
-        </div>
-        <button class="ico-btn" id="refreshBtn" title="Refresh">↻</button>
         <div class="menu" id="bellWrap" hidden>
           <button class="ico-btn" id="bellBtn" title="Alerts">◔<span class="bdg" id="bellBadge" hidden></span></button>
           <div class="menu-list wide" id="bellMenu" hidden>
