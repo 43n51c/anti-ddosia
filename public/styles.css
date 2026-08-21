@@ -210,11 +210,10 @@ a:hover { text-decoration: underline; }
 .tile .d.up { color: var(--red); } .tile .d.down { color: var(--grn); }
 
 /* map + rail */
-.grid-map { display: grid; grid-template-columns: 1.55fr 1fr; gap: 14px; margin-bottom: 16px; }
+.grid-map { display: grid; grid-template-columns: 1.55fr 1fr; gap: 14px; margin-bottom: 16px; align-items: start; }
 @media (max-width: 1050px) { .grid-map { grid-template-columns: 1fr; } }
 .map-box { position: relative; }
 .map { width: 100%; border-radius: 8px; overflow: hidden; background: #070c14; }
-.map svg { display: block; width: 100%; height: auto; }
 .map svg { display: block; width: 100%; height: auto; }
 .map .mk:hover ~ * { }
 .map-tip { position: absolute; z-index: 20; pointer-events: none; background: #0a1119; border: 1px solid var(--line2); border-radius: 8px; padding: 9px 11px; box-shadow: 0 10px 30px rgba(0,0,0,.55); min-width: 150px; transform: translate(-50%, calc(-100% - 12px)); }
@@ -232,6 +231,9 @@ a:hover { text-decoration: underline; }
 .bar .fl { display: block; height: 7px; border-radius: 4px; min-width: 2px; transition: width .6s cubic-bezier(.2,.7,.2,1); }
 .pnl-win { color: var(--grn); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; }
 .bar .p { text-align: right; font-size: 11.5px; color: var(--tx); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 30px; }
+#countryBars .bar, #methodBars .bar { cursor: pointer; border-radius: 5px; padding: 1px 4px; margin: 0 -4px; transition: background .12s; }
+#countryBars .bar:hover, #methodBars .bar:hover { background: var(--bg2); }
+#countryBars .bar:hover .n, #methodBars .bar:hover .n { color: var(--tx); }
 
 /* feed + trend */
 .grid-feed { display: flex; flex-direction: column; gap: 14px; }

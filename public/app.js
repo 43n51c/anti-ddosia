@@ -45,7 +45,7 @@ async function loadWorld() {
 }
 
 let trendGeom = null;
-const state = { targets: [], stats: null, view: 'ops', geoMode: 'live', hostsMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
+const state = { targets: [], stats: null, view: 'ops', geoMode: 'live', hostsMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterMethod: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
 
 // ---------- helpers ----------
 const $ = (s) => document.querySelector(s);
@@ -92,6 +92,7 @@ function filtered() {
     if (state.filterType && t.type !== state.filterType) return false;
     if (state.filterCountry && t.country !== state.filterCountry) return false;
     if (state.filterPort && String(t.port) !== state.filterPort) return false;
+    if (state.filterMethod && t.method !== state.filterMethod) return false;
     if (state.filterNew && !isNew(t)) return false;
     if (q) { const h = `${t.host} ${t.ip} ${t.path} ${t.org} ${t.country} ${t.method} ${t.type}`.toLowerCase(); if (!h.includes(q)) return false; }
     return true;
@@ -285,7 +286,7 @@ function bars(el, rows, labelFn, color, animate) {
   if (!rows.length) { el.innerHTML = '<div class="empty">no data</div>'; return; }
   el.innerHTML = rows.map((r) => {
     const w = (r.count / max * 100).toFixed(1);
-    return `<div class="bar"><span class="n" title="${esc(r.key)}">${labelFn(r)}</span><span class="tk"><span class="fl" style="width:${animate ? 0 : w}%;background:${color}" data-w="${w}"></span></span><span class="p" data-val="${r.count}">${animate ? 0 : fmt(r.count)}</span></div>`;
+    return `<div class="bar" data-key="${esc(r.key)}"><span class="n" title="${esc(r.key)}">${labelFn(r)}</span><span class="tk"><span class="fl" style="width:${animate ? 0 : w}%;background:${color}" data-w="${w}"></span></span><span class="p" data-val="${r.count}">${animate ? 0 : fmt(r.count)}</span></div>`;
   }).join('');
   if (!animate) return;
   requestAnimationFrame(() => el.querySelectorAll('.fl').forEach((f) => { f.style.width = f.dataset.w + '%'; }));
@@ -296,8 +297,16 @@ function renderMap(data) {
   const W = MAP_W, H = MAP_H;
   const proj = (lng, lat) => [(lng + 180) / 360 * W, (90 - lat) / 180 * H];
   // markers are sized/labelled by HOST count per country (target-requests go in the tooltip)
+  // assign each host to its dominant country so per-country marker counts sum to
+  // the distinct total ("N hosts now") — a host with IPs in 2 countries lands in one
+  const hostCC = {};
+  for (const t of state.targets) { (hostCC[t.host] ||= {})[t.countryCode] = (hostCC[t.host][t.countryCode] || 0) + 1; }
   const hostsBy = {};
-  for (const t of state.targets) { (hostsBy[t.countryCode] ||= new Set()).add(t.host); }
+  for (const [host, ccs] of Object.entries(hostCC)) {
+    let best = null, bn = -1;
+    for (const [cc, n] of Object.entries(ccs)) if (n > bn) { best = cc; bn = n; }
+    (hostsBy[best] ||= new Set()).add(host);
+  }
   const codes = data.map((c) => [codeOf(c), c]).filter(([cc]) => cc && cc !== 'XX');
   const hostsOf = (cc) => (hostsBy[cc] ? hostsBy[cc].size : (data.find((c) => codeOf(c) === cc)?.hosts || 0));
   const max = Math.max(1, ...codes.map(([cc]) => hostsOf(cc)));
@@ -620,10 +629,16 @@ function exportData(kind) {
 // ---------- filters ----------
 function syncFilters() {
   const s = state.stats; if (!s) return;
-  const fill = (sel, items, all, fmt) => { const cur = sel.value; sel.innerHTML = [`<option value="">${all}</option>`].concat(items.map((r) => `<option value="${esc(r.key)}">${fmt(r)}</option>`)).join(''); sel.value = cur; };
-  fill($('#filterType'), s.byType, 'type: all', (r) => `${r.key} (${r.count})`);
-  fill($('#filterCountry'), s.byCountry, 'country: all', (r) => `${r.key} (${r.count})`);
-  fill($('#filterPort'), s.byPort, 'port: all', (r) => `${r.key} (${r.count})`);
+  // reflect state.filterX; if a drilled value isn't in the current snapshot, keep it as an extra option
+  const fill = (sel, items, all, fmt, val) => {
+    const opts = [`<option value="">${all}</option>`].concat(items.map((r) => `<option value="${esc(r.key)}">${fmt(r)}</option>`));
+    if (val && !items.some((r) => String(r.key) === String(val))) opts.push(`<option value="${esc(val)}">${esc(val)}</option>`);
+    sel.innerHTML = opts.join(''); sel.value = val || '';
+  };
+  fill($('#filterType'), s.byType, 'type: all', (r) => `${r.key} (${r.count})`, state.filterType);
+  fill($('#filterCountry'), s.byCountry, 'country: all', (r) => `${r.key} (${r.count})`, state.filterCountry);
+  fill($('#filterPort'), s.byPort, 'port: all', (r) => `${r.key} (${r.count})`, state.filterPort);
+  fill($('#filterMethod'), s.byMethod, 'method: all', (r) => `${r.key} (${r.count})`, state.filterMethod);
 }
 
 // ==================== account / auth / assets / alerts ====================
@@ -788,7 +803,17 @@ const applyFilter = () => { render(); flashActiveList(); };
 $('#searchClear').addEventListener('click', () => { state.search = ''; $('#search').value = ''; applyFilter(); });
 $('#filterType').addEventListener('change', (e) => { state.filterType = e.target.value; applyFilter(); });
 $('#filterCountry').addEventListener('change', (e) => { state.filterCountry = e.target.value; applyFilter(); });
+$('#filterMethod').addEventListener('change', (e) => { state.filterMethod = e.target.value; applyFilter(); });
 $('#filterPort').addEventListener('change', (e) => { state.filterPort = e.target.value; applyFilter(); });
+// drill from a BY COUNTRY / ATTACK METHODS bar into the live feed, filtered
+function drillToFeed(kind, value) {
+  state.filterType = ''; state.filterCountry = ''; state.filterPort = ''; state.filterMethod = ''; state.filterNew = false;
+  $$('#filterNew .seg').forEach((s) => s.classList.toggle('on', s.dataset.new === '0'));
+  if (kind === 'country') state.filterCountry = value; else if (kind === 'method') state.filterMethod = value;
+  switchView('targets'); // renders the feed + syncs the toolbar selects to state
+}
+$('#countryBars').addEventListener('click', (e) => { const b = e.target.closest('.bar[data-key]'); if (b) drillToFeed('country', b.dataset.key); });
+$('#methodBars').addEventListener('click', (e) => { const b = e.target.closest('.bar[data-key]'); if (b) drillToFeed('method', b.dataset.key); });
 $('#filterNew').addEventListener('click', (e) => {
   const seg = e.target.closest('.seg'); if (!seg) return;
   state.filterNew = seg.dataset.new === '1';
