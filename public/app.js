@@ -460,7 +460,7 @@ function renderRanks(most, longest, waves) {
       ${rankBar(r.days / maxD, ongoing ? '#3ddc84' : '#f5b301')}
       <span class="rk-v">${fmtSpan(r.days)}</span>
     </div>`;
-  }).join('') : '<div class="empty">no session data — run backfill</div>';
+  }).join('') : '<div class="empty">no attack history yet</div>';
 
   waves = waves || [];
   const maxW = Math.max(1, ...waves.map((r) => r.waves));
@@ -470,7 +470,7 @@ function renderRanks(most, longest, waves) {
       <span class="rk-h">${(live.has(r.host) || r.active) ? '<span class="rk-live">●</span> ' : ''}${esc(r.host)}</span>
       ${rankBar(r.waves / maxW, '#38bdf8')}
       <span class="rk-v">${r.waves}×</span>
-    </div>`).join('') : '<div class="empty">no session data — run backfill</div>';
+    </div>`).join('') : '<div class="empty">no attack history yet</div>';
   tickDurations();
 }
 
@@ -685,7 +685,7 @@ async function openDrawer(host) {
 
   const facts = isCurrent
     ? [{ k: 'vectors', v: h.targetCount }, { k: 'unique IPs', v: h.ips.length }, { k: 'ports', v: h.ports.join(', ') || '—' }, { k: 'targeted for', v: `<span class="dur" data-since="${esc(h.sessionStart)}"></span>`, raw: true }]
-    : [{ k: 'attack sessions', v: String(sm.count) }, { k: 'longest stint', v: sm.longest ? fmtSpan(sm.longest) : '—' }, { k: 'total under attack', v: sm.totalDays ? fmtSpan(sm.totalDays) : '—' }, { k: 'first seen', v: (sm.firstSeen || '').slice(0, 10) || '—' }];
+    : [{ k: 'attack waves', v: String(sm.count) }, { k: 'longest stint', v: sm.longest ? fmtSpan(sm.longest) : '—' }, { k: 'total under attack', v: sm.totalDays ? fmtSpan(sm.totalDays) : '—' }, { k: 'first seen', v: (sm.firstSeen || '').slice(0, 10) || '—' }];
   const factsHtml = `<div class="facts">${facts.map((f) => `<div class="fact"><div class="k">${f.k}</div><div class="v">${f.raw ? f.v : esc(f.v)}</div></div>`).join('')}</div>`;
 
   // paths grouped per IP: one collapsible section per IP with that IP's targets
@@ -711,8 +711,8 @@ async function openDrawer(host) {
     const dur = ongoing ? `<span class="dur" data-since="${esc(s.started)}"></span>` : (s.days * 86400 < 60 ? '<1m' : fmtSpan(s.days));
     const hint = `${ongoing ? '<span class="on">ongoing</span> · ' : ''}${dur}`;
     return `<details class="dsec-c sess" data-shost="${esc(host)}" data-from="${from}" data-to="${lastDay}"><summary><span class="dsc-t">${title}</span><span class="dsc-hint">${hint}</span></summary><div class="dsc-body sess-body"><div class="empty">…</div></div></details>`;
-  }).join('') : '<div class="empty">no recorded sessions</div>';
-  const histHtml = `<div class="dsec-label">ATTACK HISTORY <span class="dsc-hint">${sm.count} session${sm.count === 1 ? '' : 's'} · click to expand</span></div>${sessRows}`;
+  }).join('') : '<div class="empty">no attack history</div>';
+  const histHtml = `<div class="dsec-label">ATTACK HISTORY <span class="dsc-hint">${sm.count} wave${sm.count === 1 ? '' : 's'} · click to expand</span></div>${sessRows}`;
 
   $('#drawerBody').innerHTML = factsHtml + targetsHtml + histHtml;
   tickDurations();
