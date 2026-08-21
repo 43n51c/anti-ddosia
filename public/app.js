@@ -297,7 +297,8 @@ function renderPeriodTiles(p) {
   // period-scoped rankings
   $('#mostWin').textContent = winLabel;
   $('#longestWin').textContent = winLabel;
-  renderRanks(p.mostTargeted, p.longestAttacks);
+  $('#wavesWin').textContent = winLabel;
+  renderRanks(p.mostTargeted, p.longestAttacks, p.mostWaves);
   if (!animate) return;
   $$('#tiles .tile').forEach((tile) => {
     countUp(tile.querySelector('.v'), Number(tile.querySelector('.v').dataset.val));
@@ -434,7 +435,7 @@ function zoomMapAt(px, py, factor) {
 })();
 
 function rankBar(frac, color) { return `<span class="rk-track"><span class="rk-fill" style="width:${(Math.max(0.03, frac) * 100).toFixed(1)}%;background:${color}"></span></span>`; }
-function renderRanks(most, longest) {
+function renderRanks(most, longest, waves) {
   most = most || [];
   const live = new Set(state.targets.map((t) => t.host));
   const maxS = Math.max(1, ...most.map((r) => r.days));
@@ -457,6 +458,16 @@ function renderRanks(most, longest) {
       <span class="rk-v">${fmtSpan(r.days)}</span>
     </div>`;
   }).join('') : '<div class="empty">no session data — run backfill</div>';
+
+  waves = waves || [];
+  const maxW = Math.max(1, ...waves.map((r) => r.waves));
+  $('#mostWaves').innerHTML = waves.length ? waves.map((r, i) => `
+    <div class="rk" data-host="${esc(r.host)}" title="${r.waves} separate wave${r.waves === 1 ? '' : 's'} on the list${r.last ? ' · last ' + r.last.slice(0, 10) : ''}">
+      <span class="rk-i">${i + 1}</span>
+      <span class="rk-h">${(live.has(r.host) || r.active) ? '<span class="rk-live">●</span> ' : ''}${esc(r.host)}</span>
+      ${rankBar(r.waves / maxW, '#38bdf8')}
+      <span class="rk-v">${r.waves}×</span>
+    </div>`).join('') : '<div class="empty">no session data — run backfill</div>';
   tickDurations();
 }
 

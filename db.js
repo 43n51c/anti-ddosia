@@ -200,6 +200,8 @@ const S = {
   // GROUP BY host so a host with several long stints takes one slot (matching the per-host "most targeted" list);
   // SQLite carries the bare started/ended from the MAX(days) row.
   asLongestWin: db.prepare("SELECT host, started, ended, MAX(julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session WHERE started <= ? AND COALESCE(ended,'9999-12-31T23:59:59Z') >= ? GROUP BY host ORDER BY days DESC LIMIT ?"),
+  // windowed: hosts by number of separate stints (waves) overlapping [fromIso, toIso]
+  asWavesWin: db.prepare("SELECT host, COUNT(*) waves, MAX(COALESCE(ended,last_seen)) last, SUM(ended IS NULL) active FROM attack_session WHERE started <= ? AND COALESCE(ended,'9999-12-31T23:59:59Z') >= ? GROUP BY host ORDER BY waves DESC, last DESC LIMIT ?"),
   asByHost: db.prepare("SELECT started, ended, last_seen, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session WHERE host = ? ORDER BY started DESC LIMIT ?"),
   asAll: (() => {
     const cols = "a.host host, MAX(hc.code) code, MAX(hc.country) country, COUNT(*) sessions, MAX(COALESCE(a.ended,a.last_seen)) last, SUM(julianday(COALESCE(a.ended,'now'))-julianday(a.started)) total, MAX(julianday(COALESCE(a.ended,'now'))-julianday(a.started)) longest, SUM(a.ended IS NULL) active";
@@ -282,7 +284,9 @@ export function periodStats(fromDay, toDay, fromIso, toIso) {
   // most-targeted over a window = most days present on the list (discriminates at any window size)
   const mostTargeted = [...hostDays.entries()].map(([host, days]) => ({ host, days })).sort((a, b) => b.days - a.days).slice(0, 10);
   const longestAttacks = S.asLongestWin.all(toIso, fromIso, 10);
-  return { hosts: H.size, ips: I.size, countries: C.size, requests, peak, avg, days: hist.length, newHosts, byCountry, byMethod, trend, mostTargeted, longestAttacks };
+  // most waves = the host targeted in the most separate stints overlapping the window
+  const mostWaves = S.asWavesWin.all(toIso, fromIso, 10);
+  return { hosts: H.size, ips: I.size, countries: C.size, requests, peak, avg, days: hist.length, newHosts, byCountry, byMethod, trend, mostTargeted, longestAttacks, mostWaves };
 }
 export function getHostFirstSeen(host) { return S.hfsGet.get(host)?.first_seen || null; }
 export function putHostFirstSeen(host, iso) { S.hfsPut.run(host, iso); }

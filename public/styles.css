@@ -269,8 +269,9 @@ a:hover { text-decoration: underline; }
 .dsec-label:first-child { margin-top: 0; }
 
 /* rank lists (most targeted / longest attacks) */
-.duo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
-@media (max-width: 1050px) { .duo { grid-template-columns: 1fr; } }
+.trio { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-top: 16px; }
+@media (max-width: 1180px) { .trio { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 720px) { .trio { grid-template-columns: 1fr; } }
 .rank { display: flex; flex-direction: column; }
 .rk { display: grid; grid-template-columns: 16px minmax(90px, 1fr) 88px 58px; align-items: center; gap: 10px; padding: 8px 6px; border-top: 1px solid #101823; cursor: pointer; }
 .rk:first-child { border-top: none; }
