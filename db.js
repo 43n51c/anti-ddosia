@@ -196,8 +196,6 @@ const S = {
   asClose: db.prepare('UPDATE attack_session SET ended = last_seen WHERE host = ? AND ended IS NULL'),
   asInsertFull: db.prepare('INSERT INTO attack_session(host,started,last_seen,ended) VALUES(?,?,?,?)'),
   asClear: db.prepare('DELETE FROM attack_session'),
-  asMost: db.prepare('SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last_seen, SUM(ended IS NULL) active FROM attack_session GROUP BY host ORDER BY sessions DESC, last_seen DESC LIMIT ?'),
-  asLongest: db.prepare("SELECT host, started, ended, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session ORDER BY days DESC LIMIT ?"),
   // windowed: each host's single longest stint overlapping [fromIso, toIso] (started <= to AND end >= from).
   // GROUP BY host so a host with several long stints takes one slot (matching the per-host "most targeted" list);
   // SQLite carries the bare started/ended from the MAX(days) row.
@@ -341,8 +339,6 @@ export function updateSessions(currentHosts, nowIso, openIso) {
 }
 export function clearSessions() { S.asClear.run(); }
 export function insertSession(host, started, lastSeen, ended) { S.asInsertFull.run(host, started, lastSeen, ended); }
-export function mostTargeted(limit = 10) { return S.asMost.all(limit); }
-export function longestAttacks(limit = 10) { return S.asLongest.all(limit); }
 export function hostsAll(q = '', sort = 'sessions', country = '', limit = 200) {
   const like = '%' + String(q || '').replace(/[%_\\]/g, (c) => '\\' + c) + '%';
   const stmt = S.asAll[sort] || S.asAll.sessions;

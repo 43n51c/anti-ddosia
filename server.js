@@ -254,8 +254,6 @@ function buildStats() {
     yesterdayCount, waveSince,
     byCountryAllTime: dbx.allCountries().map((c) => ({ key: c.country, code: c.code, count: c.targets, hosts: c.hosts })),
     cumulative: { ...dbx.cumulative(), configs: configsTotal },
-    mostTargeted: dbx.mostTargeted(10),
-    longestAttacks: dbx.longestAttacks(10),
   };
   statsCacheVer = dataVersion;
   return statsCache;
