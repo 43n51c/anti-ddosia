@@ -37,8 +37,16 @@ function geomToPath(g) {
 async function loadWorld() {
   try {
     const gj = await fetch('/world.geojson').then((r) => r.json());
-    let all = '';
-    for (const f of gj.features) { const d = geomToPath(f.g); all += d; if (f.c) world.byCode.set(f.c, (world.byCode.get(f.c) || '') + d); }
+    let all = ''; const bnds = {};
+    for (const f of gj.features) {
+      const d = geomToPath(f.g); all += d;
+      if (!f.c) continue;
+      world.byCode.set(f.c, (world.byCode.get(f.c) || '') + d);
+      const b = bnds[f.c] || { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 };
+      const walk = (a) => { if (typeof a[0] === 'number') { const x = (a[0] + 180) / 360 * MAP_W, y = (90 - a[1]) / 180 * MAP_H; if (x < b.x0) b.x0 = x; if (x > b.x1) b.x1 = x; if (y < b.y0) b.y0 = y; if (y > b.y1) b.y1 = y; } else a.forEach(walk); };
+      walk(f.g.coordinates); bnds[f.c] = b;
+    }
+    world.bounds = bnds;
     world.all = all; world.loaded = true;
     if (state.view === 'ops' && state.stats) renderMap(state.stats.byCountry);
   } catch (e) { console.error('world map load failed', e.message); }
@@ -326,12 +334,27 @@ function renderMap(data) {
     return `<g class="mk-g" data-x="${x.toFixed(1)}" data-y="${y.toFixed(1)}">${base}${label}</g>`;
   }).join('');
   const land = world.loaded ? `<path d="${world.all}" fill="#0e1a2a" stroke="#22384f" stroke-width="0.35"/>${hi}` : '';
+  // solidarity overlay: fill Ukraine with its flag; label Russia
+  let overlay = '';
+  if (world.loaded && world.bounds) {
+    const uaPath = world.byCode.get('UA'), ub = world.bounds.UA;
+    if (uaPath && ub) {
+      const mid = (ub.y0 + ub.y1) / 2, w = ub.x1 - ub.x0;
+      overlay += `<defs><clipPath id="uaClip"><path d="${uaPath}"/></clipPath></defs>
+        <g clip-path="url(#uaClip)" opacity="0.85">
+          <rect x="${ub.x0}" y="${ub.y0}" width="${w}" height="${mid - ub.y0}" fill="#0057B7"/>
+          <rect x="${ub.x0}" y="${mid}" width="${w}" height="${ub.y1 - mid}" fill="#FFD700"/>
+        </g>`;
+    }
+    // Russia bbox wraps the antimeridian, so anchor the label at a fixed spot over central Russia
+    overlay += `<text x="760" y="96" text-anchor="middle" fill="#ff6b76" font-weight="700" font-size="12" font-family="JetBrains Mono, monospace" opacity="0.92">#russiaisaterroriststate</text>`;
+  }
   const y0 = (90 - 84) / 180 * H, y1 = (90 - -58) / 180 * H;
   mapBase = { x: 0, y: y0, w: W, h: y1 - y0 };
   if (!mapVB) mapVB = { ...mapBase };
   $('#map').innerHTML = `<svg viewBox="0 ${y0.toFixed(0)} ${W} ${(y1 - y0).toFixed(0)}" preserveAspectRatio="xMidYMid meet">
     <rect x="0" y="0" width="${W}" height="${H}" fill="#070d16"/>
-    ${land}${markers}
+    ${land}${overlay}${markers}
   </svg>`;
   applyMapView(); // re-apply zoom/pan (as an SVG viewBox, so it stays vector-crisp)
 }
