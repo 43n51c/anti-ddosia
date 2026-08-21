@@ -14,6 +14,7 @@ import * as auth from './auth.js';
 import * as oauth from './oauth.js';
 import { deliverAlert, emailConfigured, webhookUrlIssue } from './notify.js';
 import { parseAsset, hostMatchesAsset } from './match.js';
+import { runBackfill } from './backfill.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, 'public');
@@ -23,7 +24,15 @@ const CONFIG = {
   feedUrl: process.env.FEED_URL || 'https://witha.name/data/last.json',
   pollMs: (Number(process.env.POLL_MINUTES) || 1) * 60 * 1000,
   geoipBatchUrl: 'http://ip-api.com/batch?fields=query,country,countryCode,city,regionName,org,as',
+  // Self-healing history: rebuild from the archive on first boot (empty DB) and
+  // on a slow cadence, so gaps from downtime/source-outages backfill over time.
+  autoBackfill: process.env.AUTO_BACKFILL !== '0',
+  backfillMs: Math.max(1, Number(process.env.BACKFILL_HOURS) || 24) * 3600 * 1000,
 };
+
+// Only one writer touches the ingest tables at a time: the minute poll and the
+// (long) backfill must never interleave their writes.
+let ingestBusy = false;
 
 // In-memory snapshot served to clients.
 let current = { ok: false, fetchedAt: null, feedLastModified: null, error: 'not fetched yet', targets: [] };
@@ -66,6 +75,8 @@ function geoFor(ip) {
 
 // ---------- feed polling ----------
 async function poll() {
+  if (ingestBusy) return; // a backfill is rebuilding the tables — skip this tick
+  ingestBusy = true;
   try {
     // Conditional request: only download the body when the feed actually changed.
     const headers = { 'User-Agent': 'anti-ddosia-monitor/1.0' };
@@ -155,6 +166,28 @@ async function poll() {
   } catch (e) {
     console.error('[poll] failed:', e.message);
     if (!current.ok) current = { ...current, error: e.message, fetchedAt: new Date().toISOString() };
+  } finally {
+    ingestBusy = false;
+  }
+}
+
+// ---------- history backfill (self-healing) ----------
+// Rebuild history/sessions from the archive. Runs on first boot (empty DB) and
+// on a slow cadence so downtime/source-outage gaps fill in over time. The
+// backfill's own guard refuses to apply a drastically-shrunken (degraded) fetch.
+async function backfillNow(reason) {
+  if (ingestBusy) { console.log(`[backfill] skipped (${reason}) — ingest busy`); return; }
+  ingestBusy = true;
+  const t0 = Date.now();
+  try {
+    console.log(`[backfill] start (${reason})`);
+    const r = await runBackfill('all', { log: (m) => console.log('[backfill]', m) });
+    if (r && r.aborted) console.warn(`[backfill] not applied (${r.reason}) — existing data kept`);
+    else { dataVersion++; console.log(`[backfill] applied (${reason}) in ${Math.round((Date.now() - t0) / 1000)}s`); }
+  } catch (e) {
+    console.error('[backfill] failed:', e.message, '— existing data kept');
+  } finally {
+    ingestBusy = false;
   }
 }
 
@@ -440,7 +473,11 @@ async function handleApi(req, res, pathname) {
     return sendJson(res, dbx.sessionDetail((u.get('host') || '').toLowerCase(), u.get('from') || '', u.get('to') || ''));
   }
   if (pathname === '/api/hosts') return sendJson(res, { ok: current.ok, fetchedAt: current.fetchedAt, hosts: buildHosts() });
-  if (pathname === '/api/health') return sendJson(res, { ok: current.ok, fetchedAt: current.fetchedAt, error: current.error });
+  // Liveness: is the process serving? Always ok while HTTP responds — a source
+  // outage must NOT mark the container unhealthy (we still serve last-known data).
+  if (pathname === '/api/health') return sendJson(res, { ok: true, feed: current.ok, fetchedAt: current.fetchedAt, ingesting: ingestBusy, error: current.error });
+  // Readiness: do we have something to serve (live feed or stored history)?
+  if (pathname === '/api/ready') { const ready = current.ok || dbx.historyBounds().min !== null; return sendJson(res, { ok: ready, feed: current.ok }, ready ? 200 : 503); }
 
   return sendJson(res, { error: 'Not found' }, 404);
 }
@@ -501,14 +538,36 @@ const server = http.createServer(async (req, res) => {
 if (!process.env.NO_LISTEN) {
   server.listen(CONFIG.port, () => {
     console.log(`anti-DDoSia running → http://localhost:${CONFIG.port}`);
-    console.log(`feed: ${CONFIG.feedUrl}  poll: every ${CONFIG.pollMs / 60000} min  email: ${emailConfigured() ? 'configured' : 'off'}`);
+    console.log(`feed: ${CONFIG.feedUrl}  poll: every ${CONFIG.pollMs / 60000} min  email: ${emailConfigured() ? 'configured' : 'off'}  auto-backfill: ${CONFIG.autoBackfill ? `every ${CONFIG.backfillMs / 3600000}h` : 'off'}`);
     dbx.gcSessions(new Date().toISOString());
     refreshConfigCount();
     setInterval(refreshConfigCount, 6 * 3600 * 1000);
-    poll();
-    setInterval(poll, CONFIG.pollMs);
     setInterval(() => dbx.gcSessions(new Date().toISOString()), 3600 * 1000);
+
+    // First boot with an empty DB: build the whole archive in the background,
+    // then start polling. Otherwise poll right away. Either way, re-backfill on
+    // a slow cadence so gaps left by downtime/outages self-heal over time.
+    const historyEmpty = dbx.historyBounds().min === null;
+    if (CONFIG.autoBackfill && historyEmpty) {
+      console.log('[boot] empty history — building the full archive in the background…');
+      backfillNow('first-boot').finally(() => poll());
+    } else {
+      poll();
+    }
+    setInterval(poll, CONFIG.pollMs);
+    if (CONFIG.autoBackfill) setInterval(() => backfillNow('scheduled'), CONFIG.backfillMs);
   });
+
+  // Graceful shutdown: stop accepting, fold the WAL back, close cleanly.
+  let shuttingDown = false;
+  const shutdown = (sig) => {
+    if (shuttingDown) return; shuttingDown = true;
+    console.log(`[shutdown] ${sig} — closing…`);
+    server.close(() => { dbx.closeDb(); process.exit(0); });
+    setTimeout(() => { dbx.closeDb(); process.exit(0); }, 8000).unref(); // force-exit if close hangs
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 export { server, checkTarget, buildStats, buildHosts };

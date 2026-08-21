@@ -12,6 +12,10 @@ services:
       FEED_URL: ${FEED_URL:-https://witha.name/data/last.json}
       POLL_MINUTES: ${POLL_MINUTES:-1}
       APP_URL: ${APP_URL:-http://localhost:3000}
+      # History self-healing (auto full backfill on first boot + every N hours).
+      AUTO_BACKFILL: ${AUTO_BACKFILL:-1}
+      BACKFILL_HOURS: ${BACKFILL_HOURS:-24}
+      ARCHIVE_URL: ${ARCHIVE_URL:-https://witha.name/data/}
       # Optional email alerts (leave SMTP_HOST empty to disable):
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}

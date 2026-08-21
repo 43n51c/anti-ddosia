@@ -16,7 +16,16 @@ if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 const DB_FILE = process.env.DB_FILE || join(DATA_DIR, 'ddosia.db');
 
 export const db = new DatabaseSync(DB_FILE);
-db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+// WAL + NORMAL sync: durable enough (only a crash mid-write loses the last txn,
+// which the minute poll / daily backfill re-derive) and much faster for the
+// poller's steady write load. busy_timeout lets a reader wait out a writer.
+db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA wal_autocheckpoint = 1000;');
+
+// Clean shutdown: fold the WAL back into the main file and close the handle.
+export function closeDb() {
+  try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* best effort */ }
+  try { db.close(); } catch { /* already closed */ }
+}
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS geoip (

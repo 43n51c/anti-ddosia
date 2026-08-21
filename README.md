@@ -30,21 +30,40 @@ Under the hood:
 - **SQLite storage** — a single `data/ddosia.db` (via Node's built-in `node:sqlite`, no external deps) holds GeoIP cache, daily history, first-seen dates, and the users / assets / alerts tables. Existing `data/*.json` from earlier versions is migrated in automatically on first run.
 - **Zero dependencies** — pure Node.js (`>=22`, for `node:sqlite`) + vanilla HTML/CSS/JS.
 
-## Backfill history (optional but recommended)
+## History backfill (automatic, self-healing)
 
-By default the trend chart starts empty and fills as the monitor runs. To populate it with **real history from the start of 2026**, run the backfill — it downloads one archived snapshot per day from witha.name, computes daily target counts, and records each host's true first-seen date:
+History is rebuilt from the witha.name archive at **config resolution** — every
+archived snapshot (~a few per day), not one per day — so each host's attack
+stints, wave counts, first-seen dates, per-country/method breakdowns and the
+daily trend are reconstructed exactly as published.
+
+**You don't need to run anything.** On first boot with an empty DB the app builds
+the entire archive in the background, then rebuilds it every `BACKFILL_HOURS`
+(default 24). That daily rebuild is the self-healing mechanism: any gap left by
+downtime or a source outage is filled from the archive over time. A built-in
+guard refuses to apply a rebuild that came back drastically smaller than what's
+already stored (e.g. the source was unreachable), so a bad fetch never wipes good
+data. Set `AUTO_BACKFILL=0` to turn this off and drive it yourself:
 
 ```bash
 node backfill.js          # backfill 2026 (the default)
 node backfill.js 2025     # or any other year present in the archive
 node backfill.js all      # the entire archive (2023-06 → today)
+# against a running container:
+docker compose exec anti-ddosia node backfill.js all
 ```
 
-It merges into `data/state.json` (safe to re-run): ~20s for a single year, ~1 min for the whole archive (~1140 days, one snapshot per day). After it finishes, start/restart the app and the "Targets Over Time" chart shows the whole year. To run it against a running container instead:
+The full archive is ~4200 snapshots and takes a few minutes; state persists in
+`./data` (bind-mounted), shared between host runs and the container.
 
-```bash
-docker compose exec anti-ddosia node backfill.js
-```
+### Health checks (for orchestrators / load balancers)
+
+- `GET /api/health` — **liveness**: `{"ok":true}` whenever the process serves
+  HTTP (a source outage does *not* flip this — the container stays up and keeps
+  serving last-known data). This is what the Docker `HEALTHCHECK` uses.
+- `GET /api/ready` — **readiness**: `200` once there's data to serve (live feed
+  or stored history), `503` during the very first history build. Point a load
+  balancer / `depends_on: service_healthy` at this to hold traffic until ready.
 
 ## Run with Docker (recommended)
 
