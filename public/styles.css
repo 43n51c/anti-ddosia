@@ -135,15 +135,15 @@ a:hover { text-decoration: underline; }
 .verdict .vrow .host { color: var(--red); cursor: pointer; }
 @keyframes fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 
-/* pulse */
-.pulse { border: 1px solid var(--line2); background: #0c1119; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
-.pulse-h { display: flex; align-items: center; gap: 8px; color: var(--tx); font-size: 12px; letter-spacing: 0.1em; }
-.pulse-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--grn); box-shadow: 0 0 0 0 rgba(61,220,132,.6); animation: pulse 1.9s infinite; }
-.pulse-tag { color: var(--tx2); background: var(--bg3); border-radius: 5px; padding: 2px 8px; font-size: 10px; letter-spacing: 0.04em; }
-.pulse-upd { color: var(--dim); margin-left: auto; font-size: 11px; letter-spacing: 0; }
-.pulse-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 11px; }
-@media (max-width: 1200px) { .pulse-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 760px) { .pulse-grid { grid-template-columns: repeat(2, 1fr); } }
+/* overview */
+.overview { border: 1px solid var(--line2); background: #0c1119; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+.ov-h { display: flex; align-items: center; gap: 8px; color: var(--tx); font-size: 12px; letter-spacing: 0.1em; }
+.ov-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--grn); box-shadow: 0 0 0 0 rgba(61,220,132,.6); animation: pulse 1.9s infinite; }
+.ov-tag { color: var(--tx2); background: var(--bg3); border-radius: 5px; padding: 2px 8px; font-size: 10px; letter-spacing: 0.04em; }
+.ov-upd { color: var(--dim); margin-left: auto; font-size: 11px; letter-spacing: 0; }
+.ov-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 11px; }
+@media (max-width: 1200px) { .ov-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 760px) { .ov-grid { grid-template-columns: repeat(2, 1fr); } }
 .sig { background: #0b0f17; padding: 11px 13px; min-width: 0; }
 .sig-l { color: var(--dim); font-size: 10px; letter-spacing: 0.08em; }
 .sig-v { color: #eaf1fa; font-size: 14.5px; margin-top: 6px; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -540,7 +540,7 @@ a:hover { text-decoration: underline; }
   .search-wrap { max-width: none; flex-basis: 100%; order: 3; }
   .tiles { grid-template-columns: repeat(2, 1fr); }
   .posture { grid-template-columns: repeat(2, 1fr); }
-  .pulse-grid { grid-template-columns: 1fr; }
+  .ov-grid { grid-template-columns: 1fr; }
   .rk { grid-template-columns: 16px 1fr auto; gap: 8px; }
   .rk .rk-track { display: none; }
   .cli { gap: 8px; }

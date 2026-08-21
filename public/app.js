@@ -56,12 +56,12 @@ async function loadWorld() {
     }
     world.bounds = bnds;
     world.all = all; world.loaded = true;
-    if (state.view === 'ops' && state.stats) renderMap(state.stats.byCountry);
+    if (state.view === 'dashboard' && state.stats) renderMap(state.stats.byCountry);
   } catch (e) { console.error('world map load failed', e.message); }
 }
 
 let trendGeom = null;
-const state = { targets: [], stats: null, view: 'ops', geoMode: 'live', hostsMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterMethod: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
+const state = { targets: [], stats: null, view: 'dashboard', geoMode: 'live', hostsMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterMethod: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
 
 // ---------- helpers ----------
 const $ = (s) => document.querySelector(s);
@@ -86,6 +86,9 @@ function tickDurations() { for (const el of document.querySelectorAll('.dur[data
 const dayIso = (d) => (d ? `${d}T00:00:00.000Z` : null);
 const isNew = (t) => t.hostFirstSeen && (Date.now() - new Date(t.hostFirstSeen).getTime()) < DAY;
 const typeCls = (ty) => (['http', 'http2', 'http3', 'tcp', 'udp', 'nginx_loris'].includes(ty) ? 't-' + ty : 't-default');
+// display label for an attack method (uppercase, canonical spelling) — value stays raw for filtering
+const METHOD_LABEL = { get: 'GET', post: 'POST', ping: 'PING', syn: 'SYN', ack: 'ACK', syn_ack: 'SYN-ACK', udp_flood: 'UDP FLOOD' };
+const fmtMethod = (m) => (m ? (METHOD_LABEL[String(m).toLowerCase()] || String(m).toUpperCase().replace(/_/g, ' ')) : '—');
 function toast(m) { const el = $('#toast'); el.textContent = m; el.hidden = false; clearTimeout(el._t); el._t = setTimeout(() => (el.hidden = true), 1800); }
 async function copy(t, l) { try { await navigator.clipboard.writeText(t); toast(`${l} copied`); } catch { toast('copy blocked'); } }
 function download(n, t, m) { const b = new Blob([t], { type: m }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); }
@@ -146,7 +149,7 @@ function render() {
   const liveFilterView = (state.view === 'targets' || (state.view === 'hosts' && state.hostsMode === 'live'));
   $('#toolbar').style.display = liveFilterView ? '' : 'none';
   $('.search-wrap').style.display = (state.view === 'hosts' || state.view === 'targets') ? '' : 'none';
-  if (state.view === 'ops') renderOps(state.targets);
+  if (state.view === 'dashboard') renderDashboard(state.targets);
   if (state.view === 'hosts') renderHosts(rows);
   if (state.view === 'targets') renderTargets(rows);
   if (state.view === 'assets') renderAssets();
@@ -154,10 +157,10 @@ function render() {
   tickDurations();
 }
 
-function renderOps(rows) {
+function renderDashboard(rows) {
   const s = state.stats; if (!s || !s.totals) return;
   const T = s.totals;
-  renderPulse(T, s);
+  renderOverview(T, s);
   loadPeriod(); // period-windowed metric tiles (async)
 
   renderMap(s.byCountry); // map always shows current attacks (live)
@@ -185,8 +188,8 @@ function miniSpark(vals, w = 60, h = 18, color = '#7f8ea3') {
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.3"/><circle cx="${x(vals.length - 1).toFixed(1)}" cy="${y(vals[vals.length - 1]).toFixed(1)}" r="1.6" fill="${color}"/></svg>`;
 }
 
-function renderPulse(T, s) {
-  const el = $('#pulse');
+function renderOverview(T, s) {
+  const el = $('#overview');
   const hosts = groupHosts(state.targets).sort((a, b) => b.targetCount - a.targetCount);
   const hot = hosts[0];
   const newHosts = [...new Set(state.targets.filter(isNew).map((t) => t.host))];
@@ -198,7 +201,7 @@ function renderPulse(T, s) {
   const cc = s.byCountry.slice(0, 3).map((c) => `${flag(codeFor(c.key))} ${esc(c.key)}`).join('&nbsp; ');
   const topType = (s.byType || [])[0];
   const vecPct = topType ? Math.round(topType.count / Math.max(1, T.targets) * 100) : 0;
-  const topMethods = (s.byMethod || []).slice(0, 2).map((m) => m.key).filter(Boolean).join(', ');
+  const topMethods = (s.byMethod || []).slice(0, 2).map((m) => fmtMethod(m.key)).filter(Boolean).join(', ');
   const sigs = [
     { l: 'CURRENT WAVE', v: s.waveSince ? `<span class="dur" data-since="${dayIso(s.waveSince)}"></span>` : '—', d: `since ${s.waveSince || '—'}${cc ? ' · ' + cc : ''}` },
     { l: 'LIVE NOW', v: `${T.targets}&nbsp;<span class="sig-sub">targets</span>`, d: `${T.hosts} hosts · ${T.ips} IPs · ${T.countries} ${T.countries === 1 ? 'country' : 'countries'}`, vc: '' },
@@ -209,8 +212,8 @@ function renderPulse(T, s) {
   ];
   el.hidden = false;
   el.innerHTML = `
-    <div class="pulse-h"><span class="pulse-dot"></span> SITREP <span class="pulse-tag">live</span><span class="pulse-upd mono">updated ${timeAgo(s.fetchedAt)} ago</span></div>
-    <div class="pulse-grid">${sigs.map((x) => `<div class="sig"><div class="sig-l">${x.l}</div><div class="sig-v ${x.vc || ''}">${x.v}</div><div class="sig-d">${x.d}</div></div>`).join('')}</div>`;
+    <div class="ov-h"><span class="ov-dot"></span> OVERVIEW <span class="ov-tag">live</span><span class="ov-upd mono">updated ${timeAgo(s.fetchedAt)} ago</span></div>
+    <div class="ov-grid">${sigs.map((x) => `<div class="sig"><div class="sig-l">${x.l}</div><div class="sig-v ${x.vc || ''}">${x.v}</div><div class="sig-d">${x.d}</div></div>`).join('')}</div>`;
 }
 
 // ---------- period-windowed metrics ----------
@@ -289,7 +292,7 @@ function renderPeriodTiles(p) {
   $('#tiles').innerHTML = tiles.map((c) => `<div class="tile"><div class="l">${c.l}</div><div class="v" data-val="${c.v}">${animate ? '0' : fmt(c.v)}</div>${c.d ? `<div class="d">${c.d}</div>` : ''}<span class="tile-bar"></span></div>`).join('');
   // period-scoped breakdown bars (share the same one-shot animation)
   bars($('#countryBars'), (p.byCountry || []).slice(0, 8), (r) => `${flag(r.code)} ${esc(r.key)}`, '#34e0d0', animate);
-  bars($('#methodBars'), (p.byMethod || []).slice(0, 6), (r) => esc(r.key || '—'), '#f5b301', animate);
+  bars($('#methodBars'), (p.byMethod || []).slice(0, 6), (r) => esc(fmtMethod(r.key)), '#f5b301', animate);
   // period-scoped rankings
   $('#mostWin').textContent = winLabel;
   $('#longestWin').textContent = winLabel;
@@ -605,7 +608,7 @@ function renderTargets(rows) {
   if (!rows.length) { body.innerHTML = '<tr><td colspan="8" class="empty">no targets match</td></tr>'; return; }
   body.innerHTML = rows.map((t) => `<tr class="${isNew(t) ? 'new' : ''}" data-host="${esc(t.host)}">
     <td>${esc(t.host)}${isNew(t) ? ' <span class="nbadge">NEW</span>' : ''}</td><td class="cc">${esc(t.ip)}</td><td class="cc">${flag(t.countryCode)} ${esc(t.country)}</td>
-    <td><span class="tag ${typeCls(t.type)}">${esc(t.type)}</span></td><td class="cc">${esc(t.method || '—')}</td><td class="cc">${esc(t.port)}</td>
+    <td><span class="tag ${typeCls(t.type)}">${esc(t.type)}</span></td><td class="cc">${esc(fmtMethod(t.method))}</td><td class="cc">${esc(t.port)}</td>
     <td class="${t.use_ssl ? 'ssl1' : 'ssl0'}">${t.use_ssl ? LOCK : '—'}</td><td class="path">${esc(t.path || '—')}</td></tr>`).join('');
   markSort('#targetsTable', state.tSortKey, state.tSortDir);
 }
@@ -626,7 +629,7 @@ function renderIpTargets(ip, vecs, openIt) {
   const ports = [...new Set(vecs.map((v) => v.port))].sort((a, b) => a - b);
   const paths = [...new Set(vecs.map((v) => v.path).filter(Boolean))];
   const copyBtns = `<div class="dsc-copyall"><button class="mini-copy" data-copy="${esc(ip)}">copy IP</button>${paths.length ? ` <button class="mini-copy" data-copy="${esc(paths.join('\n'))}">copy paths</button>` : ''}</div>`;
-  const table = `<table class="vec-tbl"><thead><tr><th>type</th><th>method</th><th>port</th><th>path</th></tr></thead><tbody>${vecs.map((v) => `<tr><td><span class="tag ${typeCls(v.type)}">${esc(v.type)}</span></td><td class="cc">${esc(v.method || '—')}</td><td class="cc">${esc(v.port)}</td><td class="p">${esc(v.path || '—')}</td></tr>`).join('')}</tbody></table>`;
+  const table = `<table class="vec-tbl"><thead><tr><th>type</th><th>method</th><th>port</th><th>path</th></tr></thead><tbody>${vecs.map((v) => `<tr><td><span class="tag ${typeCls(v.type)}">${esc(v.type)}</span></td><td class="cc">${esc(fmtMethod(v.method))}</td><td class="cc">${esc(v.port)}</td><td class="p">${esc(v.path || '—')}</td></tr>`).join('')}</tbody></table>`;
   return dsecC(`${ip} · ${vecs.length} target${vecs.length === 1 ? '' : 's'}`, copyBtns + table, openIt, `ports ${ports.join(', ') || '—'}`);
 }
 // one collapsible per IP with that IP's all-time paths (from the stored surface)
@@ -634,7 +637,7 @@ function renderIpPathsHist(ip, e, openIt) {
   const paths = e.paths || [], ports = e.ports || [], types = e.types || {}, methods = e.methods || [];
   const copyBtns = `<div class="dsc-copyall"><button class="mini-copy" data-copy="${esc(ip)}">copy IP</button>${paths.length ? ` <button class="mini-copy" data-copy="${esc(paths.map((p) => p[0]).join('\n'))}">copy paths</button>` : ''}</div>`;
   const rows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based targets on this IP</div>';
-  const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(m)}</span>`).join('')}</div>` : '';
+  const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(fmtMethod(m))}</span>`).join('')}</div>` : '';
   return dsecC(`${ip} · ${paths.length} path${paths.length === 1 ? '' : 's'}`, copyBtns + rows + chips, openIt, `ports ${ports.join(', ') || '—'}`);
 }
 async function openDrawer(host) {
@@ -692,7 +695,7 @@ function renderSessDetail(d) {
   const paths = d.paths || [], types = d.types || {}, methods = d.methods || [], ips = d.ips || [], ports = d.ports || [];
   const meta = `<div class="sess-meta">${ips.length ? 'IPs: ' + ips.map(esc).join(', ') + ' · ' : ''}ports ${ports.join(', ') || '—'}</div>`;
   const pathRows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors in this session</div>';
-  const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(m)}</span>`).join('')}</div>` : '';
+  const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(fmtMethod(m))}</span>`).join('')}</div>` : '';
   return meta + pathRows + chips;
 }
 async function loadSessionDetail(el) {
@@ -730,7 +733,7 @@ function syncFilters() {
   fill($('#filterType'), s.byType, 'type: all', (r) => `${r.key} (${r.count})`, state.filterType);
   fill($('#filterCountry'), s.byCountry, 'country: all', (r) => `${r.key} (${r.count})`, state.filterCountry);
   fill($('#filterPort'), s.byPort, 'port: all', (r) => `${r.key} (${r.count})`, state.filterPort);
-  fill($('#filterMethod'), s.byMethod, 'method: all', (r) => `${r.key} (${r.count})`, state.filterMethod);
+  fill($('#filterMethod'), s.byMethod, 'method: all', (r) => `${fmtMethod(r.key)} (${r.count})`, state.filterMethod);
 }
 
 // ==================== account / auth / assets / alerts ====================
@@ -769,7 +772,7 @@ function openAuth(m = 'login') { setAuthMode(m); renderAuthProviders(); $('#auth
 function closeAuth() { $('#authModal').hidden = true; $('#authOverlay').hidden = true; pendingView = null; }
 async function loadAssets() { try { account.assets = (await api('/api/assets')).assets || []; } catch { account.assets = []; } }
 function assetTargeted(a) { for (const t of state.targets) { if (a.type === 'ip') { if (t.ip === a.value) return t.host; } else if (t.host === a.value || t.host.endsWith('.' + a.value)) return t.host; } return null; }
-function renderDashboard() {
+function renderAssetsDash() {
   const dash = $('#dash'); if (!account.user) { dash.hidden = true; return; }
   dash.hidden = false;
   const alerts = account.alerts || [];
@@ -830,7 +833,7 @@ function renderDashboard() {
   if (rows.length) bars($('#dashMethods'), rows, (r) => `<span class="tag ${typeCls(r.key)}">${esc(r.key)}</span>`, '#ff5566');
 }
 function renderAssets() {
-  renderDashboard();
+  renderAssetsDash();
   $('#assetCount').textContent = account.assets.length ? `(${account.assets.length})` : '';
   const el = $('#assetList');
   if (!account.assets.length) { el.innerHTML = '<div class="empty">no assets yet — add a domain or IP above</div>'; return; }
@@ -1042,7 +1045,7 @@ $('#periodApply').addEventListener('click', () => {
     if (c) c.setAttribute('opacity', '0'); if (d) d.setAttribute('opacity', '0');
   });
   // re-fit the trend to the container width on resize (keeps it crisp, height fixed)
-  let rzT; window.addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => { if (state.view === 'ops' && lastTrend.length) renderTrend(chart, lastTrend, false); }, 160); });
+  let rzT; window.addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => { if (state.view === 'dashboard' && lastTrend.length) renderTrend(chart, lastTrend, false); }, 160); });
 })();
 $('.sortbar').addEventListener('click', (e) => { const p = e.target.closest('.pill'); if (!p) return; state.hSort = p.dataset.hsort; $$('.sortbar .pill').forEach((x) => x.classList.toggle('active', x === p)); render(); });
 $$('#targetsTable thead th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.sort; if (!k) return; if (state.tSortKey === k) state.tSortDir = state.tSortDir === 'asc' ? 'desc' : 'asc'; else { state.tSortKey = k; state.tSortDir = 'asc'; } render(); }));
@@ -1059,7 +1062,7 @@ $('#confirmYes').addEventListener('click', () => closeConfirm(true));
 $('#confirmOverlay').addEventListener('click', () => closeConfirm(false));
 $$('.auth-tab').forEach((t) => t.addEventListener('click', () => setAuthMode(t.dataset.mode)));
 $('#authForm').addEventListener('submit', async (e) => { e.preventDefault(); const email = $('#authEmail').value.trim(), password = $('#authPass').value; try { await api('/api/' + (authMode === 'login' ? 'login' : 'register'), { method: 'POST', body: JSON.stringify({ email, password }) }); const want = pendingView; closeAuth(); $('#authForm').reset(); await loadMe(); toast(authMode === 'login' ? 'signed in' : 'account created'); switchView(want || 'assets'); } catch (err) { const el = $('#authErr'); el.textContent = err.message; el.hidden = false; } });
-$('#logoutBtn').addEventListener('click', async () => { try { await api('/api/logout', { method: 'POST' }); } catch {} account.user = null; account.assets = []; account.alerts = []; account.unseen = 0; renderAccount(); $('#acctMenu').hidden = true; if (state.view === 'assets' || state.view === 'alerts') switchView('ops'); toast('logged out'); });
+$('#logoutBtn').addEventListener('click', async () => { try { await api('/api/logout', { method: 'POST' }); } catch {} account.user = null; account.assets = []; account.alerts = []; account.unseen = 0; renderAccount(); $('#acctMenu').hidden = true; if (state.view === 'assets' || state.view === 'alerts') switchView('dashboard'); toast('logged out'); });
 $('#bellBtn').addEventListener('click', (e) => { e.stopPropagation(); const m = $('#bellMenu'); m.hidden = !m.hidden; $('#acctMenu').hidden = true; $('#exportMenu').hidden = true; });
 $('#acctBtn').addEventListener('click', (e) => { e.stopPropagation(); const m = $('#acctMenu'); m.hidden = !m.hidden; $('#bellMenu').hidden = true; $('#exportMenu').hidden = true; });
 $('#bellSeen').addEventListener('click', (e) => { e.stopPropagation(); markSeen(); });

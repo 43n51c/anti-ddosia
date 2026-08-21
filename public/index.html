@@ -17,7 +17,7 @@
   <aside class="rail">
     <div class="brand">anti<span>·</span>ddosia</div>
     <nav class="nav">
-      <button class="nav-item active" data-view="ops"><span class="k">01</span> OPS</button>
+      <button class="nav-item active" data-view="dashboard"><span class="k">01</span> DASHBOARD</button>
       <button class="nav-item" data-view="hosts"><span class="k">02</span> HOSTS <b class="nb" id="badgeHosts"></b></button>
       <button class="nav-item" data-view="targets"><span class="k">03</span> FEED <b class="nb" id="badgeTargets"></b></button>
       <div class="nav-sep">MONITORING</div>
@@ -89,7 +89,7 @@
     </div>
 
     <!-- ===== OPS ===== -->
-    <section id="view-ops" class="view">
+    <section id="view-dashboard" class="view">
       <!-- check hero -->
       <div class="check">
         <div class="check-q mono">// is your asset on the current DDoSia target list?</div>
@@ -101,8 +101,8 @@
         <div class="verdict" id="checkVerdict" hidden></div>
       </div>
 
-      <!-- pulse -->
-      <div class="pulse" id="pulse" hidden></div>
+      <!-- overview -->
+      <div class="overview" id="overview" hidden></div>
 
       <!-- period-windowed metrics -->
       <div class="period">
