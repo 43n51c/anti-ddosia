@@ -101,7 +101,7 @@ async function load() {
     state.targets = t.targets || []; state.stats = s; setStatus(t.ok, t); render();
   } catch (e) { setStatus(false, { error: e.message }); }
 }
-function setStatus(ok, meta) { $('#statusDot').className = 'dot ' + (ok ? 'ok' : 'err'); $('#statusText').textContent = ok ? `live · ${timeAgo(meta.fetchedAt)} ago` : 'feed error'; }
+function setStatus(ok, meta) { $('#statusDot').className = 'dot ' + (ok ? 'ok' : 'err'); $('#statusText').textContent = ok ? 'live' : 'feed error'; }
 function tick() { tickDurations(); }
 
 // ---------- filtering ----------
