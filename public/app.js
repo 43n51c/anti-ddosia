@@ -481,7 +481,7 @@ function renderFeed(rows) {
     va = String(va ?? '').toLowerCase(); vb = String(vb ?? '').toLowerCase();
     return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
   });
-  const body = $('#opsFeedBody');
+  const body = $('#feedTableBody');
   if (!hosts.length) { body.innerHTML = '<tr><td colspan="6" class="empty">no targets match</td></tr>'; return; }
   body.innerHTML = hosts.map((h) => {
     const fresh = h.firstSeen && (Date.now() - new Date(h.firstSeen).getTime()) < DAY;
@@ -494,7 +494,7 @@ function renderFeed(rows) {
       <td class="cc"><span class="dur" data-since="${esc(h.sessionStart)}"></span></td>
     </tr>`;
   }).join('');
-  markSort('#opsFeed', state.fSortKey, state.fSortDir);
+  markSort('#feedTable', state.fSortKey, state.fSortDir);
 }
 
 let lastTrend = [];
@@ -1118,7 +1118,7 @@ $('#periodApply').addEventListener('click', () => {
 })();
 $('.sortbar').addEventListener('click', (e) => { const p = e.target.closest('.pill'); if (!p) return; state.hSort = p.dataset.hsort; $$('.sortbar .pill').forEach((x) => x.classList.toggle('active', x === p)); render(); });
 $$('#targetsTable thead th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.sort; if (!k) return; if (state.tSortKey === k) state.tSortDir = state.tSortDir === 'asc' ? 'desc' : 'asc'; else { state.tSortKey = k; state.tSortDir = 'asc'; } render(); }));
-$$('#opsFeed thead th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.sort; if (!k) return; if (state.fSortKey === k) state.fSortDir = state.fSortDir === 'asc' ? 'desc' : 'asc'; else { state.fSortKey = k; state.fSortDir = 'desc'; } render(); }));
+$$('#feedTable thead th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.sort; if (!k) return; if (state.fSortKey === k) state.fSortDir = state.fSortDir === 'asc' ? 'desc' : 'asc'; else { state.fSortKey = k; state.fSortDir = 'desc'; } render(); }));
 
 $('#signinBtn').addEventListener('click', () => openAuth('login'));
 $('#authClose').addEventListener('click', closeAuth);
