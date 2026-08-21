@@ -210,7 +210,7 @@ function renderPulse(T, s) {
 
 // ---------- period-windowed metrics ----------
 const PERIOD = { range: '7', from: null, to: null };
-const PRESET_LABEL = { today: 'today', '7': '7d', '30': '30d', '365': '365d', all: 'all-time', custom: 'custom' };
+const PRESET_LABEL = { today: 'today', '7': 'week', '30': 'month', '365': 'year', all: 'all-time', custom: 'custom' };
 function periodDates() {
   const s = state.stats || {};
   const today = (s.fetchedAt || new Date().toISOString()).slice(0, 10);
