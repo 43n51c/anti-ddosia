@@ -200,9 +200,10 @@ function renderPulse(T, s) {
   const vecPct = topType ? Math.round(topType.count / Math.max(1, T.targets) * 100) : 0;
   const topMethods = (s.byMethod || []).slice(0, 2).map((m) => m.key).filter(Boolean).join(', ');
   const sigs = [
+    { l: 'CURRENT WAVE', v: s.waveSince ? `<span class="dur" data-since="${dayIso(s.waveSince)}"></span>` : '—', d: `since ${s.waveSince || '—'}${cc ? ' · ' + cc : ''}` },
     { l: 'LIVE NOW', v: `${T.targets}&nbsp;<span class="sig-sub">targets</span>`, d: `${T.hosts} hosts · ${T.ips} IPs · ${T.countries} ${T.countries === 1 ? 'country' : 'countries'}`, vc: '' },
     { l: 'TRAJECTORY', v: `${trajV}&nbsp;<span class="sig-sub">vs yday</span>&nbsp;${miniSpark(last7, 56, 16, delta > 0 ? '#ff5566' : '#3ddc84')}`, d: `${T.targets} now &larr; ${s.yesterdayCount ?? '—'} yesterday`, vc: trajCls },
-    { l: 'CURRENT WAVE', v: s.waveSince ? `<span class="dur" data-since="${dayIso(s.waveSince)}"></span>` : '—', d: `since ${s.waveSince || '—'}${cc ? ' · ' + cc : ''}` },
+    { l: 'NEW · 24H', v: `${newHosts.length}&nbsp;<span class="sig-sub">${newHosts.length === 1 ? 'host' : 'hosts'}</span>`, d: newNames, vc: newHosts.length ? 'up' : '' },
     { l: 'TOP VECTOR', v: topType ? esc(topType.key) : '—', d: topType ? `${vecPct}% of vectors${topMethods ? ' · ' + topMethods : ''}` : '' },
     { l: 'HOT TARGET', v: hot ? esc(hot.host) : '—', d: hot ? `${hot.targetCount} vectors · ${Object.keys(hot.types).join('/')}` : '' },
   ];
