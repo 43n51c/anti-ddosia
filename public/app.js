@@ -148,9 +148,7 @@ function renderOps(rows) {
   // BY COUNTRY / ATTACK METHODS bars are period-scoped — rendered by renderPeriodTiles
 
   renderOpsFeed(rows);
-  renderRanks(s);
-  renderTrend($('#trendChart'), s.trend || []);
-  $('#trendMeta').textContent = s.trendPeak?.day ? `peak ${s.trendPeak.count} · avg ${s.trendAvg}` : '';
+  // TREND + rankings are period-scoped — rendered by renderPeriodTiles
   $('#iocIps').textContent = new Set(rows.map((r) => r.ip).filter(Boolean)).size;
   $('#iocPaths').textContent = new Set(rows.map((r) => r.path).filter(Boolean)).size;
 }
@@ -266,6 +264,14 @@ function renderPeriodTiles(p) {
   // period-scoped breakdown bars (share the same one-shot animation)
   bars($('#countryBars'), (p.byCountry || []).slice(0, 8), (r) => `${flag(r.code)} ${esc(r.key)}`, '#34e0d0', animate);
   bars($('#methodBars'), (p.byMethod || []).slice(0, 6), (r) => esc(r.key || '—'), '#f5b301', animate);
+  // period-scoped trend
+  $('#trendWin').textContent = winLabel;
+  $('#trendMeta').textContent = p.peak && p.peak.count ? `peak ${p.peak.count} · avg ${p.avg}` : '';
+  renderTrend($('#trendChart'), p.trend || [], animate);
+  // period-scoped rankings
+  $('#mostWin').textContent = winLabel;
+  $('#longestWin').textContent = winLabel;
+  renderRanks(p.mostTargeted, p.longestAttacks);
   if (!animate) return;
   $$('#tiles .tile').forEach((tile) => {
     countUp(tile.querySelector('.v'), Number(tile.querySelector('.v').dataset.val));
@@ -324,19 +330,19 @@ function renderMap(data) {
 }
 
 function rankBar(frac, color) { return `<span class="rk-track"><span class="rk-fill" style="width:${(Math.max(0.03, frac) * 100).toFixed(1)}%;background:${color}"></span></span>`; }
-function renderRanks(s) {
-  const most = s.mostTargeted || [];
+function renderRanks(most, longest) {
+  most = most || [];
   const live = new Set(state.targets.map((t) => t.host));
-  const maxS = Math.max(1, ...most.map((r) => r.sessions));
+  const maxS = Math.max(1, ...most.map((r) => r.days));
   $('#mostTargeted').innerHTML = most.length ? most.map((r, i) => `
-    <div class="rk" data-host="${esc(r.host)}" title="${r.active ? 'targeted now' : 'last ' + timeAgo(r.last_seen) + ' ago'}">
+    <div class="rk" data-host="${esc(r.host)}" title="on the list ${r.days} day${r.days === 1 ? '' : 's'} in this window">
       <span class="rk-i">${i + 1}</span>
       <span class="rk-h">${live.has(r.host) ? '<span class="rk-live">●</span> ' : ''}${esc(r.host)}</span>
-      ${rankBar(r.sessions / maxS, '#8b5cf6')}
-      <span class="rk-v">${r.sessions}×</span>
-    </div>`).join('') : '<div class="empty">no session data — run backfill</div>';
+      ${rankBar(r.days / maxS, '#8b5cf6')}
+      <span class="rk-v">${r.days}d</span>
+    </div>`).join('') : '<div class="empty">no data in this window</div>';
 
-  const longest = s.longestAttacks || [];
+  longest = longest || [];
   const maxD = Math.max(0.01, ...longest.map((r) => r.days));
   $('#longestAttacks').innerHTML = longest.length ? longest.map((r, i) => {
     const ongoing = !r.ended;
@@ -376,8 +382,8 @@ function renderOpsFeed(rows) {
   markSort('#opsFeed', state.fSortKey, state.fSortDir);
 }
 
-function renderTrend(el, trend) {
-  if (!trend.length) { el.innerHTML = '<div class="empty">history builds as the monitor runs…</div>'; return; }
+function renderTrend(el, trend, animate) {
+  if (!trend.length) { el.innerHTML = '<div class="empty">no history in this window…</div>'; return; }
   const W = 620, H = 150, pad = 30, bot = 22;
   const max = Math.max(...trend.map((d) => d.count)) * 1.12 || 1;
   const many = trend.length > 40;
@@ -406,6 +412,7 @@ function renderTrend(el, trend) {
     <circle id="tDot" r="3.2" fill="#3ddc84" stroke="#0a0f16" stroke-width="1" opacity="0" pointer-events="none"/>
     <text x="${W - pad}" y="11" text-anchor="end" fill="#c4d0de" font-size="10">last ${last.count}</text>
   </svg>`;
+  if (animate && !prefersReducedMotion()) { el.classList.remove('draw'); void el.offsetWidth; el.classList.add('draw'); }
 }
 
 // ---------- check hero ----------

@@ -237,6 +237,8 @@ a:hover { text-decoration: underline; }
 .trend-pnl .iocs { margin: 0; }
 .trend-box { position: relative; }
 .trend { min-height: 190px; cursor: crosshair; }
+.trend.draw { animation: trendReveal .6s ease both; }
+@keyframes trendReveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 .trend-tip { position: absolute; z-index: 6; pointer-events: none; transform: translate(-50%, -100%); background: #0a1119; border: 1px solid var(--line2); border-radius: 7px; padding: 6px 9px; box-shadow: 0 8px 22px rgba(0,0,0,.5); white-space: nowrap; }
 .trend-tip .tt-day { color: var(--tx2); font-size: 10.5px; }
 .trend-tip .tt-cnt { color: var(--tx); font-size: 12px; margin-top: 2px; }
@@ -507,4 +509,33 @@ a:hover { text-decoration: underline; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 920px) {
+  .app { grid-template-columns: 1fr; }
+  .rail { flex-direction: row; align-items: center; gap: 10px; height: auto; position: sticky; top: 0;
+    padding: 9px 12px; border-right: none; border-bottom: 1px solid var(--line); overflow-x: auto; z-index: 40; }
+  .brand { padding: 0 4px 0 4px; flex-shrink: 0; }
+  .nav { flex-direction: row; gap: 4px; }
+  .nav-sep { display: none; }
+  .nav-item { width: auto; white-space: nowrap; padding: 8px 11px; }
+  .nav-item.active { box-shadow: inset 0 -2px 0 var(--grn); }
+  .rail-foot { display: none; }
+  .cmdbar { position: static; flex-wrap: wrap; row-gap: 8px; }
+  .main { padding: 0 12px 30px; }
+}
+@media (max-width: 620px) {
+  .search-wrap { max-width: none; flex-basis: 100%; order: 3; }
+  .tiles { grid-template-columns: repeat(2, 1fr); }
+  .posture { grid-template-columns: repeat(2, 1fr); }
+  .pulse-grid { grid-template-columns: 1fr; }
+  .rk { grid-template-columns: 16px 1fr auto; gap: 8px; }
+  .rk .rk-track { display: none; }
+  .cli { gap: 8px; }
+  .cli input { min-width: 0; }
+}
+@media (max-width: 420px) {
+  .tiles { grid-template-columns: repeat(2, 1fr); }
+  .period-seg .seg { padding: 7px 9px; }
 }

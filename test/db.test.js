@@ -144,6 +144,11 @@ test('periodStats: distinct union across days + windowing', () => {
   // byMethod summed + ranked
   assert.equal(both.byMethod.find((m) => m.key === 'GET').count, 6); // 4+2
   assert.equal(both.byMethod.find((m) => m.key === 'POST').count, 7);
+  // mostTargeted = days present on the list (b.com appears both days)
+  assert.deepEqual(both.mostTargeted[0], { host: 'b.com', days: 2 });
+  assert.ok(both.mostTargeted.some((r) => r.host === 'a.com' && r.days === 1));
+  // trend echoes the daily counts in order
+  assert.deepEqual(both.trend.map((t) => t.count), [10, 30]);
 
   const d1 = dbx.periodStats('2026-03-01', '2026-03-01', '2026-03-01T00:00:00Z', '2026-03-01T23:59:59Z');
   assert.equal(d1.hosts, 2);         // only a,b

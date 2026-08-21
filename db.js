@@ -137,7 +137,7 @@ const S = {
   histPut: db.prepare('INSERT OR REPLACE INTO history(day,t,count,hosts,ips,types_json) VALUES(?,?,?,?,?,?)'),
   histTrend: db.prepare('SELECT day,count,hosts,ips FROM history ORDER BY day ASC'),
   histBounds: db.prepare('SELECT MIN(day) mn, MAX(day) mx FROM history'),
-  histRange: db.prepare('SELECT day, count FROM history WHERE day BETWEEN ? AND ?'),
+  histRange: db.prepare('SELECT day, count, hosts, ips FROM history WHERE day BETWEEN ? AND ? ORDER BY day ASC'),
   dayAggGet: db.prepare('SELECT hosts, ips, ccs FROM day_agg WHERE day = ?'),
   dayAggPut: db.prepare('INSERT OR REPLACE INTO day_agg(day,hosts,ips,ccs) VALUES(?,?,?,?)'),
   dayAggRange: db.prepare('SELECT hosts, ips, ccs FROM day_agg WHERE day BETWEEN ? AND ?'),
@@ -192,6 +192,8 @@ const S = {
   asClear: db.prepare('DELETE FROM attack_session'),
   asMost: db.prepare('SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last_seen, SUM(ended IS NULL) active FROM attack_session GROUP BY host ORDER BY sessions DESC, last_seen DESC LIMIT ?'),
   asLongest: db.prepare("SELECT host, started, ended, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session ORDER BY days DESC LIMIT ?"),
+  // windowed: longest stints overlapping [fromIso, toIso]  (started <= to AND end >= from)
+  asLongestWin: db.prepare("SELECT host, started, ended, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session WHERE started <= ? AND COALESCE(ended,'9999-12-31T23:59:59Z') >= ? ORDER BY days DESC LIMIT ?"),
   asByHost: db.prepare("SELECT started, ended, last_seen, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session WHERE host = ? ORDER BY started DESC LIMIT ?"),
   asAll: (() => {
     const cols = "a.host host, MAX(hc.code) code, MAX(hc.country) country, COUNT(*) sessions, MAX(COALESCE(a.ended,a.last_seen)) last, SUM(julianday(COALESCE(a.ended,'now'))-julianday(a.started)) total, MAX(julianday(COALESCE(a.ended,'now'))-julianday(a.started)) longest, SUM(a.ended IS NULL) active";
@@ -244,9 +246,13 @@ export function putDayBreakdown(day, ccCounts, methodCounts) { S.dayBrkPut.run(d
 // aggregate distinct hosts/ips/countries + request totals + country/method
 // breakdowns over an inclusive day range
 export function periodStats(fromDay, toDay, fromIso, toIso) {
-  const H = new Set(), I = new Set(), C = new Set();
+  const H = new Set(), I = new Set(), C = new Set(), hostDays = new Map();
   for (const r of S.dayAggRange.all(fromDay, toDay)) {
-    try { for (const h of JSON.parse(r.hosts)) H.add(h); for (const i of JSON.parse(r.ips)) I.add(i); for (const c of JSON.parse(r.ccs)) C.add(c); } catch { /* skip */ }
+    try {
+      for (const h of JSON.parse(r.hosts)) { H.add(h); hostDays.set(h, (hostDays.get(h) || 0) + 1); }
+      for (const i of JSON.parse(r.ips)) I.add(i);
+      for (const c of JSON.parse(r.ccs)) C.add(c);
+    } catch { /* skip */ }
   }
   const hist = S.histRange.all(fromDay, toDay);
   let requests = 0, peak = { day: null, count: 0 };
@@ -265,7 +271,11 @@ export function periodStats(fromDay, toDay, fromIso, toIso) {
   const names = new Map(S.countryAll.all().map((c) => [c.code, c.country]));
   const byCountry = [...cc.entries()].map(([code, count]) => ({ code, key: names.get(code) || code, count })).sort((a, b) => b.count - a.count).slice(0, 10);
   const byMethod = [...me.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count).slice(0, 8);
-  return { hosts: H.size, ips: I.size, countries: C.size, requests, peak, avg, days: hist.length, newHosts, byCountry, byMethod };
+  const trend = hist.map((d) => ({ day: d.day, count: d.count, hosts: d.hosts, ips: d.ips }));
+  // most-targeted over a window = most days present on the list (discriminates at any window size)
+  const mostTargeted = [...hostDays.entries()].map(([host, days]) => ({ host, days })).sort((a, b) => b.days - a.days).slice(0, 10);
+  const longestAttacks = S.asLongestWin.all(toIso, fromIso, 10);
+  return { hosts: H.size, ips: I.size, countries: C.size, requests, peak, avg, days: hist.length, newHosts, byCountry, byMethod, trend, mostTargeted, longestAttacks };
 }
 export function getHostFirstSeen(host) { return S.hfsGet.get(host)?.first_seen || null; }
 export function putHostFirstSeen(host, iso) { S.hfsPut.run(host, iso); }

@@ -153,7 +153,7 @@
         </div>
         <div class="pnl trend-pnl">
           <div class="pnl-h">
-            <span>3-YEAR TREND <span class="mono" id="trendMeta"></span></span>
+            <span>TREND <span class="pnl-win" id="trendWin"></span> <span class="mono" id="trendMeta"></span></span>
             <div class="iocs">
               <button class="ioc" data-export="ips">IPs <b id="iocIps">0</b> <span class="cp">copy</span></button>
               <button class="ioc" data-export="paths">Paths <b id="iocPaths">0</b> <span class="cp">copy</span></button>
@@ -169,11 +169,11 @@
       <!-- most targeted / longest attacks -->
       <div class="duo">
         <div class="pnl">
-          <div class="pnl-h"><span>MOST FREQUENTLY TARGETED</span><span class="mono">by attack sessions · all-time</span></div>
+          <div class="pnl-h"><span>MOST FREQUENTLY TARGETED</span><span class="mono">by days on list · <span class="pnl-win" id="mostWin"></span></span></div>
           <div id="mostTargeted" class="rank"></div>
         </div>
         <div class="pnl">
-          <div class="pnl-h"><span>LONGEST ATTACKS</span><span class="mono">continuous stint</span></div>
+          <div class="pnl-h"><span>LONGEST ATTACKS</span><span class="mono">continuous stint · <span class="pnl-win" id="longestWin"></span></span></div>
           <div id="longestAttacks" class="rank"></div>
         </div>
       </div>
