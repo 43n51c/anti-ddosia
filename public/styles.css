@@ -233,6 +233,10 @@ a:hover { text-decoration: underline; }
 .trend-pnl .iocs { margin: 0; }
 .trend-box { position: relative; }
 .trend { height: 180px; cursor: crosshair; }
+.trend.grabbing { cursor: grabbing; }
+.trend-hint { background: none; border: 0; color: var(--dim); font: inherit; font-size: 10px; letter-spacing: 0.06em; cursor: default; padding: 0; }
+.trend-hint.on { color: var(--grn); cursor: pointer; }
+.trend-hint.on:hover { text-decoration: underline; }
 .trend svg { display: block; }
 .trend-tip { position: absolute; z-index: 6; pointer-events: none; transform: translate(-50%, -100%); background: #0a1119; border: 1px solid var(--line2); border-radius: 7px; padding: 6px 9px; box-shadow: 0 8px 22px rgba(0,0,0,.5); white-space: nowrap; }
 .trend-tip .tt-day { color: var(--tx2); font-size: 10.5px; }

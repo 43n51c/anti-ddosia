@@ -170,7 +170,9 @@ function renderDashboard(rows) {
   // TREND stays all-time (a window of 1 day would be a single point); rankings are period-scoped
   $('#trendWin').textContent = 'all-time';
   $('#trendMeta').textContent = s.trendPeak?.day ? `peak ${s.trendPeak.count} · avg ${s.trendAvg}` : '';
-  renderTrend($('#trendChart'), s.trend || []);
+  lastTrend = s.trend || [];
+  if (trendZoom && trendZoom.b > lastTrend.length - 1) trendZoom = null; // stale window after data grew/shrank
+  paintTrend();
   $('#iocHosts').textContent = new Set(rows.map((r) => r.host).filter(Boolean)).size;
   $('#iocIps').textContent = new Set(rows.map((r) => r.ip).filter(Boolean)).size;
   $('#iocPaths').textContent = new Set(rows.map((r) => r.path).filter(Boolean)).size;
@@ -485,8 +487,21 @@ function renderFeed(rows) {
 }
 
 let lastTrend = [];
+let trendZoom = null; // {a,b} inclusive index window into lastTrend; null = full range
+// paint the current zoom window (a slice of lastTrend) — re-renders so labels
+// and the y-scale re-fit crisply to the visible range
+function paintTrend() {
+  const el = $('#trendChart'); if (!el) return;
+  const N = lastTrend.length;
+  let a = 0, b = N - 1;
+  if (trendZoom && N) { a = Math.max(0, trendZoom.a); b = Math.min(N - 1, trendZoom.b); }
+  const winEl = $('#trendWin');
+  if (winEl) winEl.textContent = (trendZoom && N) ? `${lastTrend[a].day} → ${lastTrend[b].day}` : 'all-time';
+  const hint = $('#trendHint');
+  if (hint) { hint.textContent = trendZoom ? '✕ reset zoom' : 'scroll to zoom · drag to pan'; hint.classList.toggle('on', !!trendZoom); }
+  renderTrend(el, lastTrend.slice(a, b + 1));
+}
 function renderTrend(el, trend) {
-  lastTrend = trend;
   if (!trend.length) { el.innerHTML = '<div class="empty">no history in this window…</div>'; return; }
   const W = Math.round(el.clientWidth) || 900, H = 180, pad = 30, bot = 22;
   const max = Math.max(...trend.map((d) => d.count)) * 1.12 || 1;
@@ -1041,8 +1056,54 @@ $('#periodApply').addEventListener('click', () => {
     const c = svg.querySelector('#tCross'), d = svg.querySelector('#tDot');
     if (c) c.setAttribute('opacity', '0'); if (d) d.setAttribute('opacity', '0');
   });
+  // fraction [0,1] of the plot area (between the x-paddings) under a pointer event
+  const plotFrac = (e) => {
+    const svg = chart.querySelector('svg'), g = trendGeom; if (!svg || !g) return null;
+    const rect = svg.getBoundingClientRect();
+    const ux = (e.clientX - rect.left) / rect.width * g.W; // client px → user-space x
+    return Math.max(0, Math.min(1, (ux - g.pad) / (g.W - 2 * g.pad)));
+  };
+  // wheel = zoom the time axis around the cursor (re-renders the visible slice)
+  chart.addEventListener('wheel', (e) => {
+    const N = lastTrend.length; if (N < 3) return;
+    const f = plotFrac(e); if (f == null) return;
+    e.preventDefault();
+    let a = trendZoom ? trendZoom.a : 0, b = trendZoom ? trendZoom.b : N - 1;
+    const span = b - a + 1;
+    const iFull = a + f * (span - 1);
+    const minSpan = Math.min(N, 6);
+    let newSpan = Math.round(span * (e.deltaY < 0 ? 0.8 : 1.25));
+    newSpan = Math.max(minSpan, Math.min(N, newSpan));
+    if (newSpan >= N) { if (trendZoom) { trendZoom = null; paintTrend(); } return; }
+    let na = Math.round(iFull - f * (newSpan - 1));
+    na = Math.max(0, Math.min(N - newSpan, na));
+    trendZoom = { a: na, b: na + newSpan - 1 };
+    paintTrend();
+  }, { passive: false });
+  // drag = pan along time (only meaningful when zoomed in)
+  let dragging = false, dragX = 0, dragA = 0, dragB = 0;
+  chart.addEventListener('mousedown', (e) => {
+    if (!trendZoom) return;
+    dragging = true; dragX = e.clientX; dragA = trendZoom.a; dragB = trendZoom.b;
+    chart.classList.add('grabbing'); e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const svg = chart.querySelector('svg'), g = trendGeom; if (!svg || !g) return;
+    const rect = svg.getBoundingClientRect();
+    const plotPx = rect.width * (g.W - 2 * g.pad) / g.W;
+    const span = dragB - dragA + 1, N = lastTrend.length;
+    let na = dragA + Math.round(-(e.clientX - dragX) / plotPx * (span - 1));
+    na = Math.max(0, Math.min(N - span, na));
+    trendZoom = { a: na, b: na + span - 1 };
+    paintTrend();
+  });
+  window.addEventListener('mouseup', () => { if (dragging) { dragging = false; chart.classList.remove('grabbing'); } });
+  const resetZoom = () => { if (trendZoom) { trendZoom = null; paintTrend(); } };
+  chart.addEventListener('dblclick', resetZoom);
+  $('#trendHint')?.addEventListener('click', resetZoom);
   // re-fit the trend to the container width on resize (keeps it crisp, height fixed)
-  let rzT; window.addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => { if (state.view === 'dashboard' && lastTrend.length) renderTrend(chart, lastTrend); }, 160); });
+  let rzT; window.addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => { if (state.view === 'dashboard' && lastTrend.length) paintTrend(); }, 160); });
 })();
 $('.sortbar').addEventListener('click', (e) => { const p = e.target.closest('.pill'); if (!p) return; state.hSort = p.dataset.hsort; $$('.sortbar .pill').forEach((x) => x.classList.toggle('active', x === p)); render(); });
 $$('#targetsTable thead th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.sort; if (!k) return; if (state.tSortKey === k) state.tSortDir = state.tSortDir === 'asc' ? 'desc' : 'asc'; else { state.tSortKey = k; state.tSortDir = 'asc'; } render(); }));

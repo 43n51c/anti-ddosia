@@ -73,7 +73,12 @@ async function poll() {
     else if (current.feedLastModified) headers['If-Modified-Since'] = current.feedLastModified;
 
     const res = await fetch(CONFIG.feedUrl, { headers });
-    if (res.status === 304) { current.fetchedAt = new Date().toISOString(); return; } // unchanged
+    if (res.status === 304) { // unchanged — refresh the "last checked" time on both the snapshot and the cached stats
+      const iso = new Date().toISOString();
+      current.fetchedAt = iso;
+      if (statsCache) statsCache.fetchedAt = iso;
+      return;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     feedETag = res.headers.get('etag') || feedETag;
     const lastModified = res.headers.get('last-modified');
