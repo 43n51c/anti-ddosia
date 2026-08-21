@@ -326,52 +326,58 @@ function renderMap(data) {
   }).join('');
   const land = world.loaded ? `<path d="${world.all}" fill="#0e1a2a" stroke="#22384f" stroke-width="0.35"/>${hi}` : '';
   const y0 = (90 - 84) / 180 * H, y1 = (90 - -58) / 180 * H;
+  mapBase = { x: 0, y: y0, w: W, h: y1 - y0 };
+  if (!mapVB) mapVB = { ...mapBase };
   $('#map').innerHTML = `<svg viewBox="0 ${y0.toFixed(0)} ${W} ${(y1 - y0).toFixed(0)}" preserveAspectRatio="xMidYMid meet">
     <rect x="0" y="0" width="${W}" height="${H}" fill="#070d16"/>
     ${land}${markers}
   </svg>`;
-  applyMapTransform(); // re-apply zoom/pan after the map re-renders
+  applyMapView(); // re-apply zoom/pan (as an SVG viewBox, so it stays vector-crisp)
 }
 
-// ---------- map zoom / pan (wheel + drag + buttons) ----------
-const mapZoom = { scale: 1, tx: 0, ty: 0 };
-function applyMapTransform() { const m = $('#map'); if (m) m.style.transform = `translate(${mapZoom.tx}px,${mapZoom.ty}px) scale(${mapZoom.scale})`; }
-function clampMapPan() {
-  const box = $('#mapBox'); if (!box) return;
-  const w = box.clientWidth, h = box.clientHeight;
-  mapZoom.tx = Math.min(0, Math.max(w - w * mapZoom.scale, mapZoom.tx));
-  mapZoom.ty = Math.min(0, Math.max(h - h * mapZoom.scale, mapZoom.ty));
-}
-function zoomMapAt(cx, cy, factor) {
-  const old = mapZoom.scale;
-  const next = Math.min(8, Math.max(1, old * factor));
-  if (next === old) return;
-  mapZoom.tx = cx - (cx - mapZoom.tx) * (next / old);
-  mapZoom.ty = cy - (cy - mapZoom.ty) * (next / old);
-  mapZoom.scale = next;
-  clampMapPan(); applyMapTransform();
+// ---------- map zoom / pan via SVG viewBox (crisp — no raster scaling) ----------
+let mapBase = null, mapVB = null;
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+function applyMapView() { const svg = $('#map')?.querySelector('svg'); if (svg && mapVB) svg.setAttribute('viewBox', `${mapVB.x} ${mapVB.y} ${mapVB.w} ${mapVB.h}`); }
+// zoom keeping the point under (px,py) — screen px within the svg — fixed
+function zoomMapAt(px, py, factor) {
+  if (!mapBase || !mapVB) return;
+  const svg = $('#map')?.querySelector('svg'); if (!svg) return;
+  const r = svg.getBoundingClientRect();
+  const ux = mapVB.x + px / r.width * mapVB.w, uy = mapVB.y + py / r.height * mapVB.h; // cursor in user units
+  const minW = mapBase.w / 8;
+  const newW = clamp(mapVB.w / factor, minW, mapBase.w); // zoom in → smaller viewBox
+  const s = newW / mapVB.w, newH = mapVB.h * s;
+  let nx = ux - (ux - mapVB.x) * s, ny = uy - (uy - mapVB.y) * s;
+  nx = clamp(nx, mapBase.x, mapBase.x + mapBase.w - newW);
+  ny = clamp(ny, mapBase.y, mapBase.y + mapBase.h - newH);
+  mapVB = { x: nx, y: ny, w: newW, h: newH };
+  applyMapView();
 }
 (() => {
   const box = $('#mapBox'); if (!box) return;
   box.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const r = box.getBoundingClientRect();
+    const svg = $('#map')?.querySelector('svg'); if (!svg) return;
+    const r = svg.getBoundingClientRect();
     zoomMapAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.2 : 1 / 1.2);
   }, { passive: false });
   box.addEventListener('click', (e) => {
-    const z = e.target.closest('[data-mapzoom]'); if (!z) return;
-    const r = box.getBoundingClientRect();
-    if (z.dataset.mapzoom === 'reset') { mapZoom.scale = 1; mapZoom.tx = 0; mapZoom.ty = 0; applyMapTransform(); }
+    const z = e.target.closest('[data-mapzoom]'); if (!z || !mapBase) return;
+    const svg = $('#map')?.querySelector('svg'); const r = svg.getBoundingClientRect();
+    if (z.dataset.mapzoom === 'reset') { mapVB = { ...mapBase }; applyMapView(); }
     else zoomMapAt(r.width / 2, r.height / 2, z.dataset.mapzoom === 'in' ? 1.4 : 1 / 1.4);
   });
-  // drag to pan
-  let drag = false, lx = 0, ly = 0, moved = false;
-  box.addEventListener('mousedown', (e) => { if (e.target.closest('[data-mapzoom]')) return; drag = true; moved = false; lx = e.clientX; ly = e.clientY; box.classList.add('grabbing'); });
+  // drag to pan (convert screen delta to user units)
+  let drag = false, lx = 0, ly = 0;
+  box.addEventListener('mousedown', (e) => { if (e.target.closest('[data-mapzoom]') || !mapVB) return; drag = true; lx = e.clientX; ly = e.clientY; box.classList.add('grabbing'); });
   window.addEventListener('mousemove', (e) => {
-    if (!drag) return;
-    if (Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) > 2) moved = true;
-    mapZoom.tx += e.clientX - lx; mapZoom.ty += e.clientY - ly; lx = e.clientX; ly = e.clientY;
-    clampMapPan(); applyMapTransform();
+    if (!drag || !mapBase) return;
+    const svg = $('#map')?.querySelector('svg'); if (!svg) return;
+    const r = svg.getBoundingClientRect();
+    mapVB.x = clamp(mapVB.x - (e.clientX - lx) / r.width * mapVB.w, mapBase.x, mapBase.x + mapBase.w - mapVB.w);
+    mapVB.y = clamp(mapVB.y - (e.clientY - ly) / r.height * mapVB.h, mapBase.y, mapBase.y + mapBase.h - mapVB.h);
+    lx = e.clientX; ly = e.clientY; applyMapView();
   });
   window.addEventListener('mouseup', () => { drag = false; box.classList.remove('grabbing'); });
   box.addEventListener('mouseleave', () => { $('#mapTip').hidden = true; });
