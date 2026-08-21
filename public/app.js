@@ -495,7 +495,6 @@ function renderTrend(el, trend, animate) {
     const every = trend.length > 500 ? 3 : 1; let lm = -1;
     xl = trend.map((d, i) => { const m = +d.day.slice(5, 7) - 1; if (m === lm) return ''; lm = m; const lbl = multi ? `${MONTHS[m]} '${d.day.slice(2, 4)}` : MONTHS[m]; return `<line x1="${x(i)}" y1="${pad - 6}" x2="${x(i)}" y2="${H - bot}" stroke="${m === 0 ? '#1f2b3b' : '#131c27'}"/>${m % every === 0 ? `<text x="${x(i) + 2}" y="${H - 7}" fill="#566274" font-size="9">${lbl}</text>` : ''}`; }).join('');
   }
-  const last = trend[trend.length - 1];
   const peak = trend.reduce((m, d) => (d.count > m.count ? d : m), trend[0]);
   const px = x(trend.indexOf(peak));
   trendGeom = { W, H, pad, bot, n: trend.length, trend, xAt: x, yAt: y };
@@ -507,7 +506,6 @@ function renderTrend(el, trend, animate) {
     <circle cx="${px}" cy="${y(peak.count)}" r="3" fill="#ff5566"><title>peak ${peak.day}: ${peak.count}</title></circle>
     <line id="tCross" x1="0" y1="${pad - 6}" x2="0" y2="${H - bot}" stroke="#3ddc84" stroke-width="0.8" stroke-dasharray="2 3" opacity="0" pointer-events="none"/>
     <circle id="tDot" r="3.2" fill="#3ddc84" stroke="#0a0f16" stroke-width="1" opacity="0" pointer-events="none"/>
-    <text x="${W - pad}" y="11" text-anchor="end" fill="#c4d0de" font-size="10">last ${last.count}</text>
   </svg>`;
   if (animate && !prefersReducedMotion()) { el.classList.remove('draw'); void el.offsetWidth; el.classList.add('draw'); }
 }
