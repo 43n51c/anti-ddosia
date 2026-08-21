@@ -318,11 +318,12 @@ function renderMap(data) {
       <circle cx="${x}" cy="${y}" r="${Math.max(r, 9)}" fill="transparent" ${dataAttr} style="cursor:pointer"/>
       <circle cx="${x}" cy="${y}" r="${r}" fill="rgba(255,85,102,0.18)" stroke="#ff5566" stroke-width="1" pointer-events="none"/>
       <circle cx="${x}" cy="${y}" r="2.5" fill="#ff5566" pointer-events="none"/>`;
-    if (i >= labelN) return base;
     const fw = 22, fh = 15;
-    return `${base}
+    const label = i < labelN ? `
       <image href="/flags/${cc.toLowerCase()}.svg" x="${x - fw / 2}" y="${y - r - fh - 5}" width="${fw}" height="${fh}" preserveAspectRatio="xMidYMid slice"/>
-      <text x="${x + fw / 2 + 4}" y="${y - r - fh / 2 - 3}" fill="#dbe6f2" font-size="15" font-family="JetBrains Mono, monospace">${n}</text>`;
+      <text x="${x + fw / 2 + 4}" y="${y - r - fh / 2 - 3}" fill="#dbe6f2" font-size="15" font-family="JetBrains Mono, monospace">${n}</text>` : '';
+    // wrap in a group so markers can be counter-scaled to stay constant screen size on zoom
+    return `<g class="mk-g" data-x="${x.toFixed(1)}" data-y="${y.toFixed(1)}">${base}${label}</g>`;
   }).join('');
   const land = world.loaded ? `<path d="${world.all}" fill="#0e1a2a" stroke="#22384f" stroke-width="0.35"/>${hi}` : '';
   const y0 = (90 - 84) / 180 * H, y1 = (90 - -58) / 180 * H;
@@ -338,7 +339,16 @@ function renderMap(data) {
 // ---------- map zoom / pan via SVG viewBox (crisp — no raster scaling) ----------
 let mapBase = null, mapVB = null;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-function applyMapView() { const svg = $('#map')?.querySelector('svg'); if (svg && mapVB) svg.setAttribute('viewBox', `${mapVB.x} ${mapVB.y} ${mapVB.w} ${mapVB.h}`); }
+function applyMapView() { const svg = $('#map')?.querySelector('svg'); if (svg && mapVB) svg.setAttribute('viewBox', `${mapVB.x} ${mapVB.y} ${mapVB.w} ${mapVB.h}`); updateMarkerScale(); }
+// counter-scale markers (flags/circles/numbers) by 1/zoom so they keep a constant screen size
+function updateMarkerScale() {
+  const k = (mapBase && mapVB) ? (mapVB.w / mapBase.w) : 1;
+  const svg = $('#map')?.querySelector('svg'); if (!svg) return;
+  svg.querySelectorAll('.mk-g').forEach((g) => {
+    const x = +g.dataset.x, y = +g.dataset.y;
+    g.setAttribute('transform', `translate(${x} ${y}) scale(${k.toFixed(4)}) translate(${-x} ${-y})`);
+  });
+}
 // zoom keeping the point under (px,py) — screen px within the svg — fixed
 function zoomMapAt(px, py, factor) {
   if (!mapBase || !mapVB) return;
