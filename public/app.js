@@ -347,14 +347,19 @@ function renderMap(data) {
   if (world.loaded && world.bounds) {
     const uaPath = world.byCode.get('UA'), ub = world.bounds.UA;
     if (uaPath && ub) {
-      const mid = (ub.y0 + ub.y1) / 2, w = ub.x1 - ub.x0;
-      // subtle two-tone tint in the project's palette (like the red attacked-country highlight)
-      overlay += `<defs><clipPath id="uaClip"><path d="${uaPath}"/></clipPath></defs>
-        <g clip-path="url(#uaClip)">
-          <rect x="${ub.x0}" y="${ub.y0}" width="${w}" height="${mid - ub.y0}" fill="rgba(77,157,255,0.26)"/>
-          <rect x="${ub.x0}" y="${mid}" width="${w}" height="${ub.y1 - mid}" fill="rgba(245,179,1,0.20)"/>
-        </g>
-        <path d="${uaPath}" fill="none" stroke="#3a5b8a" stroke-width="0.5"/>`;
+      const w = ub.x1 - ub.x0;
+      // soft blue→amber gradient in the project's palette (no hard seam)
+      overlay += `<defs>
+          <clipPath id="uaClip"><path d="${uaPath}"/></clipPath>
+          <linearGradient id="uaFlag" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#4d9dff" stop-opacity="0.34"/>
+            <stop offset="47%" stop-color="#4d9dff" stop-opacity="0.24"/>
+            <stop offset="53%" stop-color="#f5b301" stop-opacity="0.20"/>
+            <stop offset="100%" stop-color="#f5b301" stop-opacity="0.28"/>
+          </linearGradient>
+        </defs>
+        <rect x="${ub.x0}" y="${ub.y0}" width="${w}" height="${ub.y1 - ub.y0}" fill="url(#uaFlag)" clip-path="url(#uaClip)"/>
+        <path d="${uaPath}" fill="none" stroke="#43648f" stroke-width="0.5" opacity="0.7"/>`;
     }
     // anchor over the middle of Russia's Eurasian landmass (computed at load)
     const ra = world.ruAnchor || { x: 760, y: 96 };
