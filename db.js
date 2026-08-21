@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS day_breakdown (
   day TEXT PRIMARY KEY, hb TEXT NOT NULL DEFAULT '{}'
 );
 CREATE TABLE IF NOT EXISTS host_first_seen ( host TEXT PRIMARY KEY, first_seen TEXT );
+-- newHostsBetween() range-counts by first_seen on every period/stats call
+CREATE INDEX IF NOT EXISTS idx_hfs_first ON host_first_seen(first_seen);
 CREATE TABLE IF NOT EXISTS target_first_seen ( target_id TEXT PRIMARY KEY, first_seen TEXT );
 CREATE TABLE IF NOT EXISTS country_alltime ( code TEXT PRIMARY KEY, country TEXT, hosts INTEGER, targets INTEGER );
 CREATE TABLE IF NOT EXISTS attack_session (

@@ -29,12 +29,16 @@ const CONFIG = {
 let current = { ok: false, fetchedAt: null, feedLastModified: null, error: 'not fetched yet', targets: [] };
 let feedETag = null; // for conditional requests (avoid re-downloading unchanged feed)
 let configsTotal = null; // total archived config files (from the /data/ index)
+// buildStats() aggregates several full-table scans; the snapshot only changes
+// once per successful poll, so cache the result and invalidate by version.
+let dataVersion = 0;
+let statsCache = null, statsCacheVer = -1;
 async function refreshConfigCount() {
   try {
     const dir = new URL('.', CONFIG.feedUrl).href;
     const html = await fetch(dir, { headers: { 'User-Agent': 'anti-ddosia-monitor/1.0' } }).then((r) => r.text());
     const m = html.match(/href="[^"]*_DDoSia-target-list-full\.json"/g);
-    if (m) configsTotal = m.length;
+    if (m && m.length !== configsTotal) { configsTotal = m.length; dataVersion++; }
   } catch (e) { /* keep previous value */ }
 }
 
@@ -92,14 +96,20 @@ async function poll() {
     if (lastModified) { const d = new Date(lastModified); if (!isNaN(d)) openIso = d.toISOString(); }
     dbx.updateSessions([...new Set(raw.map((t) => t.host).filter(Boolean))], nowIso, openIso);
 
+    // host-level lookups repeat across a host's many targets — resolve once per host
+    const hostFS = new Map(), hostSS = new Map();
     const targets = raw.map((t) => {
       const geo = geoFor(t.ip);
+      let hfs = hostFS.get(t.host);
+      if (hfs === undefined) { hfs = dbx.getHostFirstSeen(t.host) || nowIso; hostFS.set(t.host, hfs); }
+      let ss = hostSS.get(t.host);
+      if (ss === undefined) { ss = dbx.activeSessionStart(t.host) || nowIso; hostSS.set(t.host, ss); }
       return {
         target_id: t.target_id, host: t.host, ip: t.ip, type: t.type, method: t.method,
         port: t.port, use_ssl: t.use_ssl, path: t.path || '', ...geo,
         firstSeen: dbx.getTargetFirstSeen(t.target_id) || nowIso,
-        hostFirstSeen: dbx.getHostFirstSeen(t.host) || nowIso,
-        sessionStart: dbx.activeSessionStart(t.host) || nowIso,
+        hostFirstSeen: hfs,
+        sessionStart: ss,
       };
     });
 
@@ -133,6 +143,7 @@ async function poll() {
     dbx.tx(() => { for (const [hn, e] of dayHostSurf) dbx.putHostDay(hn, day, { p: [...e.p.entries()], po: [...e.po].sort((a, b) => a - b), ty: Object.fromEntries(e.ty), me: [...e.me], ip: [...e.ip] }); });
 
     current = { ok: true, fetchedAt: nowIso, feedLastModified: lastModified, error: null, targets };
+    dataVersion++; // snapshot + aggregates changed → invalidate the stats cache
     console.log(`[poll] ${nowIso} ok — ${targets.length} targets, ${new Set(targets.map((x) => x.host)).size} hosts`);
 
     runMatching();
@@ -210,6 +221,7 @@ function buildHosts() {
   return [...map.values()].map((h) => ({ ...h, ips: [...h.ips], methods: [...h.methods], ports: [...h.ports].sort((a, b) => a - b), paths: [...h.paths] })).sort((a, b) => b.targetCount - a.targetCount);
 }
 function buildStats() {
+  if (statsCache && statsCacheVer === dataVersion) return statsCache;
   const t = current.targets;
   const dayCutoff = Date.now() - 24 * 3600 * 1000;
   const newHosts = [...new Set(t.filter((x) => new Date(x.hostFirstSeen).getTime() >= dayCutoff).map((x) => x.host))];
@@ -219,15 +231,15 @@ function buildStats() {
   const yesterdayCount = trend.length >= 2 ? trend[trend.length - 2].count : null;
 
   // Current "wave": the day the most of today's hosts first appeared.
-  const perFirstDay = new Map();
-  for (const host of new Set(t.map((x) => x.host))) {
-    const hfs = t.find((x) => x.host === host)?.hostFirstSeen;
-    if (!hfs) continue;
-    const d = hfs.slice(0, 10);
+  const perFirstDay = new Map(), seenHost = new Set();
+  for (const x of t) {
+    if (seenHost.has(x.host) || !x.hostFirstSeen) continue;
+    seenHost.add(x.host);
+    const d = x.hostFirstSeen.slice(0, 10);
     perFirstDay.set(d, (perFirstDay.get(d) || 0) + 1);
   }
   const waveSince = [...perFirstDay.entries()].sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0]?.[0] || null;
-  return {
+  statsCache = {
     ok: current.ok, fetchedAt: current.fetchedAt, feedLastModified: current.feedLastModified,
     totals: { targets: t.length, hosts: new Set(t.map((x) => x.host)).size, ips: new Set(t.map((x) => x.ip)).size, countries: new Set(t.map((x) => x.countryCode)).size, newHosts24h: newHosts.length },
     byType: tally(t, 'type'), byCountry: tally(t, 'country'), byPort: tally(t, 'port'), byMethod: tally(t, 'method'),
@@ -240,6 +252,8 @@ function buildStats() {
     mostTargeted: dbx.mostTargeted(10),
     longestAttacks: dbx.longestAttacks(10),
   };
+  statsCacheVer = dataVersion;
+  return statsCache;
 }
 
 // ---------- HTTP helpers ----------
