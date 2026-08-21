@@ -2,6 +2,26 @@
 
 ## Feature ideas (research)
 
+- [ ] **Threat-intel news feed about the group.** Aggregate recent public
+  reporting on NoName057(16) / the DDoSia Project into a panel (or a dedicated
+  view), so a defender gets context alongside the target data.
+  **Research before building:**
+  - *Sources.* CERT/CISA/national-CERT advisories, vendor threat blogs
+    (Netscout, Radware, Cloudflare, Kaspersky, Sekoia, etc.), and reputable
+    news via RSS/Atom where available; consider a curated allowlist of feeds
+    rather than open web search to keep signal high and avoid disinfo.
+  - *Fetch model.* Server-side poller (like the target feed) on a slow cadence
+    (hourly/daily), cache results in SQLite; never fetch from the browser.
+    Respect each source's robots/ToS and rate limits; set a descriptive UA.
+  - *Filtering/dedup.* Match on keywords (NoName057, DDoSia, "pro-Russian
+    hacktivist DDoS"), dedupe by URL/title, store title/source/date/link/
+    summary. Show source + timestamp; link out, don't rehost article bodies
+    (copyright — store only title + short snippet + link).
+  - *Trust/safety.* Treat fetched text as untrusted data (no acting on it);
+    clearly label as third-party reporting; keep the tool's defensive framing.
+  - *Optional enrichment.* Correlate a news spike with the trend chart (did a
+    campaign announcement precede a target surge?).
+
 - [ ] **Live reachability of currently-targeted hosts.** Show, next to each
   target on the current list, whether it is actually reachable right now — a
   rough "is the DDoS having visible impact?" signal for defenders.

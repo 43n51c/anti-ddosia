@@ -30,9 +30,11 @@ CREATE TABLE IF NOT EXISTS history (
 CREATE TABLE IF NOT EXISTS day_agg (
   day TEXT PRIMARY KEY, hosts TEXT NOT NULL DEFAULT '[]', ips TEXT NOT NULL DEFAULT '[]', ccs TEXT NOT NULL DEFAULT '[]'
 );
--- per-day count breakdowns (representative snapshot of the day) for windowed bars
+-- per-day breakdowns (representative snapshot of the day) for windowed bars.
+-- hb holds per-day distinct host sets grouped by country / method, so bars can
+-- count HOSTS (not target-vectors) over any window, matching the map.
 CREATE TABLE IF NOT EXISTS day_breakdown (
-  day TEXT PRIMARY KEY, cc_counts TEXT NOT NULL DEFAULT '{}', method_counts TEXT NOT NULL DEFAULT '{}'
+  day TEXT PRIMARY KEY, cc_counts TEXT NOT NULL DEFAULT '{}', method_counts TEXT NOT NULL DEFAULT '{}', hb TEXT NOT NULL DEFAULT '{}'
 );
 CREATE TABLE IF NOT EXISTS host_first_seen ( host TEXT PRIMARY KEY, first_seen TEXT );
 CREATE TABLE IF NOT EXISTS target_first_seen ( target_id TEXT PRIMARY KEY, first_seen TEXT );
@@ -94,6 +96,7 @@ try { db.exec('ALTER TABLE host_surface ADD COLUMN ips TEXT'); } catch { /* colu
 try { db.exec('ALTER TABLE host_surface ADD COLUMN by_ip TEXT'); } catch { /* column exists */ }
 try { db.exec('ALTER TABLE alerts ADD COLUMN active INTEGER NOT NULL DEFAULT 1'); } catch { /* column exists */ }
 try { db.exec('ALTER TABLE alerts ADD COLUMN resolved_at TEXT'); } catch { /* column exists */ }
+try { db.exec("ALTER TABLE day_breakdown ADD COLUMN hb TEXT NOT NULL DEFAULT '{}'"); } catch { /* column exists */ }
 
 // ---------------- one-time migration from JSON ----------------
 (function migrateFromJson() {
@@ -142,8 +145,8 @@ const S = {
   dayAggPut: db.prepare('INSERT OR REPLACE INTO day_agg(day,hosts,ips,ccs) VALUES(?,?,?,?)'),
   dayAggRange: db.prepare('SELECT hosts, ips, ccs FROM day_agg WHERE day BETWEEN ? AND ?'),
   dayAggClear: db.prepare('DELETE FROM day_agg'),
-  dayBrkPut: db.prepare('INSERT OR REPLACE INTO day_breakdown(day,cc_counts,method_counts) VALUES(?,?,?)'),
-  dayBrkRange: db.prepare('SELECT cc_counts, method_counts FROM day_breakdown WHERE day BETWEEN ? AND ?'),
+  dayBrkPut: db.prepare('INSERT OR REPLACE INTO day_breakdown(day,cc_counts,method_counts,hb) VALUES(?,?,?,?)'),
+  dayBrkRange: db.prepare('SELECT hb FROM day_breakdown WHERE day BETWEEN ? AND ?'),
   dayBrkClear: db.prepare('DELETE FROM day_breakdown'),
   newHostsBetween: db.prepare('SELECT COUNT(*) c FROM host_first_seen WHERE first_seen BETWEEN ? AND ?'),
   hfsGet: db.prepare('SELECT first_seen FROM host_first_seen WHERE host = ?'),
@@ -241,7 +244,7 @@ export function mergeDayAgg(day, hosts, ips, ccs) {
   S.dayAggPut.run(day, JSON.stringify([...H]), JSON.stringify([...I]), JSON.stringify([...C]));
 }
 export function clearDayBreakdown() { S.dayBrkClear.run(); }
-export function putDayBreakdown(day, ccCounts, methodCounts) { S.dayBrkPut.run(day, JSON.stringify(ccCounts || {}), JSON.stringify(methodCounts || {})); }
+export function putDayBreakdown(day, ccCounts, methodCounts, hb) { S.dayBrkPut.run(day, JSON.stringify(ccCounts || {}), JSON.stringify(methodCounts || {}), JSON.stringify(hb || {})); }
 
 // aggregate distinct hosts/ips/countries + request totals + country/method
 // breakdowns over an inclusive day range
@@ -260,17 +263,18 @@ export function periodStats(fromDay, toDay, fromIso, toIso) {
   const avg = hist.length ? Math.round(requests / hist.length) : 0;
   const newHosts = S.newHostsBetween.get(fromIso, toIso).c;
 
-  // summed country/method breakdowns over the window
-  const cc = new Map(), me = new Map();
+  // distinct-host breakdowns over the window (union per-day host sets by country/method)
+  const ccH = new Map(), meH = new Map();
   for (const r of S.dayBrkRange.all(fromDay, toDay)) {
     try {
-      for (const [k, v] of Object.entries(JSON.parse(r.cc_counts))) cc.set(k, (cc.get(k) || 0) + v);
-      for (const [k, v] of Object.entries(JSON.parse(r.method_counts))) me.set(k, (me.get(k) || 0) + v);
+      const hb = JSON.parse(r.hb || '{}');
+      for (const [code, hosts] of Object.entries(hb.cc || {})) { let s = ccH.get(code); if (!s) { s = new Set(); ccH.set(code, s); } for (const h of hosts) s.add(h); }
+      for (const [m, hosts] of Object.entries(hb.me || {})) { let s = meH.get(m); if (!s) { s = new Set(); meH.set(m, s); } for (const h of hosts) s.add(h); }
     } catch { /* skip */ }
   }
   const names = new Map(S.countryAll.all().map((c) => [c.code, c.country]));
-  const byCountry = [...cc.entries()].map(([code, count]) => ({ code, key: names.get(code) || code, count })).sort((a, b) => b.count - a.count).slice(0, 10);
-  const byMethod = [...me.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count).slice(0, 8);
+  const byCountry = [...ccH.entries()].map(([code, s]) => ({ code, key: names.get(code) || code, count: s.size })).sort((a, b) => b.count - a.count).slice(0, 10);
+  const byMethod = [...meH.entries()].map(([key, s]) => ({ key, count: s.size })).sort((a, b) => b.count - a.count).slice(0, 8);
   const trend = hist.map((d) => ({ day: d.day, count: d.count, hosts: d.hosts, ips: d.ips }));
   // most-targeted over a window = most days present on the list (discriminates at any window size)
   const mostTargeted = [...hostDays.entries()].map(([host, days]) => ({ host, days })).sort((a, b) => b.days - a.days).slice(0, 10);

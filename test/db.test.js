@@ -122,10 +122,10 @@ test('periodStats: distinct union across days + windowing', () => {
   dbx.putHostFirstSeen('a.com', '2026-03-01T00:00:00Z');
   dbx.putHostFirstSeen('c.com', '2026-03-02T00:00:00Z');
 
-  // per-day count breakdowns (summed over the window)
+  // per-day host-set breakdowns (distinct hosts unioned over the window)
   dbx.clearDayBreakdown();
-  dbx.putDayBreakdown('2026-03-01', { US: 5 }, { GET: 4, syn: 1 });
-  dbx.putDayBreakdown('2026-03-02', { US: 3, CA: 6 }, { GET: 2, POST: 7 });
+  dbx.putDayBreakdown('2026-03-01', {}, {}, { cc: { US: ['a.com', 'b.com'] }, me: { GET: ['a.com'], syn: ['b.com'] } });
+  dbx.putDayBreakdown('2026-03-02', {}, {}, { cc: { US: ['b.com'], CA: ['c.com', 'd.com'] }, me: { GET: ['b.com'], POST: ['c.com', 'd.com'] } });
   dbx.putCountry('US', 'United States', 1, 1); dbx.putCountry('CA', 'Canada', 1, 1);
 
   const both = dbx.periodStats('2026-03-01', '2026-03-02', '2026-03-01T00:00:00Z', '2026-03-02T23:59:59Z');
@@ -138,12 +138,13 @@ test('periodStats: distinct union across days + windowing', () => {
   assert.equal(both.avg, 20);
   assert.equal(both.days, 2);
   assert.equal(both.newHosts, 2);
-  // byCountry summed + ranked, with names resolved
-  assert.deepEqual(both.byCountry[0], { code: 'US', key: 'United States', count: 8 }); // 5+3
-  assert.equal(both.byCountry.find((c) => c.code === 'CA').count, 6);
-  // byMethod summed + ranked
-  assert.equal(both.byMethod.find((m) => m.key === 'GET').count, 6); // 4+2
-  assert.equal(both.byMethod.find((m) => m.key === 'POST').count, 7);
+  // byCountry = distinct hosts per country (US: {a,b}∪{b}=2, CA: {c,d}=2), names resolved
+  assert.deepEqual(both.byCountry[0], { code: 'US', key: 'United States', count: 2 });
+  assert.equal(both.byCountry.find((c) => c.code === 'CA').count, 2);
+  // byMethod = distinct hosts per method (GET: {a}∪{b}=2, POST: {c,d}=2, syn: {b}=1)
+  assert.equal(both.byMethod.find((m) => m.key === 'GET').count, 2);
+  assert.equal(both.byMethod.find((m) => m.key === 'POST').count, 2);
+  assert.equal(both.byMethod.find((m) => m.key === 'syn').count, 1);
   // mostTargeted = days present on the list (b.com appears both days)
   assert.deepEqual(both.mostTargeted[0], { host: 'b.com', days: 2 });
   assert.ok(both.mostTargeted.some((r) => r.host === 'a.com' && r.days === 1));

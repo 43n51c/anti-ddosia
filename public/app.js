@@ -148,7 +148,10 @@ function renderOps(rows) {
   // BY COUNTRY / ATTACK METHODS bars are period-scoped — rendered by renderPeriodTiles
 
   renderOpsFeed(rows);
-  // TREND + rankings are period-scoped — rendered by renderPeriodTiles
+  // TREND stays all-time (a window of 1 day would be a single point); rankings are period-scoped
+  $('#trendWin').textContent = 'all-time';
+  $('#trendMeta').textContent = s.trendPeak?.day ? `peak ${s.trendPeak.count} · avg ${s.trendAvg}` : '';
+  renderTrend($('#trendChart'), s.trend || []);
   $('#iocIps').textContent = new Set(rows.map((r) => r.ip).filter(Boolean)).size;
   $('#iocPaths').textContent = new Set(rows.map((r) => r.path).filter(Boolean)).size;
 }
@@ -264,10 +267,6 @@ function renderPeriodTiles(p) {
   // period-scoped breakdown bars (share the same one-shot animation)
   bars($('#countryBars'), (p.byCountry || []).slice(0, 8), (r) => `${flag(r.code)} ${esc(r.key)}`, '#34e0d0', animate);
   bars($('#methodBars'), (p.byMethod || []).slice(0, 6), (r) => esc(r.key || '—'), '#f5b301', animate);
-  // period-scoped trend
-  $('#trendWin').textContent = winLabel;
-  $('#trendMeta').textContent = p.peak && p.peak.count ? `peak ${p.peak.count} · avg ${p.avg}` : '';
-  renderTrend($('#trendChart'), p.trend || [], animate);
   // period-scoped rankings
   $('#mostWin').textContent = winLabel;
   $('#longestWin').textContent = winLabel;
@@ -375,7 +374,7 @@ function renderOpsFeed(rows) {
       <td class="cc">${flag(h.countryCode)} ${esc(h.city || h.country)}</td>
       <td>${h.targetCount}</td>
       <td class="tt">${Object.keys(h.types).join(' ')}</td>
-      <td class="cc">${h.ports.join(' ')}</td>
+      <td class="cc">${h.ports.length > 10 ? h.ports.slice(0, 10).join(' ') + ` +${h.ports.length - 10}` : h.ports.join(' ')}</td>
       <td class="cc"><span class="dur" data-since="${esc(h.sessionStart)}"></span></td>
     </tr>`;
   }).join('');

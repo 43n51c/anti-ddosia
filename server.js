@@ -109,13 +109,15 @@ async function poll() {
     dbx.putDay(day, nowIso, targets.length, new Set(targets.map((x) => x.host)).size, new Set(targets.map((x) => x.ip)).size, typeCounts);
     // accumulate today's distinct sets so windowed hosts/ips/countries stay accurate
     dbx.mergeDayAgg(day, [...new Set(targets.map((x) => x.host))], [...new Set(targets.map((x) => x.ip).filter(Boolean))], [...new Set(targets.map((x) => x.countryCode).filter((c) => c && c !== 'XX'))]);
-    // today's representative breakdown (last poll wins) for period-scoped bars
-    const ccCounts = {}, methodCounts = {};
+    // today's representative breakdown (last poll wins): distinct host sets by
+    // country / method, so period bars count hosts (matching the map)
+    const ccCounts = {}, methodCounts = {}, ccHosts = {}, methodHosts = {};
     for (const t of targets) {
-      if (t.countryCode && t.countryCode !== 'XX') ccCounts[t.countryCode] = (ccCounts[t.countryCode] || 0) + 1;
-      if (t.method) methodCounts[t.method] = (methodCounts[t.method] || 0) + 1;
+      if (t.countryCode && t.countryCode !== 'XX') { ccCounts[t.countryCode] = (ccCounts[t.countryCode] || 0) + 1; (ccHosts[t.countryCode] ||= new Set()).add(t.host); }
+      if (t.method) { methodCounts[t.method] = (methodCounts[t.method] || 0) + 1; (methodHosts[t.method] ||= new Set()).add(t.host); }
     }
-    dbx.putDayBreakdown(day, ccCounts, methodCounts);
+    const setsToLists = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v]]));
+    dbx.putDayBreakdown(day, ccCounts, methodCounts, { cc: setsToLists(ccHosts), me: setsToLists(methodHosts) });
     // per-(host,day) surface so the current (ongoing) session has detail for today too
     const dayHostSurf = new Map();
     for (const t of raw) {
