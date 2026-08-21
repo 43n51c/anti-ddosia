@@ -330,7 +330,52 @@ function renderMap(data) {
     <rect x="0" y="0" width="${W}" height="${H}" fill="#070d16"/>
     ${land}${markers}
   </svg>`;
+  applyMapTransform(); // re-apply zoom/pan after the map re-renders
 }
+
+// ---------- map zoom / pan (wheel + drag + buttons) ----------
+const mapZoom = { scale: 1, tx: 0, ty: 0 };
+function applyMapTransform() { const m = $('#map'); if (m) m.style.transform = `translate(${mapZoom.tx}px,${mapZoom.ty}px) scale(${mapZoom.scale})`; }
+function clampMapPan() {
+  const box = $('#mapBox'); if (!box) return;
+  const w = box.clientWidth, h = box.clientHeight;
+  mapZoom.tx = Math.min(0, Math.max(w - w * mapZoom.scale, mapZoom.tx));
+  mapZoom.ty = Math.min(0, Math.max(h - h * mapZoom.scale, mapZoom.ty));
+}
+function zoomMapAt(cx, cy, factor) {
+  const old = mapZoom.scale;
+  const next = Math.min(8, Math.max(1, old * factor));
+  if (next === old) return;
+  mapZoom.tx = cx - (cx - mapZoom.tx) * (next / old);
+  mapZoom.ty = cy - (cy - mapZoom.ty) * (next / old);
+  mapZoom.scale = next;
+  clampMapPan(); applyMapTransform();
+}
+(() => {
+  const box = $('#mapBox'); if (!box) return;
+  box.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const r = box.getBoundingClientRect();
+    zoomMapAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.2 : 1 / 1.2);
+  }, { passive: false });
+  box.addEventListener('click', (e) => {
+    const z = e.target.closest('[data-mapzoom]'); if (!z) return;
+    const r = box.getBoundingClientRect();
+    if (z.dataset.mapzoom === 'reset') { mapZoom.scale = 1; mapZoom.tx = 0; mapZoom.ty = 0; applyMapTransform(); }
+    else zoomMapAt(r.width / 2, r.height / 2, z.dataset.mapzoom === 'in' ? 1.4 : 1 / 1.4);
+  });
+  // drag to pan
+  let drag = false, lx = 0, ly = 0, moved = false;
+  box.addEventListener('mousedown', (e) => { if (e.target.closest('[data-mapzoom]')) return; drag = true; moved = false; lx = e.clientX; ly = e.clientY; box.classList.add('grabbing'); });
+  window.addEventListener('mousemove', (e) => {
+    if (!drag) return;
+    if (Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly) > 2) moved = true;
+    mapZoom.tx += e.clientX - lx; mapZoom.ty += e.clientY - ly; lx = e.clientX; ly = e.clientY;
+    clampMapPan(); applyMapTransform();
+  });
+  window.addEventListener('mouseup', () => { drag = false; box.classList.remove('grabbing'); });
+  box.addEventListener('mouseleave', () => { $('#mapTip').hidden = true; });
+})();
 
 function rankBar(frac, color) { return `<span class="rk-track"><span class="rk-fill" style="width:${(Math.max(0.03, frac) * 100).toFixed(1)}%;background:${color}"></span></span>`; }
 function renderRanks(most, longest) {
