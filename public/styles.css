@@ -255,13 +255,15 @@ a:hover { text-decoration: underline; }
 .res-m { color: var(--tx2); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .surf-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
 .dsec-c { border: 1px solid var(--line); border-radius: 9px; margin-bottom: 12px; overflow: hidden; }
-.dsec-c > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 13px; }
+.dsec-c > summary { list-style: none; cursor: pointer; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 11px 13px; }
 .dsec-c > summary::-webkit-details-marker { display: none; }
 .dsec-c > summary:hover { background: var(--bg1); }
-.dsc-t { font-size: 10.5px; letter-spacing: 0.08em; color: var(--tx2); }
+.dsc-t { font-size: 10.5px; letter-spacing: 0.08em; color: var(--tx2); flex: 0 0 auto; white-space: nowrap; }
 .dsc-t::before { content: "▸ "; color: var(--grn); }
 .dsec-c[open] .dsc-t::before { content: "▾ "; }
-.dsc-hint { color: var(--dim); font-size: 10.5px; }
+/* the hint (e.g. a long ports list) takes the remaining width and wraps cleanly
+   instead of squeezing the title or overflowing the card */
+.dsc-hint { color: var(--dim); font-size: 10.5px; min-width: 0; text-align: right; line-height: 1.6; overflow-wrap: anywhere; }
 .dsc-body { padding: 4px 13px 13px; }
 .dsc-copyall { margin-bottom: 8px; }
 .sess-meta { color: var(--tx2); font-size: 11px; margin-bottom: 8px; word-break: break-all; }
@@ -419,10 +421,10 @@ a:hover { text-decoration: underline; }
 .drawer-head h2 { font-size: 16px; color: #eaf1fa; margin: 0; word-break: break-all; }
 .drawer-sub { color: var(--tx2); font-size: 12px; margin: 6px 0 0; }
 .drawer-body { padding: 18px; overflow-y: auto; }
-.facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 18px; }
+.facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
 .fact { background: var(--bg1); border: 1px solid var(--line); border-radius: 8px; padding: 11px 13px; }
 .fact .k { color: var(--tx2); font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; }
-.fact .v { font-size: 14px; margin-top: 4px; color: #eaf1fa; }
+.fact .v { font-size: 14px; margin-top: 4px; color: #eaf1fa; overflow-wrap: anywhere; }
 .mini-copy { background: none; border: 1px solid var(--line2); color: var(--tx2); border-radius: 5px; padding: 3px 8px; font-family: inherit; font-size: 10.5px; cursor: pointer; }
 .mini-copy:hover { color: var(--tx); border-color: var(--grn); }
 .vec-tbl { width: 100%; border-collapse: collapse; }

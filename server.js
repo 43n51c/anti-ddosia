@@ -312,6 +312,11 @@ function buildStats() {
     perFirstDay.set(d, (perFirstDay.get(d) || 0) + 1);
   }
   const waveSince = [...perFirstDay.entries()].sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0]?.[0] || null;
+  // Host rankings are ALL-TIME (a short window makes every host look identical —
+  // 1 day on the list / one short stint / one wave), so compute them over the
+  // full archive here rather than following the period switcher.
+  const hb = dbx.historyBounds();
+  const at = hb.min ? dbx.periodStats(hb.min, hb.max, hb.min + 'T00:00:00.000Z', hb.max + 'T23:59:59.999Z') : { mostTargeted: [], longestAttacks: [], mostWaves: [] };
   statsCache = {
     ok: current.ok, fetchedAt: current.fetchedAt, feedLastModified: current.feedLastModified,
     totals: { targets: t.length, hosts: new Set(t.map((x) => x.host)).size, ips: new Set(t.map((x) => x.ip)).size, countries: new Set(t.map((x) => x.countryCode)).size, newHosts24h: newHosts.length },
@@ -322,6 +327,7 @@ function buildStats() {
     yesterdayCount, waveSince,
     byCountryAllTime: dbx.allCountries().map((c) => ({ key: c.country, code: c.code, count: c.targets, hosts: c.hosts })),
     cumulative: { ...dbx.cumulative(), configs: configsTotal },
+    ranks: { persistent: at.mostTargeted, longest: at.longestAttacks, recurring: at.mostWaves },
   };
   statsCacheVer = dataVersion;
   return statsCache;

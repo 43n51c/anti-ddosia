@@ -167,7 +167,14 @@ function renderDashboard(rows) {
   // BY COUNTRY / ATTACK METHODS bars are period-scoped — rendered by renderPeriodTiles
 
   renderFeed(rows);
-  // TREND stays all-time (a window of 1 day would be a single point); rankings are period-scoped
+  // Host rankings are ALL-TIME (a short window makes them all identical), independent of the period switcher
+  if (s.ranks) {
+    $('#mostWin').textContent = 'all-time';
+    $('#longestWin').textContent = 'all-time';
+    $('#wavesWin').textContent = 'all-time';
+    renderRanks(s.ranks.persistent, s.ranks.longest, s.ranks.recurring);
+  }
+  // TREND stays all-time (a window of 1 day would be a single point)
   $('#trendWin').textContent = 'all-time';
   $('#trendMeta').textContent = s.trendPeak?.day ? `peak ${s.trendPeak.count} · avg ${s.trendAvg}` : '';
   lastTrend = s.trend || [];
@@ -294,11 +301,7 @@ function renderPeriodTiles(p) {
   // period-scoped breakdown bars (share the same one-shot animation)
   bars($('#countryBars'), (p.byCountry || []).slice(0, 8), (r) => `${flag(r.code)} ${esc(r.key)}`, '#34e0d0', animate);
   bars($('#methodBars'), (p.byMethod || []).slice(0, 6), (r) => esc(fmtMethod(r.key)), '#f5b301', animate);
-  // period-scoped rankings
-  $('#mostWin').textContent = winLabel;
-  $('#longestWin').textContent = winLabel;
-  $('#wavesWin').textContent = winLabel;
-  renderRanks(p.mostTargeted, p.longestAttacks, p.mostWaves);
+  // (host rankings are rendered all-time from /api/stats, not per-period)
   if (!animate) return;
   $$('#tiles .tile').forEach((tile) => {
     countUp(tile.querySelector('.v'), Number(tile.querySelector('.v').dataset.val));
@@ -440,12 +443,12 @@ function renderRanks(most, longest, waves) {
   const live = new Set(state.targets.map((t) => t.host));
   const maxS = Math.max(1, ...most.map((r) => r.days));
   $('#mostTargeted').innerHTML = most.length ? most.map((r, i) => `
-    <div class="rk" data-host="${esc(r.host)}" title="on the list ${r.days} day${r.days === 1 ? '' : 's'} in this window">
+    <div class="rk" data-host="${esc(r.host)}" title="on the list ${r.days} day${r.days === 1 ? '' : 's'} all-time">
       <span class="rk-i">${i + 1}</span>
       <span class="rk-h">${live.has(r.host) ? '<span class="rk-live">●</span> ' : ''}${esc(r.host)}</span>
       ${rankBar(r.days / maxS, '#8b5cf6')}
       <span class="rk-v">${r.days}d</span>
-    </div>`).join('') : '<div class="empty">no data in this window</div>';
+    </div>`).join('') : '<div class="empty">no attack history yet</div>';
 
   longest = longest || [];
   const maxD = Math.max(0.01, ...longest.map((r) => r.days));
