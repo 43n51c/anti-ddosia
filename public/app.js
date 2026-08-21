@@ -279,7 +279,7 @@ function renderPeriodTiles(p) {
   $('#methodWin').textContent = winLabel;
   const tiles = [
     { l: 'HOSTS', v: p.hosts, d: 'distinct in window' },
-    { l: 'UNIQUE IPS', v: p.ips, d: 'geo-resolved' },
+    { l: 'UNIQUE IPS', v: p.ips, d: 'behind the hosts' },
     { l: 'COUNTRIES', v: p.countries, d: 'targeted' },
     { l: 'NEW HOSTS', v: p.newHosts, d: 'first appeared' },
     { l: 'PEAK / DAY', v: p.peak.count, d: p.peak.day ? `on ${p.peak.day}` : '' },
