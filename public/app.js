@@ -720,7 +720,7 @@ async function openDrawer(host) {
 }
 function renderSessDetail(d) {
   const paths = d.paths || [], types = d.types || {}, methods = d.methods || [], ips = d.ips || [], ports = d.ports || [];
-  const meta = `<div class="sess-meta">${ips.length ? `<div>IPs: ${ips.map(esc).join(', ')}</div>` : ''}<div>ports ${ports.join(', ') || '—'}</div></div>`;
+  const meta = `<div class="sess-meta">${ips.length ? `<div>IPs: ${ips.map(esc).join(', ')}</div>` : ''}<div>Ports: ${ports.join(', ') || '—'}</div></div>`;
   const pathRows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors in this session</div>';
   const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(fmtMethod(m))}</span>`).join('')}</div>` : '';
   return meta + pathRows + chips;
