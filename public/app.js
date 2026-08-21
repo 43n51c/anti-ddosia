@@ -196,15 +196,19 @@ function renderPulse(T, s) {
   const trajCls = delta > 0 ? 'up' : (delta < 0 ? 'down' : '');
   const last7 = (s.trend || []).slice(-8).map((d) => d.count);
   const cc = s.byCountry.slice(0, 3).map((c) => `${flag(codeFor(c.key))} ${esc(c.key)}`).join('&nbsp; ');
+  const topType = (s.byType || [])[0];
+  const vecPct = topType ? Math.round(topType.count / Math.max(1, T.targets) * 100) : 0;
+  const topMethods = (s.byMethod || []).slice(0, 2).map((m) => m.key).filter(Boolean).join(', ');
   const sigs = [
     { l: 'LIVE NOW', v: `${T.targets}&nbsp;<span class="sig-sub">targets</span>`, d: `${T.hosts} hosts · ${T.ips} IPs · ${T.countries} ${T.countries === 1 ? 'country' : 'countries'}`, vc: '' },
     { l: 'TRAJECTORY', v: `${trajV}&nbsp;<span class="sig-sub">vs yday</span>&nbsp;${miniSpark(last7, 56, 16, delta > 0 ? '#ff5566' : '#3ddc84')}`, d: `${T.targets} now &larr; ${s.yesterdayCount ?? '—'} yesterday`, vc: trajCls },
     { l: 'CURRENT WAVE', v: s.waveSince ? `<span class="dur" data-since="${dayIso(s.waveSince)}"></span>` : '—', d: `since ${s.waveSince || '—'}${cc ? ' · ' + cc : ''}` },
+    { l: 'TOP VECTOR', v: topType ? esc(topType.key) : '—', d: topType ? `${vecPct}% of vectors${topMethods ? ' · ' + topMethods : ''}` : '' },
     { l: 'HOT TARGET', v: hot ? esc(hot.host) : '—', d: hot ? `${hot.targetCount} vectors · ${Object.keys(hot.types).join('/')}` : '' },
   ];
   el.hidden = false;
   el.innerHTML = `
-    <div class="pulse-h"><span class="pulse-dot"></span> PULSE <span class="pulse-tag">last 24h</span><span class="pulse-upd mono">updated ${timeAgo(s.fetchedAt)} ago</span></div>
+    <div class="pulse-h"><span class="pulse-dot"></span> SITREP <span class="pulse-tag">live</span><span class="pulse-upd mono">updated ${timeAgo(s.fetchedAt)} ago</span></div>
     <div class="pulse-grid">${sigs.map((x) => `<div class="sig"><div class="sig-l">${x.l}</div><div class="sig-v ${x.vc || ''}">${x.v}</div><div class="sig-d">${x.d}</div></div>`).join('')}</div>`;
 }
 
