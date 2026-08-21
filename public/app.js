@@ -348,17 +348,9 @@ function renderMap(data) {
     const uaPath = world.byCode.get('UA'), ub = world.bounds.UA;
     if (uaPath && ub) {
       const w = ub.x1 - ub.x0;
-      // soft blue→amber gradient in the project's palette (no hard seam)
-      overlay += `<defs>
-          <clipPath id="uaClip"><path d="${uaPath}"/></clipPath>
-          <linearGradient id="uaFlag" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#4d9dff" stop-opacity="0.34"/>
-            <stop offset="47%" stop-color="#4d9dff" stop-opacity="0.24"/>
-            <stop offset="53%" stop-color="#f5b301" stop-opacity="0.20"/>
-            <stop offset="100%" stop-color="#f5b301" stop-opacity="0.28"/>
-          </linearGradient>
-        </defs>
-        <rect x="${ub.x0}" y="${ub.y0}" width="${w}" height="${ub.y1 - ub.y0}" fill="url(#uaFlag)" clip-path="url(#uaClip)"/>
+      // the real Ukrainian flag, clipped to the country outline, softened to fit the theme
+      overlay += `<defs><clipPath id="uaClip"><path d="${uaPath}"/></clipPath></defs>
+        <image href="/flags/ua.svg" x="${ub.x0}" y="${ub.y0}" width="${w}" height="${ub.y1 - ub.y0}" preserveAspectRatio="none" clip-path="url(#uaClip)" opacity="0.72"/>
         <path d="${uaPath}" fill="none" stroke="#43648f" stroke-width="0.5" opacity="0.7"/>`;
     }
     // anchor over the middle of Russia's Eurasian landmass (computed at load)
