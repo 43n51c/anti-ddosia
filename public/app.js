@@ -44,13 +44,14 @@ async function loadWorld() {
       const b = bnds[f.c] || { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 };
       const walk = (a) => { if (typeof a[0] === 'number') { const x = (a[0] + 180) / 360 * MAP_W, y = (90 - a[1]) / 180 * MAP_H; if (x < b.x0) b.x0 = x; if (x > b.x1) b.x1 = x; if (y < b.y0) b.y0 = y; if (y > b.y1) b.y1 = y; } else a.forEach(walk); };
       walk(f.g.coordinates); bnds[f.c] = b;
-      // Russia's bbox wraps the antimeridian; anchor its label at the mean of the
-      // Eurasian-landmass vertices (lon 20..180) so it sits mid-territory
+      // Russia's bbox wraps the antimeridian; anchor its label at the centre of
+      // the mainland's on-screen box (lon 20..180, lat ≤ 78 to drop the Arctic
+      // islands that would pull it north) so it sits visually mid-territory.
       if (f.c === 'RU') {
-        let sx = 0, sy = 0, nn = 0;
-        const acc = (a) => { if (typeof a[0] === 'number') { if (a[0] >= 20 && a[0] <= 180) { sx += a[0]; sy += a[1]; nn++; } } else a.forEach(acc); };
+        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+        const acc = (a) => { if (typeof a[0] === 'number') { if (a[0] >= 20 && a[0] <= 180 && a[1] <= 78) { const x = (a[0] + 180) / 360 * MAP_W, y = (90 - a[1]) / 180 * MAP_H; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } } else a.forEach(acc); };
         acc(f.g.coordinates);
-        if (nn) world.ruAnchor = { x: ((sx / nn) + 180) / 360 * MAP_W, y: (90 - sy / nn) / 180 * MAP_H };
+        if (x1 > x0) world.ruAnchor = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
       }
     }
     world.bounds = bnds;
@@ -371,8 +372,8 @@ function renderMap(data) {
         <path d="${uaPath}" fill="none" stroke="#43648f" stroke-width="0.5" opacity="0.7"/>`;
     }
     // anchor over the middle of Russia's Eurasian landmass (computed at load)
-    const ra = world.ruAnchor || { x: 760, y: 96 };
-    overlay += `<text x="${ra.x.toFixed(1)}" y="${ra.y.toFixed(1)}" text-anchor="middle" fill="#ff5566" font-weight="700" font-size="12" font-family="JetBrains Mono, monospace" opacity="0.9">#russiaisaterroriststate</text>`;
+    const ra = world.ruAnchor || { x: 778, y: 86 };
+    overlay += `<a href="https://x.com/hashtag/RussiaIsATerroristState" target="_blank" rel="noopener noreferrer"><text x="${ra.x.toFixed(1)}" y="${ra.y.toFixed(1)}" text-anchor="middle" fill="#ff5566" font-weight="700" font-size="12" font-family="JetBrains Mono, monospace" opacity="0.9" style="cursor:pointer">#RussiaIsATerroristState</text></a>`;
   }
   const y0 = (90 - 84) / 180 * H, y1 = (90 - -58) / 180 * H;
   mapBase = { x: 0, y: y0, w: W, h: y1 - y0 };
