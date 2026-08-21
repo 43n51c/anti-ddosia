@@ -198,8 +198,10 @@ const S = {
   asClear: db.prepare('DELETE FROM attack_session'),
   asMost: db.prepare('SELECT host, COUNT(*) sessions, MAX(COALESCE(ended,last_seen)) last_seen, SUM(ended IS NULL) active FROM attack_session GROUP BY host ORDER BY sessions DESC, last_seen DESC LIMIT ?'),
   asLongest: db.prepare("SELECT host, started, ended, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session ORDER BY days DESC LIMIT ?"),
-  // windowed: longest stints overlapping [fromIso, toIso]  (started <= to AND end >= from)
-  asLongestWin: db.prepare("SELECT host, started, ended, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session WHERE started <= ? AND COALESCE(ended,'9999-12-31T23:59:59Z') >= ? ORDER BY days DESC LIMIT ?"),
+  // windowed: each host's single longest stint overlapping [fromIso, toIso] (started <= to AND end >= from).
+  // GROUP BY host so a host with several long stints takes one slot (matching the per-host "most targeted" list);
+  // SQLite carries the bare started/ended from the MAX(days) row.
+  asLongestWin: db.prepare("SELECT host, started, ended, MAX(julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session WHERE started <= ? AND COALESCE(ended,'9999-12-31T23:59:59Z') >= ? GROUP BY host ORDER BY days DESC LIMIT ?"),
   asByHost: db.prepare("SELECT started, ended, last_seen, (julianday(COALESCE(ended,'now')) - julianday(started)) days FROM attack_session WHERE host = ? ORDER BY started DESC LIMIT ?"),
   asAll: (() => {
     const cols = "a.host host, MAX(hc.code) code, MAX(hc.country) country, COUNT(*) sessions, MAX(COALESCE(a.ended,a.last_seen)) last, SUM(julianday(COALESCE(a.ended,'now'))-julianday(a.started)) total, MAX(julianday(COALESCE(a.ended,'now'))-julianday(a.started)) longest, SUM(a.ended IS NULL) active";
