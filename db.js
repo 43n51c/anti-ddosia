@@ -27,6 +27,10 @@ export function closeDb() {
   try { db.close(); } catch { /* already closed */ }
 }
 
+// Consistent single-file snapshot (reads a transaction, safe under concurrent
+// writes; excludes the WAL side-file). `file` must be an absolute path.
+export function backupTo(file) { db.exec(`VACUUM INTO '${String(file).replace(/'/g, "''")}'`); }
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS geoip (
   ip TEXT PRIMARY KEY, country TEXT, country_code TEXT, city TEXT,

@@ -40,10 +40,19 @@ daily trend are reconstructed exactly as published.
 **You don't need to run anything.** On first boot with an empty DB the app builds
 the entire archive in the background, then rebuilds it every `BACKFILL_HOURS`
 (default 24). That daily rebuild is the self-healing mechanism: any gap left by
-downtime or a source outage is filled from the archive over time. A built-in
-guard refuses to apply a rebuild that came back drastically smaller than what's
-already stored (e.g. the source was unreachable), so a bad fetch never wipes good
-data. Set `AUTO_BACKFILL=0` to turn this off and drive it yourself:
+downtime or a source outage is filled from the archive over time. Details that
+make it production-safe:
+
+- **Runs in a child process** so the CPU-heavy rebuild never blocks the web
+  server's event loop — the dashboard stays responsive throughout.
+- **Incremental downloads.** Archived snapshots are immutable, so each config
+  body is cached under `data/archive-cache`; a rebuild only downloads *new*
+  files (a warm rebuild is seconds, not minutes).
+- **Wipe guard.** It refuses to apply a rebuild that came back drastically
+  smaller than what's already stored (e.g. the source was unreachable), so a
+  bad fetch never blanks good data.
+
+Set `AUTO_BACKFILL=0` to turn this off and drive it yourself:
 
 ```bash
 node backfill.js          # backfill 2026 (the default)
@@ -53,8 +62,18 @@ node backfill.js all      # the entire archive (2023-06 → today)
 docker compose exec anti-ddosia node backfill.js all
 ```
 
-The full archive is ~4200 snapshots and takes a few minutes; state persists in
-`./data` (bind-mounted), shared between host runs and the container.
+The full archive is ~4200 snapshots and takes a few minutes on a cold cache
+(seconds warm); state persists in `./data` (bind-mounted), shared between host
+runs and the container.
+
+### Backups
+
+The app writes a consistent single-file snapshot of the SQLite DB (via
+`VACUUM INTO`, safe under concurrent writes) to `data/backups` on boot and every
+`BACKUP_HOURS` (default 24), keeping the newest `BACKUP_KEEP` (default 7). Set
+`BACKUP_ENABLED=0` to disable. To restore, stop the app and copy a
+`data/backups/ddosia-*.db` over `data/ddosia.db` (and delete any stale
+`ddosia.db-wal` / `-shm`).
 
 ### Health checks (for orchestrators / load balancers)
 

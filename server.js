@@ -7,6 +7,8 @@
 
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep } from 'node:path';
 import * as dbx from './db.js';
@@ -14,7 +16,6 @@ import * as auth from './auth.js';
 import * as oauth from './oauth.js';
 import { deliverAlert, emailConfigured, webhookUrlIssue } from './notify.js';
 import { parseAsset, hostMatchesAsset } from './match.js';
-import { runBackfill } from './backfill.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, 'public');
@@ -28,7 +29,13 @@ const CONFIG = {
   // on a slow cadence, so gaps from downtime/source-outages backfill over time.
   autoBackfill: process.env.AUTO_BACKFILL !== '0',
   backfillMs: Math.max(1, Number(process.env.BACKFILL_HOURS) || 24) * 3600 * 1000,
+  // Periodic consistent snapshot of the SQLite DB, keeping the last N.
+  backup: process.env.BACKUP_ENABLED !== '0',
+  backupMs: Math.max(1, Number(process.env.BACKUP_HOURS) || 24) * 3600 * 1000,
+  backupKeep: Math.max(1, Number(process.env.BACKUP_KEEP) || 7),
+  backupDir: process.env.BACKUP_DIR || join(__dirname, 'data', 'backups'),
 };
+const BACKFILL_SCRIPT = join(__dirname, 'backfill.js');
 
 // Only one writer touches the ingest tables at a time: the minute poll and the
 // (long) backfill must never interleave their writes.
@@ -172,22 +179,50 @@ async function poll() {
 }
 
 // ---------- history backfill (self-healing) ----------
-// Rebuild history/sessions from the archive. Runs on first boot (empty DB) and
-// on a slow cadence so downtime/source-outage gaps fill in over time. The
-// backfill's own guard refuses to apply a drastically-shrunken (degraded) fetch.
-async function backfillNow(reason) {
-  if (ingestBusy) { console.log(`[backfill] skipped (${reason}) — ingest busy`); return; }
-  ingestBusy = true;
-  const t0 = Date.now();
+// Runs on first boot (empty DB) and on a slow cadence so downtime/source-outage
+// gaps fill in over time. The backfill downloads only NEW archived configs (the
+// rest come from its on-disk cache) and its own guard refuses to apply a
+// drastically-shrunken (degraded) fetch. It runs in a CHILD PROCESS so its
+// CPU-heavy synchronous rebuild never blocks this server's event loop; the
+// ingest mutex is held for its whole lifetime so the poll won't write meanwhile.
+function backfillNow(reason) {
+  return new Promise((resolve) => {
+    if (ingestBusy) { console.log(`[backfill] skipped (${reason}) — ingest busy`); return resolve(); }
+    ingestBusy = true;
+    const t0 = Date.now();
+    console.log(`[backfill] start (${reason}) → child process`);
+    let child;
+    try {
+      child = spawn(process.execPath, [BACKFILL_SCRIPT, 'all'], { stdio: 'inherit', env: process.env });
+    } catch (e) {
+      console.error('[backfill] spawn failed:', e.message, '— existing data kept');
+      ingestBusy = false; return resolve();
+    }
+    let done = false;
+    const finish = (msg, level = 'log') => { if (done) return; done = true; if (msg) console[level]('[backfill]', msg); ingestBusy = false; resolve(); };
+    child.on('error', (e) => finish(`child error: ${e.message} — existing data kept`, 'error'));
+    child.on('exit', (code) => {
+      if (code === 0) { dataVersion++; finish(`applied (${reason}) in ${Math.round((Date.now() - t0) / 1000)}s`); }
+      else if (code === 2) finish('not applied (source degraded) — existing data kept', 'warn');
+      else finish(`child exited ${code} — existing data kept`, 'error');
+    });
+  });
+}
+
+// ---------- periodic backups (consistent SQLite snapshot, keep last N) ----------
+function backupNow() {
   try {
-    console.log(`[backfill] start (${reason})`);
-    const r = await runBackfill('all', { log: (m) => console.log('[backfill]', m) });
-    if (r && r.aborted) console.warn(`[backfill] not applied (${r.reason}) — existing data kept`);
-    else { dataVersion++; console.log(`[backfill] applied (${reason}) in ${Math.round((Date.now() - t0) / 1000)}s`); }
+    if (!existsSync(CONFIG.backupDir)) mkdirSync(CONFIG.backupDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const dest = join(CONFIG.backupDir, `ddosia-${stamp}.db`);
+    dbx.backupTo(dest); // VACUUM INTO — consistent single-file copy, safe under concurrent writes
+    const keep = readdirSync(CONFIG.backupDir).filter((f) => /^ddosia-.*\.db$/.test(f)).sort();
+    for (const old of keep.slice(0, Math.max(0, keep.length - CONFIG.backupKeep))) {
+      try { rmSync(join(CONFIG.backupDir, old)); } catch { /* ignore */ }
+    }
+    console.log(`[backup] wrote ${dest} (keeping last ${CONFIG.backupKeep})`);
   } catch (e) {
-    console.error('[backfill] failed:', e.message, '— existing data kept');
-  } finally {
-    ingestBusy = false;
+    console.error('[backup] failed:', e.message);
   }
 }
 
@@ -538,7 +573,8 @@ const server = http.createServer(async (req, res) => {
 if (!process.env.NO_LISTEN) {
   server.listen(CONFIG.port, () => {
     console.log(`anti-DDoSia running → http://localhost:${CONFIG.port}`);
-    console.log(`feed: ${CONFIG.feedUrl}  poll: every ${CONFIG.pollMs / 60000} min  email: ${emailConfigured() ? 'configured' : 'off'}  auto-backfill: ${CONFIG.autoBackfill ? `every ${CONFIG.backfillMs / 3600000}h` : 'off'}`);
+    console.log(`feed: ${CONFIG.feedUrl}  poll: every ${CONFIG.pollMs / 60000} min  email: ${emailConfigured() ? 'configured' : 'off'}`);
+    console.log(`auto-backfill: ${CONFIG.autoBackfill ? `every ${CONFIG.backfillMs / 3600000}h` : 'off'}  backups: ${CONFIG.backup ? `every ${CONFIG.backupMs / 3600000}h, keep ${CONFIG.backupKeep}` : 'off'}`);
     dbx.gcSessions(new Date().toISOString());
     refreshConfigCount();
     setInterval(refreshConfigCount, 6 * 3600 * 1000);
@@ -556,6 +592,12 @@ if (!process.env.NO_LISTEN) {
     }
     setInterval(poll, CONFIG.pollMs);
     if (CONFIG.autoBackfill) setInterval(() => backfillNow('scheduled'), CONFIG.backfillMs);
+
+    // Periodic consistent snapshots (skip the empty-DB first-boot window).
+    if (CONFIG.backup) {
+      if (!historyEmpty) backupNow();
+      setInterval(backupNow, CONFIG.backupMs);
+    }
   });
 
   // Graceful shutdown: stop accepting, fold the WAL back, close cleanly.
