@@ -382,9 +382,11 @@ function renderOpsFeed(rows) {
   markSort('#opsFeed', state.fSortKey, state.fSortDir);
 }
 
+let lastTrend = [];
 function renderTrend(el, trend, animate) {
+  lastTrend = trend;
   if (!trend.length) { el.innerHTML = '<div class="empty">no history in this window…</div>'; return; }
-  const W = 620, H = 150, pad = 30, bot = 22;
+  const W = Math.round(el.clientWidth) || 900, H = 180, pad = 30, bot = 22;
   const max = Math.max(...trend.map((d) => d.count)) * 1.12 || 1;
   const many = trend.length > 40;
   const x = (i) => pad + (i / Math.max(1, trend.length - 1)) * (W - pad * 2);
@@ -402,7 +404,7 @@ function renderTrend(el, trend, animate) {
   const peak = trend.reduce((m, d) => (d.count > m.count ? d : m), trend[0]);
   const px = x(trend.indexOf(peak));
   trendGeom = { W, H, pad, bot, n: trend.length, trend, xAt: x, yAt: y };
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" preserveAspectRatio="none">
     <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3ddc84" stop-opacity="0.28"/><stop offset="100%" stop-color="#3ddc84" stop-opacity="0"/></linearGradient></defs>
     ${yt}${xl}
     <polygon points="${area}" fill="url(#tg)"/>
@@ -923,6 +925,8 @@ $('#periodApply').addEventListener('click', () => {
     const c = svg.querySelector('#tCross'), d = svg.querySelector('#tDot');
     if (c) c.setAttribute('opacity', '0'); if (d) d.setAttribute('opacity', '0');
   });
+  // re-fit the trend to the container width on resize (keeps it crisp, height fixed)
+  let rzT; window.addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => { if (state.view === 'ops' && lastTrend.length) renderTrend(chart, lastTrend, false); }, 160); });
 })();
 $('.sortbar').addEventListener('click', (e) => { const p = e.target.closest('.pill'); if (!p) return; state.hSort = p.dataset.hsort; $$('.sortbar .pill').forEach((x) => x.classList.toggle('active', x === p)); render(); });
 $$('#targetsTable thead th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.sort; if (!k) return; if (state.tSortKey === k) state.tSortDir = state.tSortDir === 'asc' ? 'desc' : 'asc'; else { state.tSortKey = k; state.tSortDir = 'asc'; } render(); }));
