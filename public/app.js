@@ -102,7 +102,7 @@ async function load() {
   } catch (e) { setStatus(false, { error: e.message }); }
 }
 function setStatus(ok, meta) { $('#statusDot').className = 'dot ' + (ok ? 'ok' : 'err'); $('#statusText').textContent = ok ? `live · ${timeAgo(meta.fetchedAt)} ago` : 'feed error'; }
-function tick() { const d = new Date(); $('#clock').textContent = d.toISOString().slice(0, 16).replace('T', ' ') + 'Z'; tickDurations(); }
+function tick() { tickDurations(); }
 
 // ---------- filtering ----------
 function filtered() {
@@ -788,7 +788,7 @@ async function loadMe() {
 function renderAccount() {
   const on = !!account.user;
   $('#signinBtn').hidden = on; $('#acctWrap').hidden = !on; $('#bellWrap').hidden = !on;
-  if (on) { $('#acctAvatar').textContent = account.user.email[0] || '?'; $('#acctEmail').textContent = account.user.email; const b = $('#bellBadge'); b.hidden = !account.unseen; b.textContent = account.unseen; }
+  if (on) { $('#acctAvatar').textContent = account.user.email[0] || '?'; $('#acctBtnEmail').textContent = account.user.email; $('#acctEmail').textContent = account.user.email; const b = $('#bellBadge'); b.hidden = !account.unseen; b.textContent = account.unseen; }
   const nb = $('#badgeAlerts'); nb.hidden = !(on && account.unseen); nb.textContent = account.unseen;
 }
 let authMode = 'login';

@@ -25,8 +25,27 @@
       <button class="nav-item" data-view="alerts" data-auth="1"><span class="k">05</span> ALERTS <b class="nb alert" id="badgeAlerts" hidden></b></button>
     </nav>
     <div class="rail-foot">
-      <div class="stat-line"><span class="dot" id="statusDot"></span><span id="statusText">connecting…</span></div>
-      <div class="src">src: <a href="https://witha.name/data/last.json" target="_blank" rel="noopener">last.json</a></div>
+      <div class="rail-acct">
+        <button class="signin" id="signinBtn">SIGN IN</button>
+        <div class="menu" id="acctWrap" hidden>
+          <button class="acct-row" id="acctBtn">
+            <span class="acct-av" id="acctAvatar">?</span>
+            <span class="acct-em mono" id="acctBtnEmail"></span>
+            <span class="acct-caret">▴</span>
+          </button>
+          <div class="menu-list up" id="acctMenu" hidden>
+            <div class="acct-email mono" id="acctEmail"></div>
+            <button data-view="assets">my assets</button>
+            <button data-view="alerts">alerts</button>
+            <button id="settingsBtn">notification settings</button>
+            <button id="logoutBtn">log out</button>
+          </div>
+        </div>
+      </div>
+      <div class="rail-sys">
+        <div class="stat-line"><span class="dot" id="statusDot"></span><span id="statusText">connecting…</span></div>
+        <div class="src">src: <a href="https://witha.name/data/last.json" target="_blank" rel="noopener">last.json</a></div>
+      </div>
     </div>
   </aside>
 
@@ -34,7 +53,6 @@
   <div class="main">
     <!-- command bar -->
     <header class="cmdbar">
-      <div class="feedstat mono"><span class="lbl">FEED</span> last.json <span class="sep">·</span> <span id="clock">—</span></div>
       <div class="search-wrap">
         <span class="sp">/</span>
         <input type="search" id="search" placeholder="grep host, ip, path, org, country" autocomplete="off" />
@@ -58,17 +76,6 @@
             <div class="bell-head">ALERTS <button class="lnk" id="bellSeen">mark read</button></div>
             <div id="bellList" class="bell-list"></div>
             <button class="bell-all" data-view="alerts">view all →</button>
-          </div>
-        </div>
-        <button class="signin" id="signinBtn">SIGN IN</button>
-        <div class="menu" id="acctWrap" hidden>
-          <button class="acct" id="acctBtn"><span id="acctAvatar">?</span></button>
-          <div class="menu-list" id="acctMenu" hidden>
-            <div class="acct-email mono" id="acctEmail"></div>
-            <button data-view="assets">my assets</button>
-            <button data-view="alerts">alerts</button>
-            <button id="settingsBtn">notification settings</button>
-            <button id="logoutBtn">log out</button>
           </div>
         </div>
       </div>
