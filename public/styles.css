@@ -215,6 +215,7 @@ a:hover { text-decoration: underline; }
 .map-box { position: relative; }
 .map { width: 100%; border-radius: 8px; overflow: hidden; background: #070c14; }
 .map svg { display: block; width: 100%; height: auto; }
+.map-note { margin-top: 9px; color: var(--dim); font-size: 10px; line-height: 1.4; }
 .map .mk:hover ~ * { }
 .map-tip { position: absolute; z-index: 20; pointer-events: none; background: #0a1119; border: 1px solid var(--line2); border-radius: 8px; padding: 9px 11px; box-shadow: 0 10px 30px rgba(0,0,0,.55); min-width: 150px; transform: translate(-50%, calc(-100% - 12px)); }
 .map-tip .tt-h { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #eaf1fa; }

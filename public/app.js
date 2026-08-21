@@ -145,7 +145,7 @@ function renderOps(rows) {
   loadPeriod(); // period-windowed metric tiles (async)
 
   renderMap(s.byCountry); // map always shows current attacks (live)
-  $('#mapMeta').textContent = `${T.countries} ${T.countries === 1 ? 'country' : 'countries'} · ${T.hosts} hosts now`;
+  $('#mapMeta').textContent = `${T.countries} ${T.countries === 1 ? 'country' : 'countries'} · ${T.hosts} distinct hosts now`;
   // BY COUNTRY / ATTACK METHODS bars are period-scoped — rendered by renderPeriodTiles
 
   renderOpsFeed(rows);
@@ -297,16 +297,10 @@ function renderMap(data) {
   const W = MAP_W, H = MAP_H;
   const proj = (lng, lat) => [(lng + 180) / 360 * W, (90 - lat) / 180 * H];
   // markers are sized/labelled by HOST count per country (target-requests go in the tooltip)
-  // assign each host to its dominant country so per-country marker counts sum to
-  // the distinct total ("N hosts now") — a host with IPs in 2 countries lands in one
-  const hostCC = {};
-  for (const t of state.targets) { (hostCC[t.host] ||= {})[t.countryCode] = (hostCC[t.host][t.countryCode] || 0) + 1; }
+  // per-country host counts (truthful geography): a host hosted in several
+  // countries is counted in each, so markers can exceed the distinct total
   const hostsBy = {};
-  for (const [host, ccs] of Object.entries(hostCC)) {
-    let best = null, bn = -1;
-    for (const [cc, n] of Object.entries(ccs)) if (n > bn) { best = cc; bn = n; }
-    (hostsBy[best] ||= new Set()).add(host);
-  }
+  for (const t of state.targets) { (hostsBy[t.countryCode] ||= new Set()).add(t.host); }
   const codes = data.map((c) => [codeOf(c), c]).filter(([cc]) => cc && cc !== 'XX');
   const hostsOf = (cc) => (hostsBy[cc] ? hostsBy[cc].size : (data.find((c) => codeOf(c) === cc)?.hosts || 0));
   const max = Math.max(1, ...codes.map(([cc]) => hostsOf(cc)));
