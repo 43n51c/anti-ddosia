@@ -612,7 +612,8 @@ function closeDrawer() { $('#drawer').hidden = true; $('#drawerOverlay').hidden 
 
 // ---------- export ----------
 function exportData(kind) {
-  const rows = filtered();
+  // OPS shows the full current list; the FEED view exports the filtered slice
+  const rows = state.view === 'targets' ? filtered() : state.targets;
   if (kind === 'json') download('ddosia-targets.json', JSON.stringify(rows, null, 2), 'application/json');
   else if (kind === 'csv') { const cols = ['host', 'ip', 'country', 'city', 'org', 'type', 'method', 'port', 'use_ssl', 'path']; const e = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`; download('ddosia-targets.csv', [cols.join(','), ...rows.map((r) => cols.map((c) => e(r[c])).join(','))].join('\n'), 'text/csv'); }
   else if (kind === 'ips') copy([...new Set(rows.map((r) => r.ip).filter(Boolean))].join('\n'), 'IPs');

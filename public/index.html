@@ -131,11 +131,6 @@
       <div class="pnl trend-pnl">
         <div class="pnl-h">
           <span>TREND <span class="pnl-win" id="trendWin"></span> <span class="mono" id="trendMeta"></span></span>
-          <div class="iocs">
-            <button class="ioc" data-export="ips">IPs <b id="iocIps">0</b> <span class="cp">copy</span></button>
-            <button class="ioc" data-export="paths">Paths <b id="iocPaths">0</b> <span class="cp">copy</span></button>
-            <button class="ioc" data-export="csv">CSV <span class="cp">download</span></button>
-          </div>
         </div>
         <div class="trend-box">
           <div id="trendChart" class="trend"></div>
@@ -164,7 +159,14 @@
       <!-- feed -->
       <div class="grid-feed">
         <div class="pnl feed-pnl">
-          <div class="pnl-h"><span>LIVE TARGET FEED</span><span class="mono">vectors ↓ · click to inspect</span></div>
+          <div class="pnl-h">
+            <span>LIVE TARGET FEED</span>
+            <div class="iocs">
+              <button class="ioc" data-export="ips">IPs <b id="iocIps">0</b> <span class="cp">copy</span></button>
+              <button class="ioc" data-export="paths">Paths <b id="iocPaths">0</b> <span class="cp">copy</span></button>
+              <button class="ioc" data-export="csv">CSV <span class="cp">download</span></button>
+            </div>
+          </div>
           <div class="tbl-wrap"><table class="tbl" id="opsFeed"><thead><tr>
             <th data-sort="host">host</th><th data-sort="country">loc</th><th data-sort="targetCount">vec</th><th>types</th><th>ports</th><th data-sort="firstSeen">targeted for</th>
           </tr></thead><tbody id="opsFeedBody"></tbody></table></div>

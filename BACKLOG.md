@@ -2,6 +2,19 @@
 
 ## Feature ideas (research)
 
+- [ ] **Quick-copy / export everywhere.** The one-click "copy IPs / paths / CSV"
+  on the target list is handy — reuse the pattern in more places:
+  - *Host drawer:* "copy all IPs / all paths of this host" at the top (today
+    copy exists only inside each per-IP section).
+  - *HOSTS view:* copy the currently filtered host list.
+  - *CHECK result* ("is my asset a target?"): copy the matched host / IPs / paths.
+  - *Cabinet alerts:* copy the matched asset's IPs / paths from an alert.
+  - *Country/method drill:* "copy the hosts in this country / by this method".
+  Factor a small reusable copy-control component; keep the framing as
+  "export/share the target data", not "block" (these are victims, not attacker
+  infra).
+
+
 - [ ] **Threat-intel news feed about the group.** Aggregate recent public
   reporting on NoName057(16) / the DDoSia Project into a panel (or a dedicated
   view), so a defender gets context alongside the target data.
