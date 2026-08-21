@@ -45,6 +45,14 @@ async function loadWorld() {
       const b = bnds[f.c] || { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 };
       const walk = (a) => { if (typeof a[0] === 'number') { const x = (a[0] + 180) / 360 * MAP_W, y = (90 - a[1]) / 180 * MAP_H; if (x < b.x0) b.x0 = x; if (x > b.x1) b.x1 = x; if (y < b.y0) b.y0 = y; if (y > b.y1) b.y1 = y; } else a.forEach(walk); };
       walk(f.g.coordinates); bnds[f.c] = b;
+      // Russia's bbox wraps the antimeridian; anchor its label at the mean of the
+      // Eurasian-landmass vertices (lon 20..180) so it sits mid-territory
+      if (f.c === 'RU') {
+        let sx = 0, sy = 0, nn = 0;
+        const acc = (a) => { if (typeof a[0] === 'number') { if (a[0] >= 20 && a[0] <= 180) { sx += a[0]; sy += a[1]; nn++; } } else a.forEach(acc); };
+        acc(f.g.coordinates);
+        if (nn) world.ruAnchor = { x: ((sx / nn) + 180) / 360 * MAP_W, y: (90 - sy / nn) / 180 * MAP_H };
+      }
     }
     world.bounds = bnds;
     world.all = all; world.loaded = true;
@@ -340,14 +348,17 @@ function renderMap(data) {
     const uaPath = world.byCode.get('UA'), ub = world.bounds.UA;
     if (uaPath && ub) {
       const mid = (ub.y0 + ub.y1) / 2, w = ub.x1 - ub.x0;
+      // subtle two-tone tint in the project's palette (like the red attacked-country highlight)
       overlay += `<defs><clipPath id="uaClip"><path d="${uaPath}"/></clipPath></defs>
-        <g clip-path="url(#uaClip)" opacity="0.85">
-          <rect x="${ub.x0}" y="${ub.y0}" width="${w}" height="${mid - ub.y0}" fill="#0057B7"/>
-          <rect x="${ub.x0}" y="${mid}" width="${w}" height="${ub.y1 - mid}" fill="#FFD700"/>
-        </g>`;
+        <g clip-path="url(#uaClip)">
+          <rect x="${ub.x0}" y="${ub.y0}" width="${w}" height="${mid - ub.y0}" fill="rgba(77,157,255,0.26)"/>
+          <rect x="${ub.x0}" y="${mid}" width="${w}" height="${ub.y1 - mid}" fill="rgba(245,179,1,0.20)"/>
+        </g>
+        <path d="${uaPath}" fill="none" stroke="#3a5b8a" stroke-width="0.5"/>`;
     }
-    // Russia bbox wraps the antimeridian, so anchor the label at a fixed spot over central Russia
-    overlay += `<text x="760" y="96" text-anchor="middle" fill="#ff6b76" font-weight="700" font-size="12" font-family="JetBrains Mono, monospace" opacity="0.92">#russiaisaterroriststate</text>`;
+    // anchor over the middle of Russia's Eurasian landmass (computed at load)
+    const ra = world.ruAnchor || { x: 760, y: 96 };
+    overlay += `<text x="${ra.x.toFixed(1)}" y="${ra.y.toFixed(1)}" text-anchor="middle" fill="#ff5566" font-weight="700" font-size="12" font-family="JetBrains Mono, monospace" opacity="0.9">#russiaisaterroriststate</text>`;
   }
   const y0 = (90 - 84) / 180 * H, y1 = (90 - -58) / 180 * H;
   mapBase = { x: 0, y: y0, w: W, h: y1 - y0 };
