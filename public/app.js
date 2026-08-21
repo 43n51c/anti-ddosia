@@ -2,7 +2,6 @@
 'use strict';
 const REFRESH_MS = 60_000;
 const DAY = 24 * 3600 * 1000;
-const TYPE_COLORS = { http: '#4d9dff', http2: '#5b8def', http3: '#7f7fe0', tcp: '#f5b301', udp: '#f5b301', nginx_loris: '#ff5566' };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // country centroids [lng, lat] for the map
@@ -61,7 +60,7 @@ async function loadWorld() {
 }
 
 let trendGeom = null;
-const state = { targets: [], stats: null, view: 'dashboard', geoMode: 'live', hostsMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterMethod: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
+const state = { targets: [], stats: null, view: 'dashboard', hostsMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterMethod: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
 
 // ---------- helpers ----------
 const $ = (s) => document.querySelector(s);
@@ -145,7 +144,7 @@ function render() {
   $('#searchClear').hidden = !state.search;
   // type/country/port/new filter the target/host LIST — only shown where a
   // filtered list is the main content (FEED + live HOSTS), like the grep box.
-  // OPS is a holistic overview, so it ignores these and shows the full snapshot.
+  // the DASHBOARD is a holistic overview, so it ignores these and shows the full snapshot.
   const liveFilterView = (state.view === 'targets' || (state.view === 'hosts' && state.hostsMode === 'live'));
   $('#toolbar').style.display = liveFilterView ? '' : 'none';
   $('.search-wrap').style.display = (state.view === 'hosts' || state.view === 'targets') ? '' : 'none';
@@ -167,7 +166,7 @@ function renderDashboard(rows) {
   $('#mapMeta').textContent = `${T.countries} ${T.countries === 1 ? 'country' : 'countries'} · ${T.hosts} distinct hosts now`;
   // BY COUNTRY / ATTACK METHODS bars are period-scoped — rendered by renderPeriodTiles
 
-  renderOpsFeed(rows);
+  renderFeed(rows);
   // TREND stays all-time (a window of 1 day would be a single point); rankings are period-scoped
   $('#trendWin').textContent = 'all-time';
   $('#trendMeta').textContent = s.trendPeak?.day ? `peak ${s.trendPeak.count} · avg ${s.trendAvg}` : '';
@@ -459,7 +458,7 @@ function renderRanks(most, longest) {
   tickDurations();
 }
 
-function renderOpsFeed(rows) {
+function renderFeed(rows) {
   let hosts = groupHosts(rows);
   const { fSortKey: k, fSortDir: dir } = state;
   hosts.sort((a, b) => {
@@ -486,7 +485,7 @@ function renderOpsFeed(rows) {
 }
 
 let lastTrend = [];
-function renderTrend(el, trend, animate) {
+function renderTrend(el, trend) {
   lastTrend = trend;
   if (!trend.length) { el.innerHTML = '<div class="empty">no history in this window…</div>'; return; }
   const W = Math.round(el.clientWidth) || 900, H = 180, pad = 30, bot = 22;
@@ -515,7 +514,6 @@ function renderTrend(el, trend, animate) {
     <line id="tCross" x1="0" y1="${pad - 6}" x2="0" y2="${H - bot}" stroke="#3ddc84" stroke-width="0.8" stroke-dasharray="2 3" opacity="0" pointer-events="none"/>
     <circle id="tDot" r="3.2" fill="#3ddc84" stroke="#0a0f16" stroke-width="1" opacity="0" pointer-events="none"/>
   </svg>`;
-  if (animate && !prefersReducedMotion()) { el.classList.remove('draw'); void el.offsetWidth; el.classList.add('draw'); }
 }
 
 // ---------- check hero ----------
@@ -711,7 +709,7 @@ function closeDrawer() { $('#drawer').hidden = true; $('#drawerOverlay').hidden 
 
 // ---------- export ----------
 function exportData(kind) {
-  // OPS shows the full current list; the FEED view exports the filtered slice
+  // the DASHBOARD shows the full current list; the FEED view exports the filtered slice
   const rows = state.view === 'targets' ? filtered() : state.targets;
   if (kind === 'json') download('ddosia-targets.json', JSON.stringify(rows, null, 2), 'application/json');
   else if (kind === 'csv') { const cols = ['host', 'ip', 'country', 'city', 'org', 'type', 'method', 'port', 'use_ssl', 'path']; const e = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`; download('ddosia-targets.csv', [cols.join(','), ...rows.map((r) => cols.map((c) => e(r[c])).join(','))].join('\n'), 'text/csv'); }
@@ -839,11 +837,11 @@ function renderAssets() {
   if (!account.assets.length) { el.innerHTML = '<div class="empty">no assets yet — add a domain or IP above</div>'; return; }
   el.innerHTML = account.assets.map((a) => { const hit = assetTargeted(a); return `<div class="asset-row"><span class="a-type">${a.type}</span><div><div class="a-val">${esc(a.value)}</div>${a.label ? `<div class="a-label">${esc(a.label)}</div>` : ''}</div><span class="a-status ${hit ? 'a-hit' : 'a-clear'}" ${hit ? `data-host="${esc(hit)}"` : ''}>${hit ? '● targeted now' : '○ clear'}</span><button class="a-del" data-del="${a.id}">×</button></div>`; }).join('');
 }
-async function loadAlerts() { try { const d = await api('/api/alerts'); account.alerts = d.alerts || []; account.unseen = d.unseen || 0; account.activeAlerts = d.active || 0; renderAccount(); renderBell(); } catch {} }
+async function loadAlerts() { try { const d = await api('/api/alerts'); account.alerts = d.alerts || []; account.unseen = d.unseen || 0; renderAccount(); renderBell(); } catch {} }
 function renderBell() { const el = $('#bellList'); const it = account.alerts.slice(0, 6); el.innerHTML = it.length ? it.map((a) => { const active = a.active !== 0; return `<div class="bell-item ${a.seen ? '' : 'unseen'}" data-host="${esc(a.target_host)}"><div class="h">${active ? '<span class="dot live"></span>' : '<span class="dot done"></span>'}${esc(a.target_host)}</div><div class="m">${esc(a.asset_value)} · ${active ? a.vectors + ' vec · active' : 'resolved ' + timeAgo(a.resolved_at || a.last_seen) + ' ago'}</div></div>`; }).join('') : '<div class="bell-empty">no alerts yet</div>'; }
 function alertRow(a) {
   const active = a.active !== 0;
-  const state = active
+  const badge = active
     ? `<span class="al-badge live">● ACTIVE</span><span class="alert-time">started ${timeAgo(a.first_matched)} ago</span>`
     : `<span class="al-badge done">✓ RESOLVED</span><span class="alert-time">left list ${timeAgo(a.resolved_at || a.last_seen)} ago</span>`;
   return `<div class="alert-row ${a.seen ? '' : 'unseen'} ${active ? '' : 'resolved'}" data-host="${esc(a.target_host)}">
@@ -852,7 +850,7 @@ function alertRow(a) {
       <div class="alert-t">asset <b>${esc(a.asset_value)}</b><span class="arw">→</span><span class="host">${esc(a.target_host)}</span></div>
       <div class="alert-m">${a.vectors} vectors · ${esc(a.types || '')} · IPs ${esc(a.target_ips || '')}</div>
     </div>
-    <div class="alert-r">${state}</div>
+    <div class="alert-r">${badge}</div>
   </div>`;
 }
 function renderAlerts() {
@@ -917,7 +915,6 @@ $('#filterNew').addEventListener('click', (e) => {
 });
 $('#refreshBtn').addEventListener('click', () => load());
 document.addEventListener('click', (e) => {
-  const g = e.target.closest('.seg[data-geo]'); if (g) { e.stopPropagation(); state.geoMode = g.dataset.geo; render(); return; }
   const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); }
 });
 // ---- custom in-style date picker ----
@@ -1045,7 +1042,7 @@ $('#periodApply').addEventListener('click', () => {
     if (c) c.setAttribute('opacity', '0'); if (d) d.setAttribute('opacity', '0');
   });
   // re-fit the trend to the container width on resize (keeps it crisp, height fixed)
-  let rzT; window.addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => { if (state.view === 'dashboard' && lastTrend.length) renderTrend(chart, lastTrend, false); }, 160); });
+  let rzT; window.addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => { if (state.view === 'dashboard' && lastTrend.length) renderTrend(chart, lastTrend); }, 160); });
 })();
 $('.sortbar').addEventListener('click', (e) => { const p = e.target.closest('.pill'); if (!p) return; state.hSort = p.dataset.hsort; $$('.sortbar .pill').forEach((x) => x.classList.toggle('active', x === p)); render(); });
 $$('#targetsTable thead th').forEach((th) => th.addEventListener('click', () => { const k = th.dataset.sort; if (!k) return; if (state.tSortKey === k) state.tSortDir = state.tSortDir === 'asc' ? 'desc' : 'asc'; else { state.tSortKey = k; state.tSortDir = 'asc'; } render(); }));

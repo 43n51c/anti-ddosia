@@ -124,8 +124,8 @@ test('periodStats: distinct union across days + windowing', () => {
 
   // per-day host-set breakdowns (distinct hosts unioned over the window)
   dbx.clearDayBreakdown();
-  dbx.putDayBreakdown('2026-03-01', {}, {}, { cc: { US: ['a.com', 'b.com'] }, me: { GET: ['a.com'], syn: ['b.com'] } });
-  dbx.putDayBreakdown('2026-03-02', {}, {}, { cc: { US: ['b.com'], CA: ['c.com', 'd.com'] }, me: { GET: ['b.com'], POST: ['c.com', 'd.com'] } });
+  dbx.putDayBreakdown('2026-03-01', { cc: { US: ['a.com', 'b.com'] }, me: { GET: ['a.com'], syn: ['b.com'] } });
+  dbx.putDayBreakdown('2026-03-02', { cc: { US: ['b.com'], CA: ['c.com', 'd.com'] }, me: { GET: ['b.com'], POST: ['c.com', 'd.com'] } });
   dbx.putCountry('US', 'United States', 1, 1); dbx.putCountry('CA', 'Canada', 1, 1);
 
   const both = dbx.periodStats('2026-03-01', '2026-03-02', '2026-03-01T00:00:00Z', '2026-03-02T23:59:59Z');

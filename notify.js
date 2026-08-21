@@ -17,7 +17,7 @@ const SMTP = {
   secure: /^(1|true|yes)$/i.test(process.env.SMTP_SECURE || ''),
 };
 export const emailConfigured = () => !!SMTP.host;
-export const appBaseUrl = () => process.env.APP_URL || 'http://localhost:3000';
+const appBaseUrl = () => process.env.APP_URL || 'http://localhost:3000';
 
 // Reject webhook URLs that point at internal/reserved space (SSRF guard).
 // Note: this blocks literal private IPs and internal hostnames at save
@@ -41,7 +41,7 @@ export function webhookUrlIssue(url) {
 const stripCrlf = (s) => String(s ?? '').replace(/[\r\n]+/g, ' ');
 
 // ---------- webhook ----------
-export async function sendWebhook(url, payload) {
+async function sendWebhook(url, payload) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 8000);
   try {
@@ -85,7 +85,7 @@ async function expect(sess, code) {
   return line;
 }
 
-export async function sendEmail(to, subject, text) {
+async function sendEmail(to, subject, text) {
   if (!SMTP.host) return false;
   // header-injection guard: no CRLF in envelope/header fields
   to = stripCrlf(to); subject = stripCrlf(subject).slice(0, 200);

@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS day_agg (
 -- hb holds per-day distinct host sets grouped by country / method, so bars can
 -- count HOSTS (not target-vectors) over any window, matching the map.
 CREATE TABLE IF NOT EXISTS day_breakdown (
-  day TEXT PRIMARY KEY, cc_counts TEXT NOT NULL DEFAULT '{}', method_counts TEXT NOT NULL DEFAULT '{}', hb TEXT NOT NULL DEFAULT '{}'
+  day TEXT PRIMARY KEY, hb TEXT NOT NULL DEFAULT '{}'
 );
 CREATE TABLE IF NOT EXISTS host_first_seen ( host TEXT PRIMARY KEY, first_seen TEXT );
 CREATE TABLE IF NOT EXISTS target_first_seen ( target_id TEXT PRIMARY KEY, first_seen TEXT );
@@ -96,6 +96,7 @@ try { db.exec('ALTER TABLE host_surface ADD COLUMN ips TEXT'); } catch { /* colu
 try { db.exec('ALTER TABLE host_surface ADD COLUMN by_ip TEXT'); } catch { /* column exists */ }
 try { db.exec('ALTER TABLE alerts ADD COLUMN active INTEGER NOT NULL DEFAULT 1'); } catch { /* column exists */ }
 try { db.exec('ALTER TABLE alerts ADD COLUMN resolved_at TEXT'); } catch { /* column exists */ }
+// legacy migration: DBs created before `hb` existed (table then held cc_counts/method_counts) get the column added.
 try { db.exec("ALTER TABLE day_breakdown ADD COLUMN hb TEXT NOT NULL DEFAULT '{}'"); } catch { /* column exists */ }
 
 // ---------------- one-time migration from JSON ----------------
@@ -145,7 +146,7 @@ const S = {
   dayAggPut: db.prepare('INSERT OR REPLACE INTO day_agg(day,hosts,ips,ccs) VALUES(?,?,?,?)'),
   dayAggRange: db.prepare('SELECT hosts, ips, ccs FROM day_agg WHERE day BETWEEN ? AND ?'),
   dayAggClear: db.prepare('DELETE FROM day_agg'),
-  dayBrkPut: db.prepare('INSERT OR REPLACE INTO day_breakdown(day,cc_counts,method_counts,hb) VALUES(?,?,?,?)'),
+  dayBrkPut: db.prepare('INSERT OR REPLACE INTO day_breakdown(day,hb) VALUES(?,?)'),
   dayBrkRange: db.prepare('SELECT hb FROM day_breakdown WHERE day BETWEEN ? AND ?'),
   dayBrkClear: db.prepare('DELETE FROM day_breakdown'),
   newHostsBetween: db.prepare('SELECT COUNT(*) c FROM host_first_seen WHERE first_seen BETWEEN ? AND ?'),
@@ -244,7 +245,7 @@ export function mergeDayAgg(day, hosts, ips, ccs) {
   S.dayAggPut.run(day, JSON.stringify([...H]), JSON.stringify([...I]), JSON.stringify([...C]));
 }
 export function clearDayBreakdown() { S.dayBrkClear.run(); }
-export function putDayBreakdown(day, ccCounts, methodCounts, hb) { S.dayBrkPut.run(day, JSON.stringify(ccCounts || {}), JSON.stringify(methodCounts || {}), JSON.stringify(hb || {})); }
+export function putDayBreakdown(day, hb) { S.dayBrkPut.run(day, JSON.stringify(hb || {})); }
 
 // aggregate distinct hosts/ips/countries + request totals + country/method
 // breakdowns over an inclusive day range
@@ -289,7 +290,7 @@ export function tx(fn) { db.prepare('BEGIN').run(); try { fn(); db.prepare('COMM
 
 // users
 export function createUser(email, passHash, iso) { const r = S.userCreate.run(email, passHash, iso); return Number(r.lastInsertRowid); }
-export function createOAuthUser(email, provider, iso) { const r = S.userCreateOAuth.run(email, iso, provider); return Number(r.lastInsertRowid); }
+function createOAuthUser(email, provider, iso) { const r = S.userCreateOAuth.run(email, iso, provider); return Number(r.lastInsertRowid); }
 export function findOrCreateOAuthUser(email, provider, iso) { const u = S.userByEmail.get(email); if (u) return u.id; return createOAuthUser(email, provider, iso); }
 export function getUserByEmail(email) { return S.userByEmail.get(email); }
 export function getUserById(id) { return S.userById.get(id); }
@@ -364,7 +365,7 @@ export function sessionDetail(host, from, to) {
   }
   return { days: rows.length, paths: [...paths.entries()].sort((a, b) => b[1] - a[1]), ports: [...ports].sort((a, b) => a - b), types, methods: [...methods], ips: [...ips] };
 }
-export function getHostSurface(host) {
+function getHostSurface(host) {
   const r = S.hsurfGet.get(host);
   if (!r) return null;
   try { return { paths: JSON.parse(r.paths || '[]'), ports: JSON.parse(r.ports || '[]'), types: JSON.parse(r.types || '{}'), methods: JSON.parse(r.methods || '[]'), ips: JSON.parse(r.ips || '[]'), byIp: JSON.parse(r.by_ip || '{}') }; } catch { return null; }
