@@ -360,10 +360,14 @@ function renderMap(data) {
   if (world.loaded && world.bounds) {
     const uaPath = world.byCode.get('UA'), ub = world.bounds.UA;
     if (uaPath && ub) {
-      const w = ub.x1 - ub.x0;
-      // the real Ukrainian flag, clipped to the country outline, softened to fit the theme
+      const w = ub.x1 - ub.x0, hh = (ub.y1 - ub.y0) / 2;
+      // Ukrainian flag as two muted bands (blue over gold) clipped to the country
+      // outline — softer shades than the real flag so it reads as a tint, not a badge
       overlay += `<defs><clipPath id="uaClip"><path d="${uaPath}"/></clipPath></defs>
-        <image href="/flags/ua.svg" x="${ub.x0}" y="${ub.y0}" width="${w}" height="${ub.y1 - ub.y0}" preserveAspectRatio="none" clip-path="url(#uaClip)" opacity="0.16"/>
+        <g clip-path="url(#uaClip)" opacity="0.24">
+          <rect x="${ub.x0}" y="${ub.y0}" width="${w}" height="${hh}" fill="#3f6288"/>
+          <rect x="${ub.x0}" y="${ub.y0 + hh}" width="${w}" height="${hh}" fill="#c2a24e"/>
+        </g>
         <path d="${uaPath}" fill="none" stroke="#43648f" stroke-width="0.5" opacity="0.7"/>`;
     }
     // anchor over the middle of Russia's Eurasian landmass (computed at load)
