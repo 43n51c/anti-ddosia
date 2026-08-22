@@ -348,7 +348,9 @@ function clientIp(req) {
 
 const CSP = [
   "default-src 'self'", "base-uri 'none'", "frame-ancestors 'none'", "form-action 'self'", "object-src 'none'",
-  "img-src 'self' data:", "script-src 'self'", "connect-src 'self'",
+  // the sha256 allows the tiny inline boot script in index.html that applies the
+  // URL-hash view before first paint (keep in sync if that script changes)
+  "img-src 'self' data:", "script-src 'self' 'sha256-EPbtDCqJWKykUvOQBsOW73uQD7UCjbj1JIxPnkAbIlI='", "connect-src 'self'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src https://fonts.gstatic.com",
 ].join('; ');
 function setSecurityHeaders(res) {

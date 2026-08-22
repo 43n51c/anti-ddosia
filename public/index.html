@@ -351,6 +351,18 @@
 </div>
 
 <div class="toast mono" id="toast" hidden></div>
+<script>
+  // Apply the URL-hash view before first paint so a refresh doesn't flash the
+  // dashboard highlight. (Auth-only views resolve after the session check in app.js.)
+  (function () {
+    var v = decodeURIComponent(location.hash.slice(1));
+    if (v !== 'hosts' && v !== 'targets') return;
+    var items = document.querySelectorAll('.nav-item');
+    for (var i = 0; i < items.length; i++) items[i].classList.toggle('active', items[i].getAttribute('data-view') === v);
+    var views = document.querySelectorAll('.view');
+    for (var j = 0; j < views.length; j++) views[j].hidden = views[j].id !== ('view-' + v);
+  })();
+</script>
 <script src="/app.js"></script>
 </body>
 </html>
