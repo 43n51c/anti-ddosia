@@ -174,4 +174,7 @@ test('hostsAll: LIKE query escapes wildcards (no injection via %/_)', () => {
   // '%' as a literal must not match everything
   assert.equal(dbx.hostsAll('%', 'sessions', '', 50).hosts.length, 0);
   assert.equal(dbx.hostsAll('alpha', 'sessions', '', 50).hosts.length, 1);
+  // a crafted sort key (inherited property) must fall back, not throw
+  assert.doesNotThrow(() => dbx.hostsAll('', 'constructor', '', 50));
+  assert.doesNotThrow(() => dbx.hostsAll('', '__proto__', '', 50));
 });

@@ -358,7 +358,7 @@ export function clearSessions() { S.asClear.run(); }
 export function insertSession(host, started, lastSeen, ended) { S.asInsertFull.run(host, started, lastSeen, ended); }
 export function hostsAll(q = '', sort = 'sessions', country = '', limit = 200) {
   const like = '%' + String(q || '').replace(/[%_\\]/g, (c) => '\\' + c) + '%';
-  const stmt = S.asAll[sort] || S.asAll.sessions;
+  const stmt = (Object.hasOwn(S.asAll, sort) && S.asAll[sort]) || S.asAll.sessions; // hasOwn: ignore inherited keys like "constructor"
   const cc = String(country || '').toUpperCase();
   return { hosts: stmt.all(like, cc, cc, limit) };
 }

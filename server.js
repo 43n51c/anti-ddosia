@@ -59,13 +59,21 @@ async function refreshConfigCount() {
 }
 
 // ---------- GeoIP enrichment ----------
+// fetch with a hard timeout so a stalled upstream can't wedge the ingest mutex
+async function fetchT(url, opts = {}, ms = 15000) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ms);
+  try { return await fetch(url, { ...opts, signal: ac.signal }); }
+  finally { clearTimeout(timer); }
+}
+
 async function enrichGeoIp(ips) {
   const missing = ips.filter((ip) => ip && !dbx.getGeo(ip));
   if (!missing.length) return;
   for (let i = 0; i < missing.length; i += 100) {
     const chunk = missing.slice(i, i + 100);
     try {
-      const res = await fetch(CONFIG.geoipBatchUrl, {
+      const res = await fetchT(CONFIG.geoipBatchUrl, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(chunk.map((q) => ({ query: q }))),
       });
@@ -90,7 +98,7 @@ async function poll() {
     if (feedETag) headers['If-None-Match'] = feedETag;
     else if (current.feedLastModified) headers['If-Modified-Since'] = current.feedLastModified;
 
-    const res = await fetch(CONFIG.feedUrl, { headers });
+    const res = await fetchT(CONFIG.feedUrl, { headers });
     if (res.status === 304) { // unchanged — refresh the "last checked" time on both the snapshot and the cached stats
       const iso = new Date().toISOString();
       current.fetchedAt = iso;

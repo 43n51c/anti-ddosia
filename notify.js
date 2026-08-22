@@ -29,6 +29,8 @@ export function webhookUrlIssue(url) {
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'must be an http(s) URL';
   const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return 'internal hosts are not allowed';
+  // note: integer/hex/octal IPv4 (e.g. http://2130706433/) is normalised to
+  // dotted form by the URL parser, so it's caught by the v4 check below.
   const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (v4) {
     const o = v4.slice(1).map(Number);

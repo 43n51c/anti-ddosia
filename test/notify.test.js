@@ -31,6 +31,12 @@ test('webhookUrlIssue: blocks private/reserved IPv4', () => {
   }
 });
 
+test('webhookUrlIssue: integer/hex IP encodings still blocked (URL normalises them)', () => {
+  for (const h of ['2130706433', '0x7f000001', '017700000001']) { // all = 127.0.0.1
+    assert.match(webhookUrlIssue(`http://${h}/x`), /private|reserved/, `${h} should be blocked`);
+  }
+});
+
 test('webhookUrlIssue: allows public IPv4 near reserved ranges', () => {
   assert.equal(webhookUrlIssue('http://11.0.0.1/x'), null);
   assert.equal(webhookUrlIssue('http://172.15.0.1/x'), null); // just below 172.16

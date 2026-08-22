@@ -217,7 +217,7 @@ function renderOverview(T, s) {
     { l: 'TRAJECTORY', v: `${trajV}&nbsp;<span class="sig-sub">vs yday</span>&nbsp;${miniSpark(last7, 56, 16, delta > 0 ? '#ff5566' : '#3ddc84')}`, d: `${T.targets} now &larr; ${s.yesterdayCount ?? '—'} yesterday`, vc: trajCls },
     { l: 'NEW · 24H', v: `${newHosts.length}&nbsp;<span class="sig-sub">${newHosts.length === 1 ? 'host' : 'hosts'}</span>`, d: newNames, vc: newHosts.length ? 'up' : '' },
     { l: 'TOP VECTOR', v: topType ? esc(topType.key) : '—', d: topType ? `${vecPct}% of vectors${topMethods ? ' · ' + topMethods : ''}` : '' },
-    { l: 'HOT TARGET', v: hot ? esc(hot.host) : '—', d: hot ? `${hot.targetCount} vectors · ${Object.keys(hot.types).join('/')}` : '' },
+    { l: 'HOT TARGET', v: hot ? esc(hot.host) : '—', d: hot ? `${hot.targetCount} vectors · ${esc(Object.keys(hot.types).join('/'))}` : '' },
   ];
   el.hidden = false;
   el.innerHTML = `
@@ -497,7 +497,7 @@ function renderFeed(rows) {
       <td><span class="tdot"></span>${esc(h.host)}${fresh ? ' <span class="nbadge">NEW</span>' : ''}</td>
       <td class="cc">${flag(h.countryCode)} ${esc(h.city || h.country)}</td>
       <td>${h.targetCount}</td>
-      <td class="tt">${Object.keys(h.types).join(' ')}</td>
+      <td class="tt">${esc(Object.keys(h.types).join(' '))}</td>
       <td class="cc">${h.ports.length > 10 ? h.ports.slice(0, 10).join(' ') + ` +${h.ports.length - 10}` : h.ports.join(' ')}</td>
       <td class="cc"><span class="dur" data-since="${esc(h.sessionStart)}"></span></td>
     </tr>`;
@@ -574,7 +574,7 @@ $('#checkForm').addEventListener('submit', async (e) => {
 
 // ---------- hosts view ----------
 const HSORT_TO_ALL = { targetCount: 'sessions', host: 'name', firstSeen: 'recent', ports: 'longest' };
-let hostsAllKey = null;
+let hostsAllKey = null, hostsAllToken = 0;
 function renderHosts(rows) {
   $$('.hosts-toggle .seg').forEach((b) => b.classList.toggle('on', b.dataset.hostmode === state.hostsMode));
   const all = state.hostsMode === 'all';
@@ -598,8 +598,10 @@ async function renderHostsAll() {
   const key = `${state.search}|${sort}|${country}`;
   if (key === hostsAllKey && $('#hostAllBody').children.length) return; // avoid refetch on poll re-render
   hostsAllKey = key;
+  const mine = ++hostsAllToken;
   try {
     const d = await api(`/api/hosts-all?q=${encodeURIComponent(state.search)}&sort=${sort}&country=${encodeURIComponent(country)}`);
+    if (mine !== hostsAllToken) return; // a newer query superseded this one
     const hosts = d.hosts || [];
     const body = $('#hostAllBody');
     body.innerHTML = hosts.length ? hosts.map((h) => `<tr data-host="${esc(h.host)}">
@@ -672,7 +674,9 @@ function renderIpPathsHist(ip, e, openIt) {
   const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(fmtMethod(m))}</span>`).join('')}</div>` : '';
   return dsecC(`${ip} · ${paths.length} path${paths.length === 1 ? '' : 's'}`, copyBtns + rows + chips, openIt, `ports ${ports.join(', ') || '—'}`);
 }
+let drawerToken = 0;
 async function openDrawer(host) {
+  const mine = ++drawerToken; // guard against a slower earlier host overwriting a newer one
   const rows = state.targets.filter((t) => t.host === host);
   const isCurrent = rows.length > 0;
   const h = isCurrent ? groupHosts(rows)[0] : null;
@@ -686,6 +690,7 @@ async function openDrawer(host) {
 
   let d = {};
   try { d = await api('/api/host-sessions?host=' + encodeURIComponent(host)); } catch {}
+  if (mine !== drawerToken) return; // a newer host was opened while this loaded
   const surf = d.surface, sm = d.summary || { count: 0, totalDays: 0, longest: 0, firstSeen: null }, ss = d.sessions || [];
 
   const facts = isCurrent

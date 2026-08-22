@@ -37,7 +37,9 @@ const PROVIDERS = {
       const r = await fetch('https://api.github.com/user/emails', { headers: { Authorization: `Bearer ${token}`, 'User-Agent': 'anti-ddosia', Accept: 'application/vnd.github+json' } });
       const arr = await r.json();
       if (!Array.isArray(arr)) return null;
-      const pick = arr.find((e) => e.primary && e.verified) || arr.find((e) => e.verified) || arr[0];
+      // only a VERIFIED email — never fall back to an unverified one (that would
+      // let someone log into a pre-existing account by adding its email on GitHub)
+      const pick = arr.find((e) => e.primary && e.verified) || arr.find((e) => e.verified);
       return pick ? pick.email : null;
     },
   },
