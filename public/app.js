@@ -152,7 +152,9 @@ function render() {
   // the DASHBOARD is a holistic overview, so it ignores these and shows the full snapshot.
   const liveFilterView = (state.view === 'targets' || (state.view === 'hosts' && state.hostsMode === 'live'));
   $('#toolbar').style.display = liveFilterView ? '' : 'none';
-  $('.search-wrap').style.display = (state.view === 'hosts' || state.view === 'targets') ? '' : 'none';
+  const listView = state.view === 'hosts' || state.view === 'targets';
+  $('.search-wrap').style.display = listView ? '' : 'none';
+  $('.cmdbar').classList.toggle('solid', listView); // sticky blur band only where the search bar is
   if (state.view === 'dashboard') renderDashboard(state.targets);
   if (state.view === 'hosts') renderHosts(rows);
   if (state.view === 'targets') renderTargets(rows);

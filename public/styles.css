@@ -71,7 +71,10 @@ a:hover { text-decoration: underline; }
 /* ===== MAIN ===== */
 .main { min-width: 0; padding: 0 20px 40px; }
 
-.cmdbar { display: flex; align-items: center; gap: 14px; padding: 12px 0; position: sticky; top: 0; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(6px); z-index: 30; }
+.cmdbar { display: flex; align-items: center; gap: 14px; padding: 12px 0; position: sticky; top: 0; z-index: 30; }
+/* the sticky blurred band only earns its place where the search bar lives (hosts/feed);
+   elsewhere the cmdbar is empty, so it stays transparent — no stray frame at the top */
+.cmdbar.solid { background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(6px); }
 .search-wrap { position: relative; display: flex; align-items: center; flex: 1; max-width: 460px; }
 .search-wrap .sp { position: absolute; left: 11px; color: var(--dim); }
 .search-wrap input { width: 100%; background: var(--bg1); border: 1px solid var(--line); color: var(--tx); border-radius: 7px; padding: 9px 28px 9px 26px; font-family: inherit; font-size: 12.5px; }
