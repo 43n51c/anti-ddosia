@@ -1027,6 +1027,10 @@ function renderCal() {
     <div class="cal-grid">${cells}</div>`;
 }
 $('#calPop').addEventListener('click', (e) => {
+  // clicks inside the calendar must not reach the document-level outside-click closer:
+  // re-rendering detaches the clicked node, so its closest('#calPop') would read null
+  // and the closer would hide the calendar instead of letting the month switch.
+  e.stopPropagation();
   const nav = e.target.closest('[data-nav]');
   if (nav) { const step = Number(nav.dataset.nav); cal.m += step; if (cal.m < 0) { cal.m = 11; cal.y--; } if (cal.m > 11) { cal.m = 0; cal.y++; } renderCal(); return; }
   const day = e.target.closest('.cal-d[data-iso]');
