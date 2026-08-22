@@ -489,7 +489,7 @@ a:hover { text-decoration: underline; }
 
 /* misc */
 .empty { padding: 30px; text-align: center; color: var(--tx2); font-size: 12px; }
-.foot { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--dim); font-size: 11px; }
+.foot { margin-top: 26px; color: var(--dim); font-size: 11px; }
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--bg3); border: 1px solid var(--line2); color: var(--tx); padding: 10px 18px; border-radius: 8px; font-size: 12px; z-index: 95; box-shadow: 0 12px 34px rgba(0,0,0,.5); animation: toastIn .2s ease both; }
 
 /* ---------- global micro-animations ---------- */
