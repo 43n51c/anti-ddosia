@@ -6,7 +6,7 @@
 // API + static dashboard. No third-party deps (Node >= 22 for node:sqlite).
 
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -404,9 +404,16 @@ async function serveStatic(req, res) {
   // trailing separator prevents escaping to sibling dirs like /app/public-secret.
   if (filePath !== PUBLIC_DIR && !filePath.startsWith(PUBLIC_DIR + sep)) return void res.writeHead(403).end('Forbidden');
   try {
-    const buf = await readFile(filePath);
-    res.writeHead(200, { 'Content-Type': MIME[extname(filePath)] || 'application/octet-stream' });
-    res.end(buf);
+    // no-cache = the browser may store it but must revalidate before use, so a
+    // deploy is picked up immediately; Last-Modified makes that revalidation a
+    // cheap 304 when the file hasn't changed.
+    const st = await stat(filePath);
+    const lastMod = st.mtime.toUTCString();
+    const headers = { 'Content-Type': MIME[extname(filePath)] || 'application/octet-stream', 'Cache-Control': 'no-cache', 'Last-Modified': lastMod };
+    const ims = Date.parse(req.headers['if-modified-since'] || '');
+    if (!Number.isNaN(ims) && ims >= Math.floor(st.mtimeMs / 1000) * 1000) return void res.writeHead(304, headers).end();
+    res.writeHead(200, headers);
+    res.end(await readFile(filePath));
   } catch { res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found'); }
 }
 

@@ -114,6 +114,16 @@ test('malformed percent-encoding in a static path → 400, not 500', async () =>
   assert.equal(status, 400);
 });
 
+test('static assets: no-cache + Last-Modified, and 304 on revalidation (fresh after deploy)', async () => {
+  const r1 = await fetch(base + '/styles.css');
+  assert.equal(r1.status, 200);
+  assert.match(r1.headers.get('cache-control') || '', /no-cache/);
+  const lm = r1.headers.get('last-modified');
+  assert.ok(lm, 'Last-Modified header present');
+  const r2 = await fetch(base + '/styles.css', { headers: { 'If-Modified-Since': lm } });
+  assert.equal(r2.status, 304);
+});
+
 test('login: unknown email and wrong password give the same generic 401 (no user enumeration)', async () => {
   const reg = { email: 'login-probe@ex.com', password: 'correcthorse9' };
   await j('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reg) });
