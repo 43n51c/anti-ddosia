@@ -109,7 +109,12 @@ async function load() {
     state.targets = t.targets || []; state.stats = s; setStatus(t.ok, t); render();
   } catch (e) { setStatus(false, { error: e.message }); }
 }
-function setStatus(ok, meta) { $('#statusDot').className = 'dot ' + (ok ? 'ok' : 'err'); $('#statusText').textContent = ok ? 'live' : 'feed error'; }
+function setStatus(ok, meta) {
+  $('#statusDot').className = 'dot ' + (ok ? 'ok' : 'err');
+  $('#statusText').textContent = ok ? 'live' : 'feed error';
+  // cadence footer: the view auto-refreshes on REFRESH_MS; on error it keeps retrying on the same beat
+  $('#statusMeta').textContent = `${ok ? 'auto-refresh' : 'retrying'} · ${Math.round(REFRESH_MS / 1000)}s`;
+}
 function tick() { tickDurations(); }
 
 // ---------- filtering ----------
