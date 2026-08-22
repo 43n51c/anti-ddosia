@@ -232,7 +232,7 @@ function renderOverview(T, s) {
   ];
   el.hidden = false;
   el.innerHTML = `
-    <div class="ov-h"><span class="ov-dot"></span> OVERVIEW <span class="ov-tag">live</span><span class="ov-upd mono">updated ${timeAgo(s.fetchedAt)} ago</span></div>
+    <div class="ov-h"><span class="ov-dot"></span> OVERVIEW <span class="ov-tag">live</span><span class="ov-upd mono">updated ${timeAgo(s.fetchedAt)} ago</span><button class="mini-ico" id="refreshBtn" title="Refresh now">↻</button></div>
     <div class="ov-grid">${sigs.map((x) => `<div class="sig"><div class="sig-l">${x.l}</div><div class="sig-v ${x.vc || ''}">${x.v}</div><div class="sig-d">${x.d}</div></div>`).join('')}</div>`;
 }
 
@@ -980,7 +980,8 @@ $('#filterNew').addEventListener('click', (e) => {
   $$('#filterNew .seg').forEach((s) => s.classList.toggle('on', s === seg));
   applyFilter();
 });
-$('#refreshBtn').addEventListener('click', () => load());
+// #refreshBtn lives in the OVERVIEW header, which re-renders on every poll — delegate
+document.addEventListener('click', (e) => { if (e.target.closest('#refreshBtn')) load(); });
 document.addEventListener('click', (e) => {
   const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); }
 });

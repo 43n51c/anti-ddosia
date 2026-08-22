@@ -94,6 +94,7 @@ a:hover { text-decoration: underline; }
 .menu-list.up { top: auto; bottom: calc(100% + 6px); left: 0; right: auto; transform-origin: bottom left; }
 .menu-list.up.right { left: auto; right: 0; transform-origin: bottom right; }
 .menu-list.wide { min-width: 300px; }
+#exportWrap .menu-list { top: calc(100% + 6px); } /* small ⤓ trigger in the toolbar — sit just under it */
 .menu-list button { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--tx); padding: 8px 10px; border-radius: 6px; font-family: inherit; font-size: 12px; cursor: pointer; }
 .menu-list button:hover { background: var(--bg3); }
 .acct-email { padding: 8px 10px; color: var(--tx2); font-size: 11px; border-bottom: 1px solid var(--line); margin-bottom: 4px; word-break: break-all; }

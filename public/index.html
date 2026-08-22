@@ -45,17 +45,6 @@
       <div class="rail-sys">
         <div class="stat-line">
           <span class="dot" id="statusDot"></span><span id="statusText">connecting…</span>
-          <button class="mini-ico" id="refreshBtn" title="Refresh now">↻</button>
-          <div class="menu" id="exportWrap">
-            <button class="mini-ico" id="exportBtn" title="Export / copy">⤓</button>
-            <div class="menu-list up right" id="exportMenu" hidden>
-              <button data-export="csv">download CSV</button>
-              <button data-export="json">download JSON</button>
-              <button data-export="hosts">copy all hosts</button>
-              <button data-export="ips">copy all IPs</button>
-              <button data-export="paths">copy all paths</button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -95,6 +84,16 @@
       </span>
       <span class="spacer"></span>
       <span class="rc mono" id="resultCount"></span>
+      <div class="menu" id="exportWrap">
+        <button class="mini-ico" id="exportBtn" title="Export / copy">⤓</button>
+        <div class="menu-list right" id="exportMenu" hidden>
+          <button data-export="csv">download CSV</button>
+          <button data-export="json">download JSON</button>
+          <button data-export="hosts">copy all hosts</button>
+          <button data-export="ips">copy all IPs</button>
+          <button data-export="paths">copy all paths</button>
+        </div>
+      </div>
     </div>
 
     <!-- ===== DASHBOARD ===== -->
@@ -185,6 +184,7 @@
               <button class="ioc" data-export="ips">IPs <b id="iocIps">0</b> <span class="cp">copy</span></button>
               <button class="ioc" data-export="paths">Paths <b id="iocPaths">0</b> <span class="cp">copy</span></button>
               <button class="ioc" data-export="csv">CSV <span class="cp">download</span></button>
+              <button class="ioc" data-export="json">JSON <span class="cp">download</span></button>
             </div>
           </div>
           <div class="tbl-wrap"><table class="tbl" id="feedTable"><thead><tr>
