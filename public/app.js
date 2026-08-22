@@ -637,9 +637,9 @@ function renderHostsLive(rows) {
       <div class="hc-top"><div><div class="hc-name">${esc(h.host)} ${fresh ? '<span class="nbadge">NEW</span>' : ''}</div>
         <div class="hc-geo">${flag(h.countryCode)} ${esc(h.country)}${h.city ? ` · ${esc(h.city)}` : ''}</div>
         ${h.org ? `<div class="hc-org">${esc(h.org)}</div>` : ''}</div>
-        <div class="hc-v"><div class="n">${h.targetCount}</div><div class="l">VEC</div></div></div>
+        <div class="hc-v"><div class="n">${h.targetCount}</div><div class="l">VECTORS</div></div></div>
       <div class="hc-chips">${chips}</div>
-      <div class="hc-surf"><span><b>${h.ips.length}</b> IPs</span><span><b>${h.ports.length}</b> ports</span><span><b>${h.paths.length}</b> paths</span><span>${h.ssl ? LOCK + ' ssl' : 'no ssl'}</span></div>
+      <div class="hc-surf"><span><b>${h.ips.length}</b> IP${h.ips.length === 1 ? '' : 's'}</span><span><b>${h.ports.length}</b> port${h.ports.length === 1 ? '' : 's'}</span><span><b>${h.paths.length}</b> path${h.paths.length === 1 ? '' : 's'}</span><span>${h.ssl ? LOCK + ' ssl' : 'no ssl'}</span></div>
     </div>`;
   }).join('');
 }
