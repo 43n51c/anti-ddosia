@@ -93,8 +93,10 @@ const typeCls = (ty) => (['http', 'http2', 'http3', 'tcp', 'udp', 'nginx_loris']
 // display label for an attack method (uppercase, canonical spelling) — value stays raw for filtering
 const METHOD_LABEL = { get: 'GET', post: 'POST', ping: 'PING', syn: 'SYN', ack: 'ACK', syn_ack: 'SYN-ACK', udp_flood: 'UDP FLOOD' };
 const fmtMethod = (m) => (m ? (METHOD_LABEL[String(m).toLowerCase()] || String(m).toUpperCase().replace(/_/g, ' ')) : '—');
-// display label for an attack type/vector — uppercase to match methods (value stays raw for classes/filtering)
-const fmtType = (t) => (t ? String(t).toUpperCase().replace(/_/g, ' ') : '—');
+// display label for an attack type/vector — uppercase to match methods. Keep the
+// underscore: type values are single identifiers (nginx_loris = nginx Slowloris),
+// not phrases like the methods (udp_flood → UDP FLOOD), so we stay faithful to the feed.
+const fmtType = (t) => (t ? String(t).toUpperCase() : '—');
 function toast(m) { const el = $('#toast'); el.textContent = m; el.hidden = false; clearTimeout(el._t); el._t = setTimeout(() => (el.hidden = true), 1800); }
 async function copy(t, l) { try { await navigator.clipboard.writeText(t); toast(`${l} copied`); } catch { toast('copy blocked'); } }
 function download(n, t, m) { const b = new Blob([t], { type: m }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); }
