@@ -337,7 +337,7 @@ function bars(el, rows, labelFn, color, animate) {
 function renderMap(data) {
   const W = MAP_W, H = MAP_H;
   const proj = (lng, lat) => [(lng + 180) / 360 * W, (90 - lat) / 180 * H];
-  // markers are sized/labelled by HOST count per country (target-requests go in the tooltip)
+  // markers are sized/labelled by HOST count per country (target count goes in the tooltip)
   // per-country host counts (truthful geography): a host hosted in several
   // countries is counted in each, so markers can exceed the distinct total
   const hostsBy = {};
@@ -577,7 +577,7 @@ $('#checkForm').addEventListener('submit', async (e) => {
         + `<div class="vrow" style="margin-top:6px">→ sign in to monitor this asset and get alerted on new hits.</div>`;
     } else {
       el.className = 'verdict ok';
-      el.innerHTML = `<div class="vhead">○ NOT on the current list</div><div class="vrow"><b>${esc(r.query)}</b> (${r.type}) is not among today's ${state.targets.length} targets. Add it to monitoring to catch future waves.</div>`;
+      el.innerHTML = `<div class="vhead">○ NOT ON THE TARGET LIST</div><div class="vrow"><b>${esc(r.query)}</b> (${r.type}) is not among today's ${state.targets.length} targets. Add it to monitoring to catch future waves.</div>`;
     }
   } catch (err) { el.hidden = false; el.className = 'verdict'; el.innerHTML = `<div class="vrow">check failed: ${esc(err.message)}</div>`; }
 });
@@ -639,7 +639,7 @@ function renderHostsLive(rows) {
         ${h.org ? `<div class="hc-org">${esc(h.org)}</div>` : ''}</div>
         <div class="hc-v"><div class="n">${h.targetCount}</div><div class="l">VEC</div></div></div>
       <div class="hc-chips">${chips}</div>
-      <div class="hc-surf"><span><b>${h.ips.length}</b> IP</span><span><b>${h.ports.length}</b> ports</span><span><b>${h.paths.length}</b> paths</span><span>${h.ssl ? LOCK + ' ssl' : 'no ssl'}</span></div>
+      <div class="hc-surf"><span><b>${h.ips.length}</b> IPs</span><span><b>${h.ports.length}</b> ports</span><span><b>${h.paths.length}</b> paths</span><span>${h.ssl ? LOCK + ' ssl' : 'no ssl'}</span></div>
     </div>`;
   }).join('');
 }
@@ -715,7 +715,7 @@ async function openDrawer(host) {
     for (const v of h.vectors) (byIp[v.ip] ||= []).push(v);
     const ips = Object.keys(byIp).sort((a, b) => byIp[b].length - byIp[a].length);
     const secs = ips.map((ip) => renderIpTargets(ip, byIp[ip], false)).join('');
-    targetsHtml = `<div class="dsec-label">TARGETS BY IP <span class="dsc-hint">${ips.length} IP${ips.length === 1 ? '' : 's'} · ${h.vectors.length} entries · live</span></div>${secs}`;
+    targetsHtml = `<div class="dsec-label">TARGETS BY IP <span class="dsc-hint">${ips.length} IP${ips.length === 1 ? '' : 's'} · ${h.vectors.length} vectors · live</span></div>${secs}`;
   } else {
     const byIp = surf && surf.byIp ? surf.byIp : {};
     const ips = Object.keys(byIp).sort((a, b) => (byIp[b].paths ? byIp[b].paths.length : 0) - (byIp[a].paths ? byIp[a].paths.length : 0));
@@ -741,7 +741,7 @@ async function openDrawer(host) {
 function renderSessDetail(d) {
   const paths = d.paths || [], types = d.types || {}, methods = d.methods || [], ips = d.ips || [], ports = d.ports || [];
   const meta = `<div class="sess-meta">${ips.length ? `<div>IPs: ${ips.map(esc).join(', ')}</div>` : ''}<div>Ports: ${ports.join(', ') || '—'}</div></div>`;
-  const pathRows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors in this session</div>';
+  const pathRows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors in this wave</div>';
   const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(fmtType(t))} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(fmtMethod(m))}</span>`).join('')}</div>` : '';
   return meta + pathRows + chips;
 }
@@ -1066,7 +1066,7 @@ $('#periodApply').addEventListener('click', () => {
     const mk = e.target.closest('.mk'); if (!mk) return;
     tip.innerHTML = `<div class="tt-h">${flag(mk.dataset.code)} ${esc(mk.dataset.country)}</div>
       <div class="tt-r"><span>hosts targeted</span><b>${mk.dataset.hosts}</b></div>
-      <div class="tt-r"><span>target-requests</span><b>${mk.dataset.targets}</b></div>
+      <div class="tt-r"><span>targets</span><b>${mk.dataset.targets}</b></div>
       <div class="tt-hint">open the feed below for host-level detail</div>`;
     const r = mk.getBoundingClientRect(), b = box.getBoundingClientRect();
     tip.style.left = (r.left + r.width / 2 - b.left) + 'px';
