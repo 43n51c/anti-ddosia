@@ -69,7 +69,11 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function flag(cc) { if (!cc || cc.length !== 2 || cc === 'XX') return '<span class="flag flag-x"></span>'; return `<img class="flag" src="/flags/${cc.toLowerCase()}.svg" alt="${esc(cc)}" loading="lazy">`; }
 // CSP-friendly flag fallback: replace a broken flag image with its code (no inline onerror)
-document.addEventListener('error', (e) => { const t = e.target; if (t && t.tagName === 'IMG' && t.classList.contains('flag')) t.replaceWith(document.createTextNode(t.getAttribute('alt') || '')); }, true);
+document.addEventListener('error', (e) => {
+  const t = e.target; if (!t || !t.classList || !t.classList.contains('flag')) return;
+  if (t.tagName === 'IMG') t.replaceWith(document.createTextNode(t.getAttribute('alt') || '')); // feed/tooltip flag → code text
+  else if (t.tagName === 'image') t.remove(); // map SVG flag → drop the broken glyph
+}, true);
 const codeOf = (c) => c.code || codeFor(c.key);
 const LOCK = '<svg class="lock" viewBox="0 0 24 24" aria-label="ssl"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>';
 function timeAgo(iso) { if (!iso) return '—'; const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000); if (s < 60) return `${s}s`; if (s < 3600) return `${Math.floor(s / 60)}m`; if (s < 86400) return `${Math.floor(s / 3600)}h`; return `${Math.floor(s / 86400)}d`; }
@@ -350,7 +354,7 @@ function renderMap(data) {
       <circle cx="${x}" cy="${y}" r="2.5" fill="#ff5566" pointer-events="none"/>`;
     const fw = 22, fh = 15;
     const label = i < labelN ? `
-      <image href="/flags/${cc.toLowerCase()}.svg" x="${x - fw / 2}" y="${y - r - fh - 5}" width="${fw}" height="${fh}" preserveAspectRatio="xMidYMid slice"/>
+      <image class="flag" href="/flags/${cc.toLowerCase()}.svg" x="${x - fw / 2}" y="${y - r - fh - 5}" width="${fw}" height="${fh}" preserveAspectRatio="xMidYMid slice"/>
       <text x="${x + fw / 2 + 4}" y="${y - r - fh / 2 - 3}" fill="#dbe6f2" font-size="15" font-family="JetBrains Mono, monospace">${n}</text>` : '';
     // wrap in a group so markers can be counter-scaled to stay constant screen size on zoom
     return `<g class="mk-g" data-x="${x.toFixed(1)}" data-y="${y.toFixed(1)}">${base}${label}</g>`;
@@ -484,7 +488,7 @@ function renderFeed(rows) {
   const { fSortKey: k, fSortDir: dir } = state;
   hosts.sort((a, b) => {
     let va = a[k], vb = b[k];
-    if (k === 'firstSeen') { va = new Date(a.firstSeen); vb = new Date(b.firstSeen); }
+    if (k === 'firstSeen' || k === 'sessionStart') { va = new Date(a[k]); vb = new Date(b[k]); }
     if (typeof va === 'number' || va instanceof Date) return dir === 'asc' ? va - vb : vb - va;
     va = String(va ?? '').toLowerCase(); vb = String(vb ?? '').toLowerCase();
     return dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
@@ -763,6 +767,9 @@ function syncFilters() {
   const s = state.stats; if (!s) return;
   // reflect state.filterX; if a drilled value isn't in the current snapshot, keep it as an extra option
   const fill = (sel, items, all, fmt, val) => {
+    // don't rebuild the <option>s while the user has this dropdown open/focused
+    // (a 60s poll re-render would otherwise collapse it / drop a mid-selection)
+    if (document.activeElement === sel) { if (sel.value !== (val || '')) sel.value = val || ''; return; }
     const opts = [`<option value="">${all}</option>`].concat(items.map((r) => `<option value="${esc(r.key)}">${fmt(r)}</option>`));
     if (val && !items.some((r) => String(r.key) === String(val))) opts.push(`<option value="${esc(val)}">${esc(val)}</option>`);
     sel.innerHTML = opts.join(''); sel.value = val || '';
@@ -918,8 +925,10 @@ const VIEWS = ['dashboard', 'hosts', 'targets', 'assets', 'alerts'];
 const viewFromHash = () => { const h = decodeURIComponent(location.hash.slice(1)); return VIEWS.includes(h) ? h : 'dashboard'; };
 function switchView(v) {
   if ((v === 'assets' || v === 'alerts') && !account.user) { pendingView = v; openAuth('login'); return; }
-  // grep only applies to list views — clear a stale term when leaving them so it can't filter invisibly
-  if (v !== 'hosts' && v !== 'targets' && state.search) { state.search = ''; $('#search').value = ''; $('#searchClear').hidden = true; }
+  // search + filters are per-list-view — reset them on a real view change so they
+  // don't stay stuck (or filter invisibly) across views. (A drill sets its filter
+  // AFTER this, so it survives.)
+  if (v !== state.view) { clearListControls(); }
   state.view = v;
   if (location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v); // keep the view in the URL so a refresh stays put
   $$('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.view === v));
@@ -941,11 +950,15 @@ $('#filterCountry').addEventListener('change', (e) => { state.filterCountry = e.
 $('#filterMethod').addEventListener('change', (e) => { state.filterMethod = e.target.value; applyFilter(); });
 $('#filterPort').addEventListener('change', (e) => { state.filterPort = e.target.value; applyFilter(); });
 // drill from a BY COUNTRY / ATTACK METHODS bar into the live feed, filtered
-function drillToFeed(kind, value) {
+function clearListControls() {
+  state.search = ''; $('#search').value = ''; $('#searchClear').hidden = true;
   state.filterType = ''; state.filterCountry = ''; state.filterPort = ''; state.filterMethod = ''; state.filterNew = false;
   $$('#filterNew .seg').forEach((s) => s.classList.toggle('on', s.dataset.new === '0'));
+}
+function drillToFeed(kind, value) {
+  switchView('targets'); // clears prior filters/search first
   if (kind === 'country') state.filterCountry = value; else if (kind === 'method') state.filterMethod = value;
-  switchView('targets'); // renders the feed + syncs the toolbar selects to state
+  render(); // apply the drill filter + sync the toolbar selects to state
 }
 $('#countryBars').addEventListener('click', (e) => { const b = e.target.closest('.bar[data-key]'); if (b) drillToFeed('country', b.dataset.key); });
 $('#methodBars').addEventListener('click', (e) => { const b = e.target.closest('.bar[data-key]'); if (b) drillToFeed('method', b.dataset.key); });
@@ -1031,8 +1044,9 @@ $('#periodSeg').addEventListener('click', (e) => {
   }
 });
 $('#periodApply').addEventListener('click', () => {
-  const f = getDateField('from'), t = getDateField('to');
+  let f = getDateField('from'), t = getDateField('to');
   if (!f || !t) return;
+  if (f > t) { [f, t] = [t, f]; setDateField('from', f); setDateField('to', t); } // keep the buttons in order
   PERIOD.from = f; PERIOD.to = t; PERIOD.range = 'custom';
   persistPeriod();
   loadPeriod();
@@ -1146,7 +1160,7 @@ $('#confirmCancel').addEventListener('click', () => closeConfirm(false));
 $('#confirmYes').addEventListener('click', () => closeConfirm(true));
 $('#confirmOverlay').addEventListener('click', () => closeConfirm(false));
 $$('.auth-tab').forEach((t) => t.addEventListener('click', () => setAuthMode(t.dataset.mode)));
-$('#authForm').addEventListener('submit', async (e) => { e.preventDefault(); const email = $('#authEmail').value.trim(), password = $('#authPass').value; try { await api('/api/' + (authMode === 'login' ? 'login' : 'register'), { method: 'POST', body: JSON.stringify({ email, password }) }); const want = pendingView; closeAuth(); $('#authForm').reset(); await loadMe(); toast(authMode === 'login' ? 'signed in' : 'account created'); switchView(want || 'assets'); } catch (err) { const el = $('#authErr'); el.textContent = err.message; el.hidden = false; } });
+$('#authForm').addEventListener('submit', async (e) => { e.preventDefault(); const email = $('#authEmail').value.trim(), password = $('#authPass').value; try { await api('/api/' + (authMode === 'login' ? 'login' : 'register'), { method: 'POST', body: JSON.stringify({ email, password }) }); const want = pendingView; closeAuth(); $('#authForm').reset(); await loadMe(); toast(authMode === 'login' ? 'signed in' : 'account created'); switchView(want || state.view); } catch (err) { const el = $('#authErr'); el.textContent = err.message; el.hidden = false; } });
 $('#logoutBtn').addEventListener('click', async () => { try { await api('/api/logout', { method: 'POST' }); } catch {} account.user = null; account.assets = []; account.alerts = []; account.unseen = 0; renderAccount(); $('#acctMenu').hidden = true; if (state.view === 'assets' || state.view === 'alerts') switchView('dashboard'); toast('logged out'); });
 $('#bellBtn').addEventListener('click', (e) => { e.stopPropagation(); const m = $('#bellMenu'); m.hidden = !m.hidden; $('#acctMenu').hidden = true; $('#exportMenu').hidden = true; });
 $('#acctBtn').addEventListener('click', (e) => { e.stopPropagation(); const m = $('#acctMenu'); m.hidden = !m.hidden; $('#bellMenu').hidden = true; $('#exportMenu').hidden = true; });
@@ -1183,12 +1197,8 @@ loadProviders();
 // public views apply now, auth-only views wait for the session check.
 { const v = viewFromHash(); if (v === 'hosts' || v === 'targets') switchView(v); }
 load();
-loadMe().then(() => { const v = viewFromHash(); if ((v === 'assets' || v === 'alerts') && account.user) switchView(v); });
-// browser back/forward between views
-window.addEventListener('hashchange', () => {
-  const v = viewFromHash();
-  if (v === state.view) return;
-  if ((v === 'assets' || v === 'alerts') && !account.user) { switchView('dashboard'); return; }
-  switchView(v);
-});
+// after the session check: restore an auth-gated view (or prompt sign-in for a deep link to one)
+loadMe().then(() => { const v = viewFromHash(); if (v === 'assets' || v === 'alerts') switchView(v); });
+// browser back/forward between views (switchView gates auth views → opens sign-in)
+window.addEventListener('hashchange', () => { const v = viewFromHash(); if (v !== state.view) switchView(v); });
 setInterval(() => { load(); if (account.user) loadAlerts(); }, REFRESH_MS);

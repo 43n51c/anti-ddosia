@@ -75,12 +75,14 @@ test('alert lifecycle: resolve when target leaves, reactivate on re-match', () =
   const base = { userId: uid, assetId, assetValue: 'lc.com', host: 'lc.com', ips: '1.2.3.4', vectors: 2, types: 'http', firstMatched: '2026-01-01T00:00:00Z', lastSeen: '2026-01-01T00:00:00Z' };
   dbx.insertAlert(base);
   assert.equal(dbx.activeAlertCount(uid), 1);
+  assert.equal(dbx.alertActive(assetId, 'lc.com'), 1); // active flag readable for re-notify detection
 
   // a later poll where lc.com is NOT touched → its last_seen stays old → resolved
   const poll2 = '2026-01-02T00:00:00Z';
   const changed = dbx.resolveStaleAlerts(poll2);
   assert.ok(changed >= 1);
   assert.equal(dbx.activeAlertCount(uid), 0);
+  assert.equal(dbx.alertActive(assetId, 'lc.com'), 0); // resolved → re-match must re-notify
   const a = dbx.listAlerts(uid).find((r) => r.target_host === 'lc.com');
   assert.equal(a.active, 0);
   assert.equal(a.resolved_at, poll2);

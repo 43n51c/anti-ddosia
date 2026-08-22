@@ -16,6 +16,9 @@ export function hashPassword(password) {
   const hash = scryptSync(password, salt, 64);
   return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
 }
+// a real hash to verify against when there is no user / no stored password, so
+// login timing doesn't reveal whether an account exists (user enumeration)
+export const DUMMY_HASH = hashPassword('anti-ddosia-timing-equalizer');
 export function verifyPassword(password, stored) {
   try {
     const [scheme, saltHex, hashHex] = String(stored).split('$');

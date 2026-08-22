@@ -191,6 +191,7 @@ const S = {
   alertUpsertSeen: db.prepare('UPDATE alerts SET last_seen=?, target_ips=?, vectors=?, types=?, active=1, resolved_at=NULL, seen=CASE WHEN active=0 THEN 0 ELSE seen END WHERE asset_id=? AND target_host=?'),
   alertInsert: db.prepare('INSERT OR IGNORE INTO alerts(user_id,asset_id,asset_value,target_host,target_ips,vectors,types,first_matched,last_seen,active) VALUES(?,?,?,?,?,?,?,?,?,1)'),
   alertGetPair: db.prepare('SELECT id FROM alerts WHERE asset_id=? AND target_host=?'),
+  alertActiveGet: db.prepare('SELECT active FROM alerts WHERE asset_id=? AND target_host=?'),
   alertList: db.prepare('SELECT * FROM alerts WHERE user_id = ? ORDER BY active DESC, COALESCE(resolved_at, last_seen) DESC, first_matched DESC LIMIT 200'),
   alertUnseen: db.prepare('SELECT COUNT(*) c FROM alerts WHERE user_id = ? AND seen = 0'),
   alertActiveCount: db.prepare('SELECT COUNT(*) c FROM alerts WHERE user_id = ? AND active = 1'),
@@ -329,6 +330,7 @@ export function allAssets() { return S.assetAll.all(); }
 
 // alerts
 export function alertPairExists(assetId, host) { return !!S.alertGetPair.get(assetId, host); }
+export function alertActive(assetId, host) { return S.alertActiveGet.get(assetId, host)?.active ?? null; }
 export function upsertAlertSeen(assetId, host, ips, vectors, types, lastSeen) { S.alertUpsertSeen.run(lastSeen, ips, vectors, types, assetId, host); }
 export function insertAlert(a) { const r = S.alertInsert.run(a.userId, a.assetId, a.assetValue, a.host, a.ips, a.vectors, a.types, a.firstMatched, a.lastSeen); return Number(r.changes) > 0; }
 export function listAlerts(userId) { return S.alertList.all(userId); }

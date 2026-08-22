@@ -109,6 +109,24 @@ test('oversized request body is rejected', async () => {
   assert.equal(status, 400);
 });
 
+test('malformed percent-encoding in a static path → 400, not 500', async () => {
+  const { status } = await j('/%zz');
+  assert.equal(status, 400);
+});
+
+test('login: unknown email and wrong password give the same generic 401 (no user enumeration)', async () => {
+  const reg = { email: 'login-probe@ex.com', password: 'correcthorse9' };
+  await j('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reg) });
+  const post = (body) => j('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const unknown = await post({ email: 'nobody-here@ex.com', password: 'whatever12' });
+  const wrongpw = await post({ email: reg.email, password: 'wrongpass1' });
+  const good = await post(reg);
+  assert.equal(unknown.status, 401);
+  assert.equal(wrongpw.status, 401);
+  assert.equal(unknown.body.error, wrongpw.body.error); // identical message either way
+  assert.equal(good.status, 200);
+});
+
 // Keep this LAST: it exhausts the per-IP public-read budget for the window.
 test('public read endpoints are rate limited', async () => {
   let got429 = false;

@@ -247,19 +247,22 @@ function runMatching() {
       if (!hostMatchesAsset(h.host, h.ips, asset)) continue;
       const ipsStr = h.ips.join(', ');
       const typesStr = Object.keys(h.types).join(', ');
+      const notify = (verb) => {
+        const alert = { asset_value: asset.value, target_host: h.host, target_ips: ipsStr, vectors: h.targetCount, types: typesStr, first_matched: nowIso };
+        deliverAlert({ email: asset.email, webhook_url: asset.webhook_url, email_alerts: asset.email_alerts }, alert);
+        console.log(`[match] ${verb} ${asset.email}: asset "${asset.value}" matches ${h.host}`);
+      };
       if (dbx.alertPairExists(asset.id, h.host)) {
+        // a resolved alert coming back is a fresh event → notify again, not just bump the badge
+        const wasResolved = dbx.alertActive(asset.id, h.host) === 0;
         dbx.upsertAlertSeen(asset.id, h.host, ipsStr, h.targetCount, typesStr, nowIso);
+        if (wasResolved) notify('RE-ALERT');
       } else {
-        const created = dbx.insertAlert({
+        if (dbx.insertAlert({
           userId: asset.user_id, assetId: asset.id, assetValue: asset.value,
           host: h.host, ips: ipsStr, vectors: h.targetCount, types: typesStr,
           firstMatched: nowIso, lastSeen: nowIso,
-        });
-        if (created) {
-          const alert = { asset_value: asset.value, target_host: h.host, target_ips: ipsStr, vectors: h.targetCount, types: typesStr, first_matched: nowIso };
-          deliverAlert({ email: asset.email, webhook_url: asset.webhook_url, email_alerts: asset.email_alerts }, alert);
-          console.log(`[match] ALERT ${asset.email}: asset "${asset.value}" matches ${h.host}`);
-        }
+        })) notify('ALERT');
       }
     }
   }
@@ -392,7 +395,9 @@ function readBody(req, limit = 64 * 1024) {
   });
 }
 async function serveStatic(req, res) {
-  let urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+  let urlPath;
+  try { urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); }
+  catch { return void res.writeHead(400, { 'Content-Type': 'text/plain' }).end('Bad request'); } // malformed %-encoding
   if (urlPath === '/') urlPath = '/index.html';
   const filePath = normalize(join(PUBLIC_DIR, urlPath));
   // Must resolve to PUBLIC_DIR itself or a path strictly beneath it — the
@@ -439,7 +444,10 @@ async function handleApi(req, res, pathname) {
     const b = await readBody(req);
     const email = String(b.email || '').trim().toLowerCase();
     const user = dbx.getUserByEmail(email);
-    if (!user || !auth.verifyPassword(b.password || '', user.pass_hash)) return sendJson(res, { error: 'Wrong email or password' }, 401);
+    // always run one scrypt (against a dummy hash when there's no user / no
+    // password) so response time doesn't reveal whether the account exists
+    const ok = auth.verifyPassword(b.password || '', (user && user.pass_hash) || auth.DUMMY_HASH);
+    if (!user || !user.pass_hash || !ok) return sendJson(res, { error: 'Wrong email or password' }, 401);
     const { token, exp } = auth.startSession(user.id);
     res.setHeader('Set-Cookie', auth.sessionCookie(token, exp, isSecure(req)));
     return sendJson(res, { email: user.email });
@@ -580,7 +588,9 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/auth/')) return await handleOAuth(req, res, pathname);
     return serveStatic(req, res);
   } catch (e) {
-    sendJson(res, { error: e.message || 'server error' }, e.message === 'invalid JSON' || e.message === 'body too large' ? 400 : 500);
+    const bad = e.message === 'invalid JSON' || e.message === 'body too large';
+    sendJson(res, { error: e.message || 'server error' }, bad ? 400 : 500);
+    if (e.message === 'body too large') req.destroy(); // stop a client trickling more after the 400
   }
 });
 
