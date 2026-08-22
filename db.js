@@ -6,6 +6,7 @@
 // (from earlier JSON-file versions / backfill) into the DB.
 
 import { DatabaseSync } from 'node:sqlite';
+import { sectorOf, SECTOR_LABEL } from './sectors.js';
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -294,13 +295,17 @@ export function periodStats(fromDay, toDay, fromIso, toIso) {
   const names = new Map(S.countryAll.all().map((c) => [c.code, c.country]));
   const byCountry = [...ccH.entries()].map(([code, s]) => ({ code, key: names.get(code) || code, count: s.size })).sort((a, b) => b.count - a.count).slice(0, 10);
   const byMethod = [...meH.entries()].map(([key, s]) => ({ key, count: s.size })).sort((a, b) => b.count - a.count).slice(0, 8);
+  // distinct hosts per sector over the window (sector inferred from the hostname)
+  const secH = new Map();
+  for (const h of H) { const s = sectorOf(h); secH.set(s, (secH.get(s) || 0) + 1); }
+  const bySector = [...secH.entries()].map(([key, count]) => ({ key, label: SECTOR_LABEL[key] || key, count })).sort((a, b) => b.count - a.count);
   const trend = hist.map((d) => ({ day: d.day, count: d.count, hosts: d.hosts, ips: d.ips }));
   // most-targeted over a window = most days present on the list (discriminates at any window size)
   const mostTargeted = [...hostDays.entries()].map(([host, days]) => ({ host, days })).sort((a, b) => b.days - a.days).slice(0, 10);
   const longestAttacks = S.asLongestWin.all(toIso, fromIso, 10);
   // most waves = the host targeted in the most separate stints overlapping the window
   const mostWaves = S.asWavesWin.all(toIso, fromIso, 10);
-  return { hosts: H.size, ips: I.size, countries: C.size, requests, peak, avg, days: hist.length, newHosts, byCountry, byMethod, trend, mostTargeted, longestAttacks, mostWaves };
+  return { hosts: H.size, ips: I.size, countries: C.size, requests, peak, avg, days: hist.length, newHosts, byCountry, byMethod, bySector, trend, mostTargeted, longestAttacks, mostWaves };
 }
 export function getHostFirstSeen(host) { return S.hfsGet.get(host)?.first_seen || null; }
 export function putHostFirstSeen(host, iso) { S.hfsPut.run(host, iso); }

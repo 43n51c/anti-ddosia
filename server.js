@@ -16,6 +16,7 @@ import * as auth from './auth.js';
 import * as oauth from './oauth.js';
 import { deliverAlert, emailConfigured, webhookUrlIssue } from './notify.js';
 import { parseAsset, hostMatchesAsset } from './match.js';
+import { sectorOf, SECTOR_LABEL } from './sectors.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, 'public');
@@ -138,6 +139,7 @@ async function poll() {
       return {
         target_id: t.target_id, host: t.host, ip: t.ip, type: t.type, method: t.method,
         port: t.port, use_ssl: t.use_ssl, path: t.path || '', ...geo,
+        sector: sectorOf(t.host),
         firstSeen: dbx.getTargetFirstSeen(t.target_id) || nowIso,
         hostFirstSeen: hfs,
         sessionStart: ss,
@@ -323,6 +325,10 @@ function buildStats() {
     perFirstDay.set(d, (perFirstDay.get(d) || 0) + 1);
   }
   const waveSince = [...perFirstDay.entries()].sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0]?.[0] || null;
+  // live distinct hosts per sector (sector inferred from the hostname)
+  const secSet = new Map();
+  for (const x of t) { if (!x.host) continue; const s = x.sector || sectorOf(x.host); let set = secSet.get(s); if (!set) { set = new Set(); secSet.set(s, set); } set.add(x.host); }
+  const bySector = [...secSet.entries()].map(([key, set]) => ({ key, label: SECTOR_LABEL[key] || key, count: set.size })).sort((a, b) => b.count - a.count);
   // Host rankings are ALL-TIME (a short window makes every host look identical —
   // 1 day on the list / one short stint / one wave), so compute them over the
   // full archive here rather than following the period switcher.
@@ -331,7 +337,7 @@ function buildStats() {
   statsCache = {
     ok: current.ok, fetchedAt: current.fetchedAt, feedLastModified: current.feedLastModified,
     totals: { targets: t.length, hosts: new Set(t.map((x) => x.host)).size, ips: new Set(t.map((x) => x.ip)).size, countries: new Set(t.map((x) => x.countryCode)).size, newHosts24h: newHosts.length },
-    byType: tally(t, 'type'), byCountry: tally(t, 'country'), byPort: tally(t, 'port'), byMethod: tally(t, 'method'),
+    byType: tally(t, 'type'), byCountry: tally(t, 'country'), byPort: tally(t, 'port'), byMethod: tally(t, 'method'), bySector,
     topHosts: tally(t, 'host').slice(0, 15), topPaths: topPaths(t), newHosts,
     trend, trendPeak: peak, trendAvg: avg, historyDays: trend.length,
     historyStart: dbx.historyBounds().min,

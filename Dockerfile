@@ -10,7 +10,7 @@ WORKDIR /app
 COPY package.json ./
 
 # Application code.
-COPY server.js backfill.js db.js auth.js notify.js oauth.js match.js ./
+COPY server.js backfill.js db.js auth.js notify.js oauth.js match.js sectors.js ./
 COPY public ./public
 
 ENV NODE_OPTIONS=--disable-warning=ExperimentalWarning

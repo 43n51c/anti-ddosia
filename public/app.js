@@ -61,7 +61,7 @@ async function loadWorld() {
 }
 
 let trendGeom = null;
-const state = { targets: [], stats: null, view: 'dashboard', hostsMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterMethod: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
+const state = { targets: [], stats: null, view: 'dashboard', hostsMode: 'live', search: '', filterType: '', filterCountry: '', filterPort: '', filterMethod: '', filterSector: '', filterNew: false, tSortKey: 'host', tSortDir: 'asc', fSortKey: 'targetCount', fSortDir: 'desc', hSort: 'targetCount' };
 
 // ---------- helpers ----------
 const $ = (s) => document.querySelector(s);
@@ -120,8 +120,9 @@ function filtered() {
     if (state.filterCountry && t.country !== state.filterCountry) return false;
     if (state.filterPort && String(t.port) !== state.filterPort) return false;
     if (state.filterMethod && t.method !== state.filterMethod) return false;
+    if (state.filterSector && t.sector !== state.filterSector) return false;
     if (state.filterNew && !isNew(t)) return false;
-    if (q) { const h = `${t.host} ${t.ip} ${t.path} ${t.org} ${t.country} ${t.method} ${t.type}`.toLowerCase(); if (!h.includes(q)) return false; }
+    if (q) { const h = `${t.host} ${t.ip} ${t.path} ${t.org} ${t.country} ${t.method} ${t.type} ${t.sector || ''}`.toLowerCase(); if (!h.includes(q)) return false; }
     return true;
   });
 }
@@ -297,6 +298,7 @@ function renderPeriodTiles(p) {
   $('#periodRange').innerHTML = `<span class="pr-win">${winLabel}</span> ${span} · ${p.days} day${p.days === 1 ? '' : 's'}`;
   $('#countryWin').textContent = winLabel;
   $('#methodWin').textContent = winLabel;
+  $('#sectorWin').textContent = winLabel;
   const tiles = [
     { l: 'HOSTS', v: p.hosts, d: 'distinct in window' },
     { l: 'UNIQUE IPS', v: p.ips, d: 'behind the hosts' },
@@ -312,6 +314,7 @@ function renderPeriodTiles(p) {
   // period-scoped breakdown bars (share the same one-shot animation)
   bars($('#countryBars'), (p.byCountry || []).slice(0, 8), (r) => `${flag(r.code)} ${esc(r.key)}`, '#34e0d0', animate);
   bars($('#methodBars'), (p.byMethod || []).slice(0, 6), (r) => esc(fmtMethod(r.key)), '#f5b301', animate);
+  bars($('#sectorBars'), (p.bySector || []).slice(0, 8), (r) => esc(r.label || r.key), '#b98cff', animate);
   // (host rankings are rendered all-time from /api/stats, not per-period)
   if (!animate) return;
   $$('#tiles .tile').forEach((tile) => {
@@ -784,6 +787,7 @@ function syncFilters() {
   fill($('#filterCountry'), s.byCountry, 'country: all', (r) => `${r.key} (${r.count})`, state.filterCountry);
   fill($('#filterPort'), s.byPort, 'port: all', (r) => `${r.key} (${r.count})`, state.filterPort);
   fill($('#filterMethod'), s.byMethod, 'method: all', (r) => `${fmtMethod(r.key)} (${r.count})`, state.filterMethod);
+  fill($('#filterSector'), s.bySector || [], 'sector: all', (r) => `${r.label || r.key} (${r.count})`, state.filterSector);
 }
 
 // ==================== account / auth / assets / alerts ====================
@@ -954,20 +958,22 @@ $('#searchClear').addEventListener('click', () => { state.search = ''; $('#searc
 $('#filterType').addEventListener('change', (e) => { state.filterType = e.target.value; applyFilter(); });
 $('#filterCountry').addEventListener('change', (e) => { state.filterCountry = e.target.value; applyFilter(); });
 $('#filterMethod').addEventListener('change', (e) => { state.filterMethod = e.target.value; applyFilter(); });
+$('#filterSector').addEventListener('change', (e) => { state.filterSector = e.target.value; applyFilter(); });
 $('#filterPort').addEventListener('change', (e) => { state.filterPort = e.target.value; applyFilter(); });
 // drill from a BY COUNTRY / ATTACK METHODS bar into the live feed, filtered
 function clearListControls() {
   state.search = ''; $('#search').value = ''; $('#searchClear').hidden = true;
-  state.filterType = ''; state.filterCountry = ''; state.filterPort = ''; state.filterMethod = ''; state.filterNew = false;
+  state.filterType = ''; state.filterCountry = ''; state.filterPort = ''; state.filterMethod = ''; state.filterSector = ''; state.filterNew = false;
   $$('#filterNew .seg').forEach((s) => s.classList.toggle('on', s.dataset.new === '0'));
 }
 function drillToFeed(kind, value) {
   switchView('targets'); // clears prior filters/search first
-  if (kind === 'country') state.filterCountry = value; else if (kind === 'method') state.filterMethod = value;
+  if (kind === 'country') state.filterCountry = value; else if (kind === 'method') state.filterMethod = value; else if (kind === 'sector') state.filterSector = value;
   render(); // apply the drill filter + sync the toolbar selects to state
 }
 $('#countryBars').addEventListener('click', (e) => { const b = e.target.closest('.bar[data-key]'); if (b) drillToFeed('country', b.dataset.key); });
 $('#methodBars').addEventListener('click', (e) => { const b = e.target.closest('.bar[data-key]'); if (b) drillToFeed('method', b.dataset.key); });
+$('#sectorBars').addEventListener('click', (e) => { const b = e.target.closest('.bar[data-key]'); if (b) drillToFeed('sector', b.dataset.key); });
 $('#filterNew').addEventListener('click', (e) => {
   const seg = e.target.closest('.seg'); if (!seg) return;
   state.filterNew = seg.dataset.new === '1';

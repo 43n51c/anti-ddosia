@@ -87,6 +87,7 @@
       <select id="filterType" class="sel"><option value="">type: all</option></select>
       <select id="filterCountry" class="sel"><option value="">country: all</option></select>
       <select id="filterMethod" class="sel"><option value="">method: all</option></select>
+      <select id="filterSector" class="sel"><option value="">sector: all</option></select>
       <select id="filterPort" class="sel"><option value="">port: all</option></select>
       <span class="seg-group" id="filterNew" role="group" aria-label="recency filter">
         <button type="button" class="seg on" data-new="0">ALL</button>
@@ -168,6 +169,9 @@
           <div id="countryBars" class="bars"></div>
           <div class="pnl-h" style="margin-top:16px"><span>ATTACK METHODS</span><span class="mono pnl-win" id="methodWin"></span></div>
           <div id="methodBars" class="bars"></div>
+          <div class="pnl-h" style="margin-top:16px"><span>BY SECTOR</span><span class="mono pnl-win" id="sectorWin"></span></div>
+          <div id="sectorBars" class="bars"></div>
+          <div class="map-note mono">sector inferred from the hostname — “Other” is expected to be large</div>
         </div>
       </div>
 
