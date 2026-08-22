@@ -295,7 +295,7 @@ let periodLastKey = null;
 function renderPeriodTiles(p) {
   const span = p.from === p.to ? p.from : `${p.from} → ${p.to}`;
   const winLabel = PRESET_LABEL[PERIOD.range] || 'custom';
-  $('#periodRange').innerHTML = `<span class="pr-win">${winLabel}</span> ${span} · ${p.days} day${p.days === 1 ? '' : 's'}`;
+  $('#periodRange').innerHTML = `<span class="pr-win">${winLabel}</span> ${span} · ${p.days} day${p.days === 1 ? '' : 's'} · <span class="pr-utc">UTC</span>`;
   $('#countryWin').textContent = winLabel;
   $('#methodWin').textContent = winLabel;
   $('#sectorWin').textContent = winLabel;
@@ -1024,7 +1024,8 @@ function renderCal() {
       <button type="button" class="cal-nav" data-nav="1" ${nextOk ? '' : 'disabled'}>›</button>
     </div>
     <div class="cal-dow mono">${['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((w) => `<span>${w}</span>`).join('')}</div>
-    <div class="cal-grid">${cells}</div>`;
+    <div class="cal-grid">${cells}</div>
+    <div class="cal-foot mono">dates in UTC</div>`;
 }
 $('#calPop').addEventListener('click', (e) => {
   // clicks inside the calendar must not reach the document-level outside-click closer:
