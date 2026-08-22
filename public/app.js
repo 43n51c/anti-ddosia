@@ -909,11 +909,14 @@ function closeConfirm(val) { $('#confirmModal').hidden = true; $('#confirmOverla
 async function markSeen() { try { await api('/api/alerts/seen', { method: 'POST' }); account.unseen = 0; account.alerts = account.alerts.map((a) => ({ ...a, seen: 1 })); renderAccount(); renderBell(); if (state.view === 'alerts') renderAlerts(); } catch {} }
 
 // ---------- events ----------
+const VIEWS = ['dashboard', 'hosts', 'targets', 'assets', 'alerts'];
+const viewFromHash = () => { const h = decodeURIComponent(location.hash.slice(1)); return VIEWS.includes(h) ? h : 'dashboard'; };
 function switchView(v) {
   if ((v === 'assets' || v === 'alerts') && !account.user) { pendingView = v; openAuth('login'); return; }
   // grep only applies to list views — clear a stale term when leaving them so it can't filter invisibly
   if (v !== 'hosts' && v !== 'targets' && state.search) { state.search = ''; $('#search').value = ''; $('#searchClear').hidden = true; }
   state.view = v;
+  if (location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v); // keep the view in the URL so a refresh stays put
   $$('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.view === v));
   $$('.view').forEach((s) => { s.hidden = s.id !== `view-${v}`; });
   render();
@@ -1171,5 +1174,16 @@ tick(); setInterval(tick, 1000);
 restorePeriod(); // restore the saved/shared time window before the first render
 loadWorld();
 loadProviders();
-load(); loadMe();
+// restore the view from the URL hash so a refresh (or a shared link) stays put;
+// public views apply now, auth-only views wait for the session check.
+{ const v = viewFromHash(); if (v === 'hosts' || v === 'targets') switchView(v); }
+load();
+loadMe().then(() => { const v = viewFromHash(); if ((v === 'assets' || v === 'alerts') && account.user) switchView(v); });
+// browser back/forward between views
+window.addEventListener('hashchange', () => {
+  const v = viewFromHash();
+  if (v === state.view) return;
+  if ((v === 'assets' || v === 'alerts') && !account.user) { switchView('dashboard'); return; }
+  switchView(v);
+});
 setInterval(() => { load(); if (account.user) loadAlerts(); }, REFRESH_MS);
