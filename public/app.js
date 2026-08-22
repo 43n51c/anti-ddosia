@@ -93,6 +93,8 @@ const typeCls = (ty) => (['http', 'http2', 'http3', 'tcp', 'udp', 'nginx_loris']
 // display label for an attack method (uppercase, canonical spelling) — value stays raw for filtering
 const METHOD_LABEL = { get: 'GET', post: 'POST', ping: 'PING', syn: 'SYN', ack: 'ACK', syn_ack: 'SYN-ACK', udp_flood: 'UDP FLOOD' };
 const fmtMethod = (m) => (m ? (METHOD_LABEL[String(m).toLowerCase()] || String(m).toUpperCase().replace(/_/g, ' ')) : '—');
+// display label for an attack type/vector — uppercase to match methods (value stays raw for classes/filtering)
+const fmtType = (t) => (t ? String(t).toUpperCase().replace(/_/g, ' ') : '—');
 function toast(m) { const el = $('#toast'); el.textContent = m; el.hidden = false; clearTimeout(el._t); el._t = setTimeout(() => (el.hidden = true), 1800); }
 async function copy(t, l) { try { await navigator.clipboard.writeText(t); toast(`${l} copied`); } catch { toast('copy blocked'); } }
 function download(n, t, m) { const b = new Blob([t], { type: m }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = n; a.click(); URL.revokeObjectURL(u); }
@@ -222,8 +224,8 @@ function renderOverview(T, s) {
     { l: 'LIVE NOW', v: `${T.targets}&nbsp;<span class="sig-sub">targets</span>`, d: `${T.hosts} hosts · ${T.ips} IPs · ${T.countries} ${T.countries === 1 ? 'country' : 'countries'}`, vc: '' },
     { l: 'TRAJECTORY', v: `${trajV}&nbsp;<span class="sig-sub">vs yday</span>&nbsp;${miniSpark(last7, 56, 16, delta > 0 ? '#ff5566' : '#3ddc84')}`, d: `${T.targets} now &larr; ${s.yesterdayCount ?? '—'} yesterday`, vc: trajCls },
     { l: 'NEW · 24H', v: `${newHosts.length}&nbsp;<span class="sig-sub">${newHosts.length === 1 ? 'host' : 'hosts'}</span>`, d: newNames, vc: newHosts.length ? 'up' : '' },
-    { l: 'TOP VECTOR', v: topType ? esc(topType.key) : '—', d: topType ? `${vecPct}% of vectors${topMethods ? ' · ' + topMethods : ''}` : '' },
-    { l: 'HOT TARGET', v: hot ? esc(hot.host) : '—', d: hot ? `${hot.targetCount} vectors · ${esc(Object.keys(hot.types).join('/'))}` : '' },
+    { l: 'TOP VECTOR', v: topType ? esc(fmtType(topType.key)) : '—', d: topType ? `${vecPct}% of vectors${topMethods ? ' · ' + topMethods : ''}` : '' },
+    { l: 'HOT TARGET', v: hot ? esc(hot.host) : '—', d: hot ? `${hot.targetCount} vectors · ${esc(Object.keys(hot.types).map(fmtType).join('/'))}` : '' },
   ];
   el.hidden = false;
   el.innerHTML = `
@@ -503,7 +505,7 @@ function renderFeed(rows) {
       <td><span class="tdot"></span>${esc(h.host)}${fresh ? ' <span class="nbadge">NEW</span>' : ''}</td>
       <td class="cc">${flag(h.countryCode)} ${esc(h.city || h.country)}</td>
       <td>${h.targetCount}</td>
-      <td class="tt">${esc(Object.keys(h.types).join(' '))}</td>
+      <td class="tt">${esc(Object.keys(h.types).map(fmtType).join(' '))}</td>
       <td class="cc">${h.ports.length > 10 ? h.ports.slice(0, 10).join(' ') + ` +${h.ports.length - 10}` : h.ports.join(' ')}</td>
       <td class="cc"><span class="dur" data-since="${esc(h.sessionStart)}"></span></td>
     </tr>`;
@@ -569,7 +571,7 @@ $('#checkForm').addEventListener('submit', async (e) => {
     if (r.targeted) {
       el.className = 'verdict hit';
       el.innerHTML = `<div class="vhead">■ ON THE TARGET LIST</div>` + r.matches.map((m) =>
-        `<div class="vrow"><b>${esc(r.query)}</b> → <span class="host" data-host="${esc(m.host)}">${esc(m.host)}</span> · ${m.vectors} vectors · ${esc(m.types.join('/'))} · ${m.ips.length} IP${m.ips.length > 1 ? 's' : ''} · ${flag(m.country && codeFor(m.country) || 'XX')} ${esc(m.city || m.country)}</div>`).join('')
+        `<div class="vrow"><b>${esc(r.query)}</b> → <span class="host" data-host="${esc(m.host)}">${esc(m.host)}</span> · ${m.vectors} vectors · ${esc(m.types.map(fmtType).join('/'))} · ${m.ips.length} IP${m.ips.length > 1 ? 's' : ''} · ${flag(m.country && codeFor(m.country) || 'XX')} ${esc(m.city || m.country)}</div>`).join('')
         + `<div class="vrow" style="margin-top:6px">→ sign in to monitor this asset and get alerted on new hits.</div>`;
     } else {
       el.className = 'verdict ok';
@@ -627,7 +629,7 @@ function renderHostsLive(rows) {
   const g = $('#hostGrid');
   if (!hosts.length) { g.innerHTML = '<div class="empty">no hosts match</div>'; return; }
   g.innerHTML = hosts.map((h) => {
-    const chips = Object.entries(h.types).sort((a, b) => b[1] - a[1]).map(([ty, c]) => `<span class="tag ${typeCls(ty)}">${esc(ty)} ${c}</span>`).join('');
+    const chips = Object.entries(h.types).sort((a, b) => b[1] - a[1]).map(([ty, c]) => `<span class="tag ${typeCls(ty)}">${esc(fmtType(ty))} ${c}</span>`).join('');
     const fresh = h.firstSeen && (Date.now() - new Date(h.firstSeen).getTime()) < DAY;
     return `<div class="hcard ${fresh ? 'new' : ''}" data-host="${esc(h.host)}">
       <div class="hc-top"><div><div class="hc-name">${esc(h.host)} ${fresh ? '<span class="nbadge">NEW</span>' : ''}</div>
@@ -648,7 +650,7 @@ function renderTargets(rows) {
   if (!rows.length) { body.innerHTML = '<tr><td colspan="8" class="empty">no targets match</td></tr>'; return; }
   body.innerHTML = rows.map((t) => `<tr class="${isNew(t) ? 'new' : ''}" data-host="${esc(t.host)}">
     <td>${esc(t.host)}${isNew(t) ? ' <span class="nbadge">NEW</span>' : ''}</td><td class="cc">${esc(t.ip)}</td><td class="cc">${flag(t.countryCode)} ${esc(t.country)}</td>
-    <td><span class="tag ${typeCls(t.type)}">${esc(t.type)}</span></td><td class="cc">${esc(fmtMethod(t.method))}</td><td class="cc">${esc(t.port)}</td>
+    <td><span class="tag ${typeCls(t.type)}">${esc(fmtType(t.type))}</span></td><td class="cc">${esc(fmtMethod(t.method))}</td><td class="cc">${esc(t.port)}</td>
     <td class="${t.use_ssl ? 'ssl1' : 'ssl0'}">${t.use_ssl ? LOCK : '—'}</td><td class="path">${esc(t.path || '—')}</td></tr>`).join('');
   markSort('#targetsTable', state.tSortKey, state.tSortDir);
 }
@@ -669,7 +671,7 @@ function renderIpTargets(ip, vecs, openIt) {
   const ports = [...new Set(vecs.map((v) => v.port))].sort((a, b) => a - b);
   const paths = [...new Set(vecs.map((v) => v.path).filter(Boolean))];
   const copyBtns = `<div class="dsc-copyall"><button class="mini-copy" data-copy="${esc(ip)}">copy IP</button>${paths.length ? ` <button class="mini-copy" data-copy="${esc(paths.join('\n'))}">copy paths</button>` : ''}</div>`;
-  const table = `<table class="vec-tbl"><thead><tr><th>type</th><th>method</th><th>port</th><th>path</th></tr></thead><tbody>${vecs.map((v) => `<tr><td><span class="tag ${typeCls(v.type)}">${esc(v.type)}</span></td><td class="cc">${esc(fmtMethod(v.method))}</td><td class="cc">${esc(v.port)}</td><td class="p">${esc(v.path || '—')}</td></tr>`).join('')}</tbody></table>`;
+  const table = `<table class="vec-tbl"><thead><tr><th>type</th><th>method</th><th>port</th><th>path</th></tr></thead><tbody>${vecs.map((v) => `<tr><td><span class="tag ${typeCls(v.type)}">${esc(fmtType(v.type))}</span></td><td class="cc">${esc(fmtMethod(v.method))}</td><td class="cc">${esc(v.port)}</td><td class="p">${esc(v.path || '—')}</td></tr>`).join('')}</tbody></table>`;
   return dsecC(`${ip} · ${vecs.length} target${vecs.length === 1 ? '' : 's'}`, copyBtns + table, openIt, `ports ${ports.join(', ') || '—'}`);
 }
 // one collapsible per IP with that IP's all-time paths (from the stored surface)
@@ -677,7 +679,7 @@ function renderIpPathsHist(ip, e, openIt) {
   const paths = e.paths || [], ports = e.ports || [], types = e.types || {}, methods = e.methods || [];
   const copyBtns = `<div class="dsc-copyall"><button class="mini-copy" data-copy="${esc(ip)}">copy IP</button>${paths.length ? ` <button class="mini-copy" data-copy="${esc(paths.map((p) => p[0]).join('\n'))}">copy paths</button>` : ''}</div>`;
   const rows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based targets on this IP</div>';
-  const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(fmtMethod(m))}</span>`).join('')}</div>` : '';
+  const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(fmtType(t))} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(fmtMethod(m))}</span>`).join('')}</div>` : '';
   return dsecC(`${ip} · ${paths.length} path${paths.length === 1 ? '' : 's'}`, copyBtns + rows + chips, openIt, `ports ${ports.join(', ') || '—'}`);
 }
 let drawerToken = 0;
@@ -738,7 +740,7 @@ function renderSessDetail(d) {
   const paths = d.paths || [], types = d.types || {}, methods = d.methods || [], ips = d.ips || [], ports = d.ports || [];
   const meta = `<div class="sess-meta">${ips.length ? `<div>IPs: ${ips.map(esc).join(', ')}</div>` : ''}<div>Ports: ${ports.join(', ') || '—'}</div></div>`;
   const pathRows = paths.length ? paths.map(([p, c]) => `<div class="res-row"><span class="res-p mono" title="${esc(p)}">${esc(p)}</span><span class="res-m">${c}×</span><button class="mini-copy" data-copy="${esc(p)}">copy</button></div>`).join('') : '<div class="empty">no path-based vectors in this session</div>';
-  const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(t)} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(fmtMethod(m))}</span>`).join('')}</div>` : '';
+  const chips = (Object.keys(types).length || methods.length) ? `<div class="surf-chips">${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, c]) => `<span class="tag ${typeCls(t)}">${esc(fmtType(t))} ${c}</span>`).join('')}${methods.map((m) => `<span class="tag t-default">${esc(fmtMethod(m))}</span>`).join('')}</div>` : '';
   return meta + pathRows + chips;
 }
 async function loadSessionDetail(el) {
@@ -776,7 +778,7 @@ function syncFilters() {
     if (val && !items.some((r) => String(r.key) === String(val))) opts.push(`<option value="${esc(val)}">${esc(val)}</option>`);
     sel.innerHTML = opts.join(''); sel.value = val || '';
   };
-  fill($('#filterType'), s.byType, 'type: all', (r) => `${r.key} (${r.count})`, state.filterType);
+  fill($('#filterType'), s.byType, 'type: all', (r) => `${fmtType(r.key)} (${r.count})`, state.filterType);
   fill($('#filterCountry'), s.byCountry, 'country: all', (r) => `${r.key} (${r.count})`, state.filterCountry);
   fill($('#filterPort'), s.byPort, 'port: all', (r) => `${r.key} (${r.count})`, state.filterPort);
   fill($('#filterMethod'), s.byMethod, 'method: all', (r) => `${fmtMethod(r.key)} (${r.count})`, state.filterMethod);
@@ -858,7 +860,7 @@ function renderAssetsDash() {
     $('#atkCount').textContent = `(${activeAlerts.length})`;
     $('#attackList').innerHTML = activeAlerts.map((a) => {
       const chips = (a.types || '').split(',').map((t) => t.trim()).filter(Boolean)
-        .map((t) => `<span class="tag ${typeCls(t)}">${esc(t)}</span>`).join('');
+        .map((t) => `<span class="tag ${typeCls(t)}">${esc(fmtType(t))}</span>`).join('');
       return `<div class="atk-row" data-host="${esc(a.target_host)}">
         <div class="atk-main">
           <div class="atk-host">${esc(a.target_host)}</div>
@@ -876,7 +878,7 @@ function renderAssetsDash() {
   for (const a of activeAlerts) for (const t of (a.types || '').split(',').map((x) => x.trim()).filter(Boolean)) mm.set(t, (mm.get(t) || 0) + 1);
   const rows = [...mm.entries()].map(([key, count]) => ({ key, count })).sort((x, y) => y.count - x.count).slice(0, 6);
   mPnl.hidden = rows.length === 0;
-  if (rows.length) bars($('#dashMethods'), rows, (r) => `<span class="tag ${typeCls(r.key)}">${esc(r.key)}</span>`, '#ff5566');
+  if (rows.length) bars($('#dashMethods'), rows, (r) => `<span class="tag ${typeCls(r.key)}">${esc(fmtType(r.key))}</span>`, '#ff5566');
 }
 function renderAssets() {
   renderAssetsDash();
