@@ -309,20 +309,13 @@ function renderPeriodTiles(p) {
   $('#countryWin').textContent = winLabel;
   $('#methodWin').textContent = winLabel;
   $('#sectorWin').textContent = winLabel;
-  lastPeriod = p;
-  // PEAK/DAY & AVG/DAY follow the selected trend metric, derived from the daily series over this window
-  const win = (state.stats?.trend || []).filter((d) => d.day >= p.from && d.day <= p.to);
-  const mv = win.map((d) => d[trendMetric] || 0);
-  const mPeak = mv.length ? Math.max(...mv) : 0;
-  const mPeakDay = mv.length ? win[mv.indexOf(mPeak)].day : null;
-  const mAvg = mv.length ? Math.round(mv.reduce((a, b) => a + b, 0) / mv.length) : 0;
   const tiles = [
     { l: 'HOSTS', v: p.hosts, d: 'distinct in window' },
     { l: 'UNIQUE IPS', v: p.ips, d: 'behind the hosts' },
     { l: 'COUNTRIES', v: p.countries, d: 'targeted' },
     { l: 'NEW HOSTS', v: p.newHosts, d: 'first appeared' },
-    { l: 'PEAK / DAY', v: mPeak, d: mPeakDay ? `on ${mPeakDay}` : '' },
-    { l: 'AVG / DAY', v: mAvg, d: `${METRIC_LABEL[trendMetric]}/day` },
+    { l: 'PEAK / DAY', v: p.peak.count, d: p.peak.day ? `on ${p.peak.day}` : '' },
+    { l: 'AVG / DAY', v: p.avg, d: 'targets/day' },
   ];
   const key = p.from + '|' + p.to;
   const animate = key !== periodLastKey && !prefersReducedMotion(); // only when the window actually changes
@@ -536,8 +529,7 @@ function renderFeed(rows) {
 }
 
 let lastTrend = [];
-let lastPeriod = null; // last /api/period payload, so a metric switch can re-derive PEAK/AVG
-// trend/tiles metric: field name in each day point → display label. 'hosts' = distinct victims (default)
+// TREND metric: field name in each day point → display label. 'hosts' = distinct victims (default)
 let trendMetric = 'hosts';
 const METRIC_LABEL = { hosts: 'hosts', ips: 'IPs', countries: 'countries', count: 'vectors' };
 let trendZoom = null; // {a,b} inclusive index window into lastTrend; null = full range
@@ -1016,8 +1008,7 @@ $('#trendMetric').addEventListener('click', (e) => {
   const seg = e.target.closest('.seg[data-metric]'); if (!seg) return;
   trendMetric = seg.dataset.metric;
   $$('#trendMetric .seg').forEach((s) => s.classList.toggle('on', s === seg));
-  paintTrend();
-  if (lastPeriod) renderPeriodTiles(lastPeriod); // PEAK/AVG tiles follow the same metric
+  paintTrend(); // metric drives the TREND only; the period tiles are left as-is
 });
 document.addEventListener('click', (e) => {
   const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); }
