@@ -243,7 +243,7 @@ function renderOverview(T, s) {
   ];
   el.hidden = false;
   el.innerHTML = `
-    <div class="ov-h"><span class="ov-dot"></span> OVERVIEW <span class="ov-tag">live</span><span class="ov-upd mono">updated ${timeAgo(s.fetchedAt)} ago</span><button class="mini-ico" id="refreshBtn" title="Refresh now">↻</button></div>
+    <div class="ov-h"><span class="ov-dot"></span> OVERVIEW <span class="ov-tag">live</span><span class="ov-upd mono">updated ${timeAgo(s.fetchedAt)} ago</span><button class="mini-ico" id="refreshBtn" title="Refresh now" aria-label="Refresh now"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button></div>
     <div class="ov-grid">${sigs.map((x) => `<div class="sig"><div class="sig-l">${x.l}</div><div class="sig-v ${x.vc || ''}">${x.v}</div><div class="sig-d">${x.d}</div></div>`).join('')}</div>`;
 }
 
