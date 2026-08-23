@@ -75,7 +75,7 @@ document.addEventListener('error', (e) => {
   else if (t.tagName === 'image') t.remove(); // map SVG flag → drop the broken glyph
 }, true);
 const codeOf = (c) => c.code || codeFor(c.key);
-const LOCK = '<svg class="lock" viewBox="0 0 24 24" aria-label="ssl"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>';
+const LOCK = '<svg class="lock" viewBox="0 0 24 24" aria-label="SSL"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>';
 function timeAgo(iso) { if (!iso) return '—'; const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000); if (s < 60) return `${s}s`; if (s < 3600) return `${Math.floor(s / 60)}m`; if (s < 86400) return `${Math.floor(s / 3600)}h`; return `${Math.floor(s / 86400)}d`; }
 function fmtDur(iso) {
   if (!iso) return '—';
@@ -653,7 +653,7 @@ function renderHostsLive(rows) {
         ${h.org ? `<div class="hc-org">${esc(h.org)}</div>` : ''}</div>
         <div class="hc-v"><div class="n">${h.targetCount}</div><div class="l">VECTORS</div></div></div>
       <div class="hc-chips">${chips}</div>
-      <div class="hc-surf"><span><b>${h.ips.length}</b> IP${h.ips.length === 1 ? '' : 's'}</span><span><b>${h.ports.length}</b> port${h.ports.length === 1 ? '' : 's'}</span><span><b>${h.paths.length}</b> path${h.paths.length === 1 ? '' : 's'}</span><span>${h.ssl ? LOCK + ' ssl' : 'no ssl'}</span></div>
+      <div class="hc-surf"><span><b>${h.ips.length}</b> IP${h.ips.length === 1 ? '' : 's'}</span><span><b>${h.ports.length}</b> port${h.ports.length === 1 ? '' : 's'}</span><span><b>${h.paths.length}</b> path${h.paths.length === 1 ? '' : 's'}</span><span>${h.ssl ? LOCK + ' SSL' : 'no SSL'}</span></div>
     </div>`;
   }).join('');
 }
