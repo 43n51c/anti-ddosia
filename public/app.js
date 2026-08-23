@@ -408,6 +408,16 @@ function renderMap(data) {
     ${land}${overlay}${markers}
   </svg>`;
   applyMapView(); // re-apply zoom/pan (as an SVG viewBox, so it stays vector-crisp)
+
+  // side legend: the same live per-country host counts as the markers (fills the space beside the map)
+  const leg = $('#mapLegend');
+  if (leg) {
+    const rows = codes.map(([cc, c]) => ({ cc, name: c.key, hosts: hostsOf(cc) }))
+      .sort((a, b) => b.hosts - a.hosts).slice(0, 12);
+    leg.innerHTML = `<div class="lg-head">hosts now</div>` + rows.map((r) =>
+      `<div class="lg-row"><img class="lg-flag" src="/flags/${r.cc.toLowerCase()}.svg" alt="${esc(r.cc)}" loading="lazy"><span class="lg-name" title="${esc(r.name)}">${esc(r.name)}</span><b class="lg-n">${r.hosts}</b></div>`).join('')
+      || '<div class="empty">no live targets</div>';
+  }
 }
 
 // ---------- map zoom / pan via SVG viewBox (crisp — no raster scaling) ----------
