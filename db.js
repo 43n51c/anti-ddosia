@@ -161,6 +161,7 @@ const S = {
   dayAggGet: db.prepare('SELECT hosts, ips, ccs FROM day_agg WHERE day = ?'),
   dayAggPut: db.prepare('INSERT OR REPLACE INTO day_agg(day,hosts,ips,ccs) VALUES(?,?,?,?)'),
   dayAggRange: db.prepare('SELECT hosts, ips, ccs FROM day_agg WHERE day BETWEEN ? AND ?'),
+  dayAggCcs: db.prepare('SELECT day, ccs FROM day_agg'),
   dayAggClear: db.prepare('DELETE FROM day_agg'),
   dayBrkPut: db.prepare('INSERT OR REPLACE INTO day_breakdown(day,hb) VALUES(?,?)'),
   dayBrkRange: db.prepare('SELECT hb FROM day_breakdown WHERE day BETWEEN ? AND ?'),
@@ -249,7 +250,14 @@ export function putGeo(ip, v) { S.geoPut.run(ip, v.country || '', v.countryCode 
 
 // history + first-seen
 export function putDay(day, t, count, hosts, ips, types) { S.histPut.run(day, t, count, hosts, ips, JSON.stringify(types || {})); }
-export function getTrend() { return S.histTrend.all(); }
+export function getTrend() {
+  // history carries vectors/hosts/ips per day; distinct countries/day live in day_agg (ccs set)
+  const rows = S.histTrend.all();
+  const cc = new Map();
+  for (const r of S.dayAggCcs.all()) { let n = 0; try { n = JSON.parse(r.ccs || '[]').length; } catch { /* keep 0 */ } cc.set(r.day, n); }
+  for (const r of rows) r.countries = cc.get(r.day) || 0;
+  return rows;
+}
 export function historyBounds() { const r = S.histBounds.get(); return { min: r?.mn || null, max: r?.mx || null }; }
 
 // ---- per-day distinct sets (for windowed hosts/ips/countries) ----

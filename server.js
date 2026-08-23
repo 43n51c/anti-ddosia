@@ -311,7 +311,7 @@ function buildStats() {
   const t = current.targets;
   const dayCutoff = Date.now() - 24 * 3600 * 1000;
   const newHosts = [...new Set(t.filter((x) => new Date(x.hostFirstSeen).getTime() >= dayCutoff).map((x) => x.host))];
-  const trend = dbx.getTrend().slice(-2000).map((h) => ({ day: h.day, count: h.count, hosts: h.hosts, ips: h.ips }));
+  const trend = dbx.getTrend().slice(-2000).map((h) => ({ day: h.day, count: h.count, hosts: h.hosts, ips: h.ips, countries: h.countries || 0 }));
   const peak = trend.reduce((m, d) => (d.count > m.count ? d : m), { count: 0, day: null });
   const avg = trend.length ? Math.round(trend.reduce((s, d) => s + d.count, 0) / trend.length) : 0;
   const yesterdayCount = trend.length >= 2 ? trend[trend.length - 2].count : null;

@@ -309,13 +309,20 @@ function renderPeriodTiles(p) {
   $('#countryWin').textContent = winLabel;
   $('#methodWin').textContent = winLabel;
   $('#sectorWin').textContent = winLabel;
+  lastPeriod = p;
+  // PEAK/DAY & AVG/DAY follow the selected trend metric, derived from the daily series over this window
+  const win = (state.stats?.trend || []).filter((d) => d.day >= p.from && d.day <= p.to);
+  const mv = win.map((d) => d[trendMetric] || 0);
+  const mPeak = mv.length ? Math.max(...mv) : 0;
+  const mPeakDay = mv.length ? win[mv.indexOf(mPeak)].day : null;
+  const mAvg = mv.length ? Math.round(mv.reduce((a, b) => a + b, 0) / mv.length) : 0;
   const tiles = [
     { l: 'HOSTS', v: p.hosts, d: 'distinct in window' },
     { l: 'UNIQUE IPS', v: p.ips, d: 'behind the hosts' },
     { l: 'COUNTRIES', v: p.countries, d: 'targeted' },
     { l: 'NEW HOSTS', v: p.newHosts, d: 'first appeared' },
-    { l: 'PEAK / DAY', v: p.peak.count, d: p.peak.day ? `on ${p.peak.day}` : '' },
-    { l: 'AVG / DAY', v: p.avg, d: 'targets/day' },
+    { l: 'PEAK / DAY', v: mPeak, d: mPeakDay ? `on ${mPeakDay}` : '' },
+    { l: 'AVG / DAY', v: mAvg, d: `${METRIC_LABEL[trendMetric]}/day` },
   ];
   const key = p.from + '|' + p.to;
   const animate = key !== periodLastKey && !prefersReducedMotion(); // only when the window actually changes
@@ -529,7 +536,10 @@ function renderFeed(rows) {
 }
 
 let lastTrend = [];
-let trendMetric = 'hosts'; // 'hosts' = distinct victims/day (default), 'count' = attack vectors/day
+let lastPeriod = null; // last /api/period payload, so a metric switch can re-derive PEAK/AVG
+// trend/tiles metric: field name in each day point → display label. 'hosts' = distinct victims (default)
+let trendMetric = 'hosts';
+const METRIC_LABEL = { hosts: 'hosts', ips: 'IPs', countries: 'countries', count: 'vectors' };
 let trendZoom = null; // {a,b} inclusive index window into lastTrend; null = full range
 // paint the current zoom window (a slice of lastTrend) — re-renders so labels
 // and the y-scale re-fit crisply to the visible range
@@ -544,21 +554,21 @@ function paintTrend() {
   const meta = $('#trendMeta');
   if (meta) {
     if (!N) meta.textContent = '';
-    else { const vals = lastTrend.map((d) => d[trendMetric]); const pk = Math.max(...vals); const av = Math.round(vals.reduce((x, y) => x + y, 0) / N);
-      meta.textContent = `peak ${fmt(pk)} · avg ${fmt(av)} ${trendMetric === 'hosts' ? 'hosts' : 'vectors'}`; }
+    else { const vals = lastTrend.map((d) => d[trendMetric] || 0); const pk = Math.max(...vals); const av = Math.round(vals.reduce((x, y) => x + y, 0) / N);
+      meta.textContent = `peak ${fmt(pk)} · avg ${fmt(av)} ${METRIC_LABEL[trendMetric]}`; }
   }
   const hint = $('#trendHint');
-  if (hint) { hint.textContent = trendZoom ? '✕ reset zoom' : 'scroll to zoom · drag to pan'; hint.classList.toggle('on', !!trendZoom); }
+  if (hint) { hint.textContent = trendZoom ? '✕ reset zoom' : 'drag to select · scroll to zoom'; hint.classList.toggle('on', !!trendZoom); }
   renderTrend(el, lastTrend.slice(a, b + 1));
 }
 function renderTrend(el, trend) {
   if (!trend.length) { el.innerHTML = '<div class="empty">no history in this window…</div>'; return; }
   const W = Math.round(el.clientWidth) || 900, H = 180, pad = 30, bot = 22;
-  const max = Math.max(...trend.map((d) => d[trendMetric])) * 1.12 || 1;
+  const max = Math.max(...trend.map((d) => d[trendMetric] || 0)) * 1.12 || 1;
   const many = trend.length > 40;
   const x = (i) => pad + (i / Math.max(1, trend.length - 1)) * (W - pad * 2);
   const y = (v) => H - bot - (v / max) * (H - pad - bot);
-  const pts = trend.map((d, i) => `${x(i)},${y(d[trendMetric])}`).join(' ');
+  const pts = trend.map((d, i) => `${x(i)},${y(d[trendMetric] || 0)}`).join(' ');
   const area = `${pad},${H - bot} ${pts} ${x(trend.length - 1)},${H - bot}`;
   const yt = [0, max / 2, max].map((v) => `<line x1="${pad}" y1="${y(v)}" x2="${W - pad}" y2="${y(v)}" stroke="#141c28" stroke-dasharray="2 4"/><text x="4" y="${y(v) + 3}" fill="#566274" font-size="9">${Math.round(v)}</text>`).join('');
   let xl = '';
@@ -567,7 +577,7 @@ function renderTrend(el, trend) {
     const every = trend.length > 500 ? 3 : 1; let lm = -1;
     xl = trend.map((d, i) => { const m = +d.day.slice(5, 7) - 1; if (m === lm) return ''; lm = m; const lbl = multi ? `${MONTHS[m]} '${d.day.slice(2, 4)}` : MONTHS[m]; return `<line x1="${x(i)}" y1="${pad - 6}" x2="${x(i)}" y2="${H - bot}" stroke="${m === 0 ? '#1f2b3b' : '#131c27'}"/>${m % every === 0 ? `<text x="${x(i) + 2}" y="${H - 7}" fill="#566274" font-size="9">${lbl}</text>` : ''}`; }).join('');
   }
-  const peak = trend.reduce((m, d) => (d[trendMetric] > m[trendMetric] ? d : m), trend[0]);
+  const peak = trend.reduce((m, d) => ((d[trendMetric] || 0) > (m[trendMetric] || 0) ? d : m), trend[0]);
   const px = x(trend.indexOf(peak));
   trendGeom = { W, H, pad, bot, n: trend.length, trend, xAt: x, yAt: y, metric: trendMetric };
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" preserveAspectRatio="none">
@@ -575,7 +585,8 @@ function renderTrend(el, trend) {
     ${yt}${xl}
     <polygon points="${area}" fill="url(#tg)"/>
     <polyline points="${pts}" fill="none" stroke="#3ddc84" stroke-width="${many ? 1.4 : 2}"/>
-    <circle cx="${px}" cy="${y(peak[trendMetric])}" r="3" fill="#ff5566"><title>peak ${peak.day}: ${peak[trendMetric]} ${trendMetric === 'hosts' ? 'hosts' : 'vectors'}</title></circle>
+    <circle cx="${px}" cy="${y(peak[trendMetric] || 0)}" r="3" fill="#ff5566"><title>peak ${peak.day}: ${peak[trendMetric] || 0} ${METRIC_LABEL[trendMetric]}</title></circle>
+    <rect id="tBrush" x="0" y="${pad - 6}" width="0" height="${H - bot - (pad - 6)}" fill="#3ddc84" opacity="0" pointer-events="none"/>
     <line id="tCross" x1="0" y1="${pad - 6}" x2="0" y2="${H - bot}" stroke="#3ddc84" stroke-width="0.8" stroke-dasharray="2 3" opacity="0" pointer-events="none"/>
     <circle id="tDot" r="3.2" fill="#3ddc84" stroke="#0a0f16" stroke-width="1" opacity="0" pointer-events="none"/>
   </svg>`;
@@ -1006,6 +1017,7 @@ $('#trendMetric').addEventListener('click', (e) => {
   trendMetric = seg.dataset.metric;
   $$('#trendMetric .seg').forEach((s) => s.classList.toggle('on', s === seg));
   paintTrend();
+  if (lastPeriod) renderPeriodTiles(lastPeriod); // PEAK/AVG tiles follow the same metric
 });
 document.addEventListener('click', (e) => {
   const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); }
@@ -1117,7 +1129,9 @@ $('#periodApply').addEventListener('click', () => {
 (() => {
   const chart = $('#trendChart'), tip = $('#trendTip');
   if (!chart || !tip) return;
+  let brushing = false, brushStartF = 0;
   chart.addEventListener('mousemove', (e) => {
+    if (brushing) return; // suppress the hover crosshair while brush-selecting
     const g = trendGeom; if (!g) return;
     const svg = chart.querySelector('svg'); if (!svg) return;
     const rect = svg.getBoundingClientRect();
@@ -1130,7 +1144,7 @@ $('#periodApply').addEventListener('click', () => {
     if (cross) { cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.setAttribute('opacity', '0.6'); }
     if (dot) { dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('opacity', '1'); }
     const em = (on, html) => on ? `<b>${html}</b>` : html;
-    tip.innerHTML = `<div class="tt-day">${d.day}</div><div class="tt-cnt">${em(g.metric === 'count', `${d.count} vectors`)} · ${em(g.metric === 'hosts', `${d.hosts} hosts`)} · ${d.ips} IPs</div>`;
+    tip.innerHTML = `<div class="tt-day">${d.day}</div><div class="tt-cnt">${em(g.metric === 'hosts', `${d.hosts} hosts`)} · ${em(g.metric === 'ips', `${d.ips} IPs`)} · ${em(g.metric === 'countries', `${d.countries || 0} cc`)} · ${em(g.metric === 'count', `${d.count} vec`)}</div>`;
     tip.hidden = false;
     tip.style.left = (cx * scale) + 'px';
     tip.style.top = Math.max(2, cy * scale - 8) + 'px';
@@ -1165,25 +1179,36 @@ $('#periodApply').addEventListener('click', () => {
     trendZoom = { a: na, b: na + newSpan - 1 };
     paintTrend();
   }, { passive: false });
-  // drag = pan along time (only meaningful when zoomed in)
-  let dragging = false, dragX = 0, dragA = 0, dragB = 0;
+  // drag = brush-select a time range → zoom to it (relative to the currently visible window)
   chart.addEventListener('mousedown', (e) => {
-    if (!trendZoom) return;
-    dragging = true; dragX = e.clientX; dragA = trendZoom.a; dragB = trendZoom.b;
-    chart.classList.add('grabbing'); e.preventDefault();
+    const f = plotFrac(e); if (f == null) return;
+    brushing = true; brushStartF = f; tip.hidden = true;
+    chart.classList.add('selecting'); e.preventDefault();
   });
   window.addEventListener('mousemove', (e) => {
-    if (!dragging) return;
-    const svg = chart.querySelector('svg'), g = trendGeom; if (!svg || !g) return;
-    const rect = svg.getBoundingClientRect();
-    const plotPx = rect.width * (g.W - 2 * g.pad) / g.W;
-    const span = dragB - dragA + 1, N = lastTrend.length;
-    let na = dragA + Math.round(-(e.clientX - dragX) / plotPx * (span - 1));
-    na = Math.max(0, Math.min(N - span, na));
-    trendZoom = { a: na, b: na + span - 1 };
+    if (!brushing) return;
+    const g = trendGeom, r = chart.querySelector('#tBrush'); if (!g || !r) return;
+    const f = plotFrac(e); if (f == null) return;
+    const x0 = g.pad + Math.min(brushStartF, f) * (g.W - 2 * g.pad);
+    r.setAttribute('x', x0); r.setAttribute('width', Math.abs(f - brushStartF) * (g.W - 2 * g.pad)); r.setAttribute('opacity', '0.16');
+  });
+  window.addEventListener('mouseup', (e) => {
+    if (!brushing) return;
+    brushing = false; chart.classList.remove('selecting');
+    const g = trendGeom, N = lastTrend.length, r = chart.querySelector('#tBrush'); if (r) r.setAttribute('opacity', '0');
+    if (!g || N < 3) return;
+    const f = plotFrac(e); if (f == null) return;
+    if (Math.abs(f - brushStartF) < 0.02) return; // a click / tiny drag: no-op (keeps hover working)
+    let a = trendZoom ? trendZoom.a : 0, b = trendZoom ? trendZoom.b : N - 1;
+    const span = b - a + 1, lo = Math.min(brushStartF, f), hi = Math.max(brushStartF, f);
+    let na = Math.max(0, Math.round(a + lo * (span - 1)));
+    let nb = Math.min(N - 1, Math.round(a + hi * (span - 1)));
+    const minSpan = Math.min(N, 3);
+    if (nb - na + 1 < minSpan) nb = Math.min(N - 1, na + minSpan - 1);
+    if (na >= nb) return;
+    trendZoom = (na === 0 && nb === N - 1) ? null : { a: na, b: nb };
     paintTrend();
   });
-  window.addEventListener('mouseup', () => { if (dragging) { dragging = false; chart.classList.remove('grabbing'); } });
   const resetZoom = () => { if (trendZoom) { trendZoom = null; paintTrend(); } };
   chart.addEventListener('dblclick', resetZoom);
   $('#trendHint')?.addEventListener('click', resetZoom);

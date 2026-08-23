@@ -180,3 +180,18 @@ test('hostsAll: LIKE query escapes wildcards (no injection via %/_)', () => {
   assert.doesNotThrow(() => dbx.hostsAll('', 'constructor', '', 50));
   assert.doesNotThrow(() => dbx.hostsAll('', '__proto__', '', 50));
 });
+
+test('getTrend attaches distinct-country count per day from day_agg', () => {
+  dbx.clearDayAgg();
+  dbx.putDay('2026-05-01', '2026-05-01T12:00:00Z', 40, 3, 2, {});
+  dbx.putDay('2026-05-02', '2026-05-02T12:00:00Z', 20, 2, 1, {});
+  dbx.putDayAgg('2026-05-01', ['a', 'b', 'c'], ['1.1.1.1', '2.2.2.2'], ['US', 'CA', 'DE']);
+  dbx.putDayAgg('2026-05-02', ['a', 'b'], ['1.1.1.1'], ['US']);
+  const trend = dbx.getTrend();
+  const d1 = trend.find((d) => d.day === '2026-05-01');
+  const d2 = trend.find((d) => d.day === '2026-05-02');
+  assert.equal(d1.countries, 3); // US, CA, DE
+  assert.equal(d2.countries, 1); // US
+  assert.equal(d1.count, 40); // vectors preserved alongside
+  assert.equal(d1.hosts, 3);
+});

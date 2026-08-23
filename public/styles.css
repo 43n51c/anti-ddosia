@@ -252,7 +252,7 @@ a:hover { text-decoration: underline; }
 .trend-pnl .iocs { margin: 0; }
 .trend-box { position: relative; }
 .trend { height: 180px; cursor: crosshair; }
-.trend.grabbing { cursor: grabbing; }
+.trend.selecting { cursor: col-resize; }
 .trend-hint { background: none; border: 0; color: var(--dim); font: inherit; font-size: 10px; letter-spacing: 0.06em; cursor: default; padding: 0; }
 .trend-hint.on { color: var(--grn); cursor: pointer; }
 .trend-hint.on:hover { text-decoration: underline; }
