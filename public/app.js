@@ -106,14 +106,20 @@ async function api(path, opts) { const res = await fetch(path, { headers: { 'Con
 async function load() {
   try {
     const [t, s] = await Promise.all([api('/api/targets'), api('/api/stats')]);
-    state.targets = t.targets || []; state.stats = s; setStatus(t.ok, t); render();
-  } catch (e) { setStatus(false, { error: e.message }); }
+    state.targets = t.targets || []; state.stats = s; setStatus(t.ok); render();
+  } catch (e) { setStatus(false); }
 }
-function setStatus(ok, meta) {
-  $('#statusDot').className = 'dot ' + (ok ? 'ok' : 'err');
-  $('#statusText').textContent = ok ? 'live' : 'feed error';
-  // cadence footer: the view auto-refreshes on REFRESH_MS; on error it keeps retrying on the same beat
-  $('#statusMeta').textContent = `${ok ? 'auto-refresh' : 'retrying'} · ${Math.round(REFRESH_MS / 1000)}s`;
+function setStatus(ok) {
+  const dot = $('#statusDot'), txt = $('#statusText'), meta = $('#statusMeta');
+  const beat = `${Math.round(REFRESH_MS / 1000)}s`;
+  if (!ok) { dot.className = 'dot err'; txt.textContent = 'feed error'; meta.textContent = `retrying · ${beat}`; return; }
+  // the server keeps serving the last snapshot while its upstream poll silently fails, so it flags
+  // a frozen fetchedAt as `stale` (decided on the server clock — no client skew).
+  if (state.stats && state.stats.stale) {
+    dot.className = 'dot warn'; txt.textContent = 'stale'; meta.textContent = `last update ${timeAgo(state.stats.fetchedAt)} ago`;
+  } else {
+    dot.className = 'dot ok'; txt.textContent = 'live'; meta.textContent = `auto-refresh · ${beat}`;
+  }
 }
 function tick() { tickDurations(); }
 

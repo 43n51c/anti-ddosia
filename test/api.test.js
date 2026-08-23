@@ -34,6 +34,13 @@ test('GET /api/health returns status shape', async () => {
   assert.ok('ok' in body && 'fetchedAt' in body);
 });
 
+test('GET /api/stats exposes a boolean stale flag (false when never polled)', async () => {
+  const { status, body } = await j('/api/stats');
+  assert.equal(status, 200);
+  assert.equal(typeof body.stale, 'boolean');
+  assert.equal(body.stale, false); // no successful poll yet → fetchedAt null → not stale
+});
+
 test('GET /api/check validates and reports non-target', async () => {
   const bad = await j('/api/check?q=' + encodeURIComponent('not a host'));
   assert.equal(bad.body.ok, false);

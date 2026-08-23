@@ -516,7 +516,15 @@ async function handleApi(req, res, pathname) {
   // cap per-IP throughput to blunt trivial hammering / enumeration.
   if (rateLimited('read:' + clientIp(req), 240, 60 * 1000)) return sendJson(res, { error: 'Too many requests — slow down' }, 429);
   if (pathname === '/api/targets') return sendJson(res, current);
-  if (pathname === '/api/stats') return sendJson(res, buildStats());
+  if (pathname === '/api/stats') {
+    // staleness is decided on the server's own clock (avoids client clock-skew false alarms):
+    // current.fetchedAt = last SUCCESSFUL upstream poll; poll() keeps ok:true while it silently
+    // fails, so a frozen fetchedAt is the only signal the feed stopped updating.
+    const s = buildStats();
+    const staleAfter = Math.max(4 * CONFIG.pollMs, 4 * 60 * 1000);
+    s.stale = !!current.fetchedAt && (Date.now() - new Date(current.fetchedAt).getTime()) > staleAfter;
+    return sendJson(res, s);
+  }
   if (pathname === '/api/period') {
     const u = new URL(req.url, 'http://localhost').searchParams;
     const dayRe = /^\d{4}-\d{2}-\d{2}$/;
