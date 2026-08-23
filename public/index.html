@@ -113,6 +113,38 @@
       <!-- overview -->
       <div class="overview" id="overview" hidden></div>
 
+      <!-- global map (live, grouped with the overview) -->
+      <div class="pnl map-pnl">
+        <div class="pnl-h"><span>GLOBAL TARGET MAP <span class="live-tag">live</span></span><span class="mono" id="mapMeta"></span></div>
+        <div id="mapBox" class="map-box">
+          <div id="map" class="map"></div>
+          <div id="mapTip" class="map-tip" hidden></div>
+          <div class="map-zoom">
+            <button type="button" data-mapzoom="in" title="Zoom in">+</button>
+            <button type="button" data-mapzoom="out" title="Zoom out">−</button>
+            <button type="button" data-mapzoom="reset" title="Reset">⤢</button>
+          </div>
+        </div>
+        <div class="map-note mono">markers count hosts per country · a host hosted in several countries appears in each, so they can exceed the distinct total</div>
+      </div>
+
+      <!-- live target feed (live, collapsed by default) -->
+      <div class="pnl feed-pnl collapsed" id="feedPnl">
+        <div class="pnl-h">
+          <button type="button" class="feed-toggle" id="feedToggle" aria-expanded="false" aria-controls="feedTable"><span class="caret" aria-hidden="true">▸</span> LIVE TARGET FEED <span class="feed-count mono" id="feedCount"></span></button>
+          <div class="iocs">
+            <button class="ioc" data-export="hosts">Hosts <b id="iocHosts">0</b> <span class="cp">copy</span></button>
+            <button class="ioc" data-export="ips">IPs <b id="iocIps">0</b> <span class="cp">copy</span></button>
+            <button class="ioc" data-export="paths">Paths <b id="iocPaths">0</b> <span class="cp">copy</span></button>
+            <button class="ioc" data-export="csv">CSV <span class="cp">download</span></button>
+            <button class="ioc" data-export="json">JSON <span class="cp">download</span></button>
+          </div>
+        </div>
+        <div class="tbl-wrap"><table class="tbl" id="feedTable"><thead><tr>
+          <th data-sort="host">host</th><th data-sort="country">loc</th><th data-sort="targetCount">vec</th><th>types</th><th>ports</th><th data-sort="sessionStart">targeted for</th>
+        </tr></thead><tbody id="feedTableBody"></tbody></table></div>
+      </div>
+
       <!-- period-windowed metrics -->
       <div class="period">
         <div class="period-bar">
@@ -157,50 +189,23 @@
         </div>
       </div>
 
-      <!-- map + right rail -->
-      <div class="grid-map">
-        <div class="pnl map-pnl">
-          <div class="pnl-h"><span>GLOBAL TARGET MAP <span class="live-tag">live</span></span><span class="mono" id="mapMeta"></span></div>
-          <div id="mapBox" class="map-box">
-            <div id="map" class="map"></div>
-            <div id="mapTip" class="map-tip" hidden></div>
-            <div class="map-zoom">
-              <button type="button" data-mapzoom="in" title="Zoom in">+</button>
-              <button type="button" data-mapzoom="out" title="Zoom out">−</button>
-              <button type="button" data-mapzoom="reset" title="Reset">⤢</button>
-            </div>
-          </div>
-          <div class="map-note mono">markers count hosts per country · a host hosted in several countries appears in each, so they can exceed the distinct total</div>
-        </div>
+      <!-- period breakdowns (period-scoped, like the tiles above) -->
+      <div class="grid-breakdowns">
         <div class="pnl">
           <div class="pnl-h"><span>BY COUNTRY</span><span class="mono pnl-win" id="countryWin"></span></div>
           <div id="countryBars" class="bars"></div>
-          <div class="pnl-h" style="margin-top:16px"><span>ATTACK METHODS</span><span class="mono pnl-win" id="methodWin"></span></div>
+        </div>
+        <div class="pnl">
+          <div class="pnl-h"><span>ATTACK METHODS</span><span class="mono pnl-win" id="methodWin"></span></div>
           <div id="methodBars" class="bars"></div>
-          <div class="pnl-h" style="margin-top:16px"><span>BY SECTOR</span><span class="mono pnl-win" id="sectorWin"></span></div>
+        </div>
+        <div class="pnl">
+          <div class="pnl-h"><span>BY SECTOR</span><span class="mono pnl-win" id="sectorWin"></span></div>
           <div id="sectorBars" class="bars"></div>
           <div class="map-note mono">sector inferred from the hostname — “Other” is expected to be large</div>
         </div>
       </div>
 
-      <!-- feed -->
-      <div class="grid-feed">
-        <div class="pnl feed-pnl">
-          <div class="pnl-h">
-            <span>LIVE TARGET FEED</span>
-            <div class="iocs">
-              <button class="ioc" data-export="hosts">Hosts <b id="iocHosts">0</b> <span class="cp">copy</span></button>
-              <button class="ioc" data-export="ips">IPs <b id="iocIps">0</b> <span class="cp">copy</span></button>
-              <button class="ioc" data-export="paths">Paths <b id="iocPaths">0</b> <span class="cp">copy</span></button>
-              <button class="ioc" data-export="csv">CSV <span class="cp">download</span></button>
-              <button class="ioc" data-export="json">JSON <span class="cp">download</span></button>
-            </div>
-          </div>
-          <div class="tbl-wrap"><table class="tbl" id="feedTable"><thead><tr>
-            <th data-sort="host">host</th><th data-sort="country">loc</th><th data-sort="targetCount">vec</th><th>types</th><th>ports</th><th data-sort="sessionStart">targeted for</th>
-          </tr></thead><tbody id="feedTableBody"></tbody></table></div>
-        </div>
-      </div>
       <!-- most targeted / longest attacks / most waves -->
       <div class="trio">
         <div class="pnl">

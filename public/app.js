@@ -202,9 +202,11 @@ function renderDashboard(rows) {
   lastTrend = s.trend || [];
   if (trendZoom && trendZoom.b > lastTrend.length - 1) trendZoom = null; // stale window after data grew/shrank
   paintTrend();
-  $('#iocHosts').textContent = new Set(rows.map((r) => r.host).filter(Boolean)).size;
+  const nHosts = new Set(rows.map((r) => r.host).filter(Boolean)).size;
+  $('#iocHosts').textContent = nHosts;
   $('#iocIps').textContent = new Set(rows.map((r) => r.ip).filter(Boolean)).size;
   $('#iocPaths').textContent = new Set(rows.map((r) => r.path).filter(Boolean)).size;
+  $('#feedCount').textContent = `· ${nHosts} host${nHosts === 1 ? '' : 's'} now`; // summary shown while collapsed
 }
 
 const fmt = (n) => (n == null ? '—' : Math.round(n).toLocaleString('en-US').replace(/,/g, ' '));
@@ -314,8 +316,8 @@ function renderPeriodTiles(p) {
     { l: 'UNIQUE IPS', v: p.ips, d: 'behind the hosts' },
     { l: 'COUNTRIES', v: p.countries, d: 'targeted' },
     { l: 'NEW HOSTS', v: p.newHosts, d: 'first appeared' },
-    { l: 'PEAK / DAY', v: p.peak.count, d: p.peak.day ? `on ${p.peak.day}` : '' },
-    { l: 'AVG / DAY', v: p.avg, d: 'targets/day' },
+    { l: 'PEAK / DAY', v: p.peak.count, d: p.peak.day ? `vectors · ${p.peak.day}` : 'vectors' },
+    { l: 'AVG / DAY', v: p.avg, d: 'vectors/day' },
   ];
   const key = p.from + '|' + p.to;
   const animate = key !== periodLastKey && !prefersReducedMotion(); // only when the window actually changes
@@ -1009,6 +1011,11 @@ $('#trendMetric').addEventListener('click', (e) => {
   trendMetric = seg.dataset.metric;
   $$('#trendMetric .seg').forEach((s) => s.classList.toggle('on', s === seg));
   paintTrend(); // metric drives the TREND only; the period tiles are left as-is
+});
+// LIVE TARGET FEED collapse/expand (collapsed by default)
+$('#feedToggle')?.addEventListener('click', () => {
+  const collapsed = $('#feedPnl').classList.toggle('collapsed');
+  $('#feedToggle').setAttribute('aria-expanded', String(!collapsed));
 });
 document.addEventListener('click', (e) => {
   const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); }
