@@ -199,7 +199,6 @@ function renderDashboard(rows) {
   }
   // TREND stays all-time (a window of 1 day would be a single point)
   $('#trendWin').textContent = 'all-time';
-  $('#trendMeta').textContent = s.trendPeak?.day ? `peak ${s.trendPeak.count} · avg ${s.trendAvg}` : '';
   lastTrend = s.trend || [];
   if (trendZoom && trendZoom.b > lastTrend.length - 1) trendZoom = null; // stale window after data grew/shrank
   paintTrend();
@@ -530,6 +529,7 @@ function renderFeed(rows) {
 }
 
 let lastTrend = [];
+let trendMetric = 'hosts'; // 'hosts' = distinct victims/day (default), 'count' = attack vectors/day
 let trendZoom = null; // {a,b} inclusive index window into lastTrend; null = full range
 // paint the current zoom window (a slice of lastTrend) — re-renders so labels
 // and the y-scale re-fit crisply to the visible range
@@ -540,6 +540,13 @@ function paintTrend() {
   if (trendZoom && N) { a = Math.max(0, trendZoom.a); b = Math.min(N - 1, trendZoom.b); }
   const winEl = $('#trendWin');
   if (winEl) winEl.textContent = (trendZoom && N) ? `${lastTrend[a].day} → ${lastTrend[b].day}` : 'all-time';
+  // peak/avg reflect the whole archive (all-time) for the selected metric, not the zoom slice
+  const meta = $('#trendMeta');
+  if (meta) {
+    if (!N) meta.textContent = '';
+    else { const vals = lastTrend.map((d) => d[trendMetric]); const pk = Math.max(...vals); const av = Math.round(vals.reduce((x, y) => x + y, 0) / N);
+      meta.textContent = `peak ${fmt(pk)} · avg ${fmt(av)} ${trendMetric === 'hosts' ? 'hosts' : 'vectors'}`; }
+  }
   const hint = $('#trendHint');
   if (hint) { hint.textContent = trendZoom ? '✕ reset zoom' : 'scroll to zoom · drag to pan'; hint.classList.toggle('on', !!trendZoom); }
   renderTrend(el, lastTrend.slice(a, b + 1));
@@ -547,11 +554,11 @@ function paintTrend() {
 function renderTrend(el, trend) {
   if (!trend.length) { el.innerHTML = '<div class="empty">no history in this window…</div>'; return; }
   const W = Math.round(el.clientWidth) || 900, H = 180, pad = 30, bot = 22;
-  const max = Math.max(...trend.map((d) => d.count)) * 1.12 || 1;
+  const max = Math.max(...trend.map((d) => d[trendMetric])) * 1.12 || 1;
   const many = trend.length > 40;
   const x = (i) => pad + (i / Math.max(1, trend.length - 1)) * (W - pad * 2);
   const y = (v) => H - bot - (v / max) * (H - pad - bot);
-  const pts = trend.map((d, i) => `${x(i)},${y(d.count)}`).join(' ');
+  const pts = trend.map((d, i) => `${x(i)},${y(d[trendMetric])}`).join(' ');
   const area = `${pad},${H - bot} ${pts} ${x(trend.length - 1)},${H - bot}`;
   const yt = [0, max / 2, max].map((v) => `<line x1="${pad}" y1="${y(v)}" x2="${W - pad}" y2="${y(v)}" stroke="#141c28" stroke-dasharray="2 4"/><text x="4" y="${y(v) + 3}" fill="#566274" font-size="9">${Math.round(v)}</text>`).join('');
   let xl = '';
@@ -560,15 +567,15 @@ function renderTrend(el, trend) {
     const every = trend.length > 500 ? 3 : 1; let lm = -1;
     xl = trend.map((d, i) => { const m = +d.day.slice(5, 7) - 1; if (m === lm) return ''; lm = m; const lbl = multi ? `${MONTHS[m]} '${d.day.slice(2, 4)}` : MONTHS[m]; return `<line x1="${x(i)}" y1="${pad - 6}" x2="${x(i)}" y2="${H - bot}" stroke="${m === 0 ? '#1f2b3b' : '#131c27'}"/>${m % every === 0 ? `<text x="${x(i) + 2}" y="${H - 7}" fill="#566274" font-size="9">${lbl}</text>` : ''}`; }).join('');
   }
-  const peak = trend.reduce((m, d) => (d.count > m.count ? d : m), trend[0]);
+  const peak = trend.reduce((m, d) => (d[trendMetric] > m[trendMetric] ? d : m), trend[0]);
   const px = x(trend.indexOf(peak));
-  trendGeom = { W, H, pad, bot, n: trend.length, trend, xAt: x, yAt: y };
+  trendGeom = { W, H, pad, bot, n: trend.length, trend, xAt: x, yAt: y, metric: trendMetric };
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" preserveAspectRatio="none">
     <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3ddc84" stop-opacity="0.28"/><stop offset="100%" stop-color="#3ddc84" stop-opacity="0"/></linearGradient></defs>
     ${yt}${xl}
     <polygon points="${area}" fill="url(#tg)"/>
     <polyline points="${pts}" fill="none" stroke="#3ddc84" stroke-width="${many ? 1.4 : 2}"/>
-    <circle cx="${px}" cy="${y(peak.count)}" r="3" fill="#ff5566"><title>peak ${peak.day}: ${peak.count}</title></circle>
+    <circle cx="${px}" cy="${y(peak[trendMetric])}" r="3" fill="#ff5566"><title>peak ${peak.day}: ${peak[trendMetric]} ${trendMetric === 'hosts' ? 'hosts' : 'vectors'}</title></circle>
     <line id="tCross" x1="0" y1="${pad - 6}" x2="0" y2="${H - bot}" stroke="#3ddc84" stroke-width="0.8" stroke-dasharray="2 3" opacity="0" pointer-events="none"/>
     <circle id="tDot" r="3.2" fill="#3ddc84" stroke="#0a0f16" stroke-width="1" opacity="0" pointer-events="none"/>
   </svg>`;
@@ -993,6 +1000,13 @@ $('#filterNew').addEventListener('click', (e) => {
 });
 // #refreshBtn lives in the OVERVIEW header, which re-renders on every poll — delegate
 document.addEventListener('click', (e) => { if (e.target.closest('#refreshBtn')) load(); });
+// TREND metric toggle: distinct hosts vs attack vectors (data for both is already in each point)
+$('#trendMetric').addEventListener('click', (e) => {
+  const seg = e.target.closest('.seg[data-metric]'); if (!seg) return;
+  trendMetric = seg.dataset.metric;
+  $$('#trendMetric .seg').forEach((s) => s.classList.toggle('on', s === seg));
+  paintTrend();
+});
 document.addEventListener('click', (e) => {
   const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); }
 });
@@ -1111,11 +1125,12 @@ $('#periodApply').addEventListener('click', () => {
     const vx = (e.clientX - rect.left) / scale;
     let i = Math.round(((vx - g.pad) / (g.W - 2 * g.pad)) * (g.n - 1));
     i = Math.max(0, Math.min(g.n - 1, i));
-    const d = g.trend[i], cx = g.xAt(i), cy = g.yAt(d.count);
+    const d = g.trend[i], cx = g.xAt(i), cy = g.yAt(d[g.metric || 'count']);
     const cross = svg.querySelector('#tCross'), dot = svg.querySelector('#tDot');
     if (cross) { cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.setAttribute('opacity', '0.6'); }
     if (dot) { dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('opacity', '1'); }
-    tip.innerHTML = `<div class="tt-day">${d.day}</div><div class="tt-cnt"><b>${d.count}</b> targets · ${d.hosts} hosts · ${d.ips} IPs</div>`;
+    const em = (on, html) => on ? `<b>${html}</b>` : html;
+    tip.innerHTML = `<div class="tt-day">${d.day}</div><div class="tt-cnt">${em(g.metric === 'count', `${d.count} vectors`)} · ${em(g.metric === 'hosts', `${d.hosts} hosts`)} · ${d.ips} IPs</div>`;
     tip.hidden = false;
     tip.style.left = (cx * scale) + 'px';
     tip.style.top = Math.max(2, cy * scale - 8) + 'px';
