@@ -110,6 +110,8 @@
         <div class="verdict" id="checkVerdict" hidden></div>
       </div>
 
+      <!-- live context block: overview stats + map + feed grouped as one -->
+      <div class="live-cluster">
       <!-- overview -->
       <div class="overview" id="overview" hidden></div>
 
@@ -144,6 +146,7 @@
           <th data-sort="host">host</th><th data-sort="country">loc</th><th data-sort="targetCount">vec</th><th>types</th><th>ports</th><th data-sort="sessionStart">targeted for</th>
         </tr></thead><tbody id="feedTableBody"></tbody></table></div>
       </div>
+      </div><!-- /live-cluster -->
 
       <!-- period-windowed metrics -->
       <div class="period">
@@ -169,7 +172,24 @@
         <div class="tiles" id="tiles"></div>
       </div>
 
-      <!-- trend (above the map) -->
+      <!-- period breakdowns (period-scoped, grouped with the tiles above) -->
+      <div class="grid-breakdowns">
+        <div class="pnl">
+          <div class="pnl-h"><span>BY COUNTRY</span><span class="mono pnl-win" id="countryWin"></span></div>
+          <div id="countryBars" class="bars"></div>
+        </div>
+        <div class="pnl">
+          <div class="pnl-h"><span>ATTACK METHODS</span><span class="mono pnl-win" id="methodWin"></span></div>
+          <div id="methodBars" class="bars"></div>
+        </div>
+        <div class="pnl">
+          <div class="pnl-h"><span>BY SECTOR</span><span class="mono pnl-win" id="sectorWin"></span></div>
+          <div id="sectorBars" class="bars"></div>
+          <div class="map-note mono">sector inferred from the hostname — “Other” is expected to be large</div>
+        </div>
+      </div>
+
+      <!-- trend (all-time, grouped with the rankings below) -->
       <div class="pnl trend-pnl">
         <div class="pnl-h">
           <span>TREND <span class="pnl-win" id="trendWin"></span> <span class="mono" id="trendMeta"></span></span>
@@ -186,23 +206,6 @@
         <div class="trend-box">
           <div id="trendChart" class="trend"></div>
           <div id="trendTip" class="trend-tip" hidden></div>
-        </div>
-      </div>
-
-      <!-- period breakdowns (period-scoped, like the tiles above) -->
-      <div class="grid-breakdowns">
-        <div class="pnl">
-          <div class="pnl-h"><span>BY COUNTRY</span><span class="mono pnl-win" id="countryWin"></span></div>
-          <div id="countryBars" class="bars"></div>
-        </div>
-        <div class="pnl">
-          <div class="pnl-h"><span>ATTACK METHODS</span><span class="mono pnl-win" id="methodWin"></span></div>
-          <div id="methodBars" class="bars"></div>
-        </div>
-        <div class="pnl">
-          <div class="pnl-h"><span>BY SECTOR</span><span class="mono pnl-win" id="sectorWin"></span></div>
-          <div id="sectorBars" class="bars"></div>
-          <div class="map-note mono">sector inferred from the hostname — “Other” is expected to be large</div>
         </div>
       </div>
 

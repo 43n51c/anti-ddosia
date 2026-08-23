@@ -400,7 +400,7 @@ function renderMap(data) {
     const ra = world.ruAnchor || { x: 778, y: 86 };
     overlay += `<a href="https://x.com/hashtag/RussiaIsATerroristState" target="_blank" rel="noopener noreferrer"><text x="${ra.x.toFixed(1)}" y="${ra.y.toFixed(1)}" text-anchor="middle" fill="#ff5566" font-weight="700" font-size="12" font-family="JetBrains Mono, monospace" opacity="0.9" style="cursor:pointer">#RussiaIsATerroristState</text></a>`;
   }
-  const y0 = (90 - 84) / 180 * H, y1 = (90 - -58) / 180 * H;
+  const y0 = (90 - 74) / 180 * H, y1 = (90 - -44) / 180 * H; // crop to the populated band (74N–44S) → shorter map, keeps marker labels
   mapBase = { x: 0, y: y0, w: W, h: y1 - y0 };
   if (!mapVB) mapVB = { ...mapBase };
   $('#map').innerHTML = `<svg viewBox="0 ${y0.toFixed(0)} ${W} ${(y1 - y0).toFixed(0)}" preserveAspectRatio="xMidYMid meet">
