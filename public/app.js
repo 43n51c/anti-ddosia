@@ -76,6 +76,8 @@ document.addEventListener('error', (e) => {
 }, true);
 const codeOf = (c) => c.code || codeFor(c.key);
 const LOCK = '<svg class="lock" viewBox="0 0 24 24" aria-label="SSL"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>';
+// common port → service, so the live TARGET PORTS panel reads as an attack surface, not bare numbers
+const PORT_SVC = { 20: 'FTP', 21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 43: 'WHOIS', 53: 'DNS', 69: 'TFTP', 80: 'HTTP', 88: 'Kerberos', 110: 'POP3', 111: 'RPC', 123: 'NTP', 135: 'RPC', 139: 'NetBIOS', 143: 'IMAP', 161: 'SNMP', 179: 'BGP', 389: 'LDAP', 443: 'HTTPS', 445: 'SMB', 465: 'SMTPS', 514: 'Syslog', 587: 'SMTP', 631: 'IPP', 636: 'LDAPS', 873: 'rsync', 990: 'FTPS', 993: 'IMAPS', 995: 'POP3S', 1194: 'OpenVPN', 1433: 'MSSQL', 1521: 'Oracle', 1723: 'PPTP', 2049: 'NFS', 2082: 'cPanel', 2083: 'cPanel', 2086: 'WHM', 2087: 'WHM', 3306: 'MySQL', 3389: 'RDP', 5060: 'SIP', 5432: 'Postgres', 5900: 'VNC', 5985: 'WinRM', 6379: 'Redis', 8000: 'HTTP', 8008: 'HTTP', 8080: 'HTTP', 8443: 'HTTPS', 8888: 'HTTP', 9000: 'HTTP', 9200: 'Elastic', 10000: 'Webmin', 27017: 'MongoDB' };
 function timeAgo(iso) { if (!iso) return '—'; const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000); if (s < 60) return `${s}s`; if (s < 3600) return `${Math.floor(s / 60)}m`; if (s < 86400) return `${Math.floor(s / 3600)}h`; return `${Math.floor(s / 86400)}d`; }
 function fmtDur(iso) {
   if (!iso) return '—';
@@ -187,8 +189,9 @@ function renderDashboard(rows) {
 
   renderMap(s.byCountry); // map always shows current attacks (live)
   $('#mapMeta').textContent = `${T.countries} ${T.countries === 1 ? 'country' : 'countries'} · ${T.hosts} distinct hosts now`;
-  // beside the map (WHERE) — a live TARGET PORTS breakdown (which services are hit), not shown elsewhere
-  bars($('#mapPortBars'), (s.byPort || []).slice(0, 8), (r) => `:${esc(String(r.key))}`, '#5b9df9', false);
+  // beside the map (WHERE) — a live TARGET PORTS breakdown (which services are hit), not shown elsewhere.
+  // label each port with its service so the panel reads as an "attack surface", not bare numbers.
+  bars($('#mapPortBars'), (s.byPort || []).slice(0, 8), (r) => { const svc = PORT_SVC[r.key]; return `:${esc(String(r.key))}${svc ? ` <span class="ps-svc">${svc}</span>` : ''}`; }, '#5b9df9', false);
   // BY COUNTRY / ATTACK METHODS bars are period-scoped — rendered by renderPeriodTiles
 
   renderFeed(rows);
