@@ -189,9 +189,18 @@ function renderDashboard(rows) {
 
   renderMap(s.byCountry); // map always shows current attacks (live)
   $('#mapMeta').textContent = `${T.countries} ${T.countries === 1 ? 'country' : 'countries'} · ${T.hosts} distinct hosts now`;
-  // beside the map (WHERE) — a live TARGET PORTS breakdown (which services are hit), not shown elsewhere.
-  // label each port with its service so the panel reads as an "attack surface", not bare numbers.
-  bars($('#mapPortBars'), (s.byPort || []).slice(0, 8), (r) => { const svc = PORT_SVC[r.key]; return `:${esc(String(r.key))}${svc ? ` <span class="ps-svc">${svc}</span>` : ''}`; }, '#5b9df9', false);
+  // beside the map (WHERE) — a live ATTACK PROFILE: a few current-wave stats not in the overview,
+  // shown as OVERVIEW-style cells so the two halves read as one framed unit.
+  const pr = state.targets;
+  const pHosts = new Set(pr.map((r) => r.host).filter(Boolean)).size || 1;
+  const topP = (s.byPort || [])[0];
+  const profile = [
+    { l: 'VECTORS / HOST', v: (pr.length / pHosts).toFixed(1), d: 'attack depth' },
+    { l: 'SSL TARGETS', v: (pr.length ? Math.round(pr.filter((r) => r.use_ssl).length / pr.length * 100) : 0) + '%', d: 'encrypted services' },
+    { l: 'PATHS HIT', v: fmt(new Set(pr.map((r) => r.path).filter(Boolean)).size), d: 'distinct L7 paths' },
+    { l: 'TOP PORT', v: topP ? `${topP.key}${PORT_SVC[topP.key] ? ' ' + PORT_SVC[topP.key] : ''}` : '—', d: 'busiest service' },
+  ];
+  $('#mapProfile').innerHTML = profile.map((x) => `<div class="sig"><div class="sig-l">${x.l}</div><div class="sig-v">${esc(String(x.v))}</div><div class="sig-d">${x.d}</div></div>`).join('');
   // BY COUNTRY / ATTACK METHODS bars are period-scoped — rendered by renderPeriodTiles
 
   renderFeed(rows);
