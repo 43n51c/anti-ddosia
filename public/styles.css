@@ -166,7 +166,7 @@ a:hover { text-decoration: underline; }
 .live-rail .pnl-h { margin-bottom: 11px; }
 .live-rail .bar { grid-template-columns: 78px 1fr auto; }
 .feed-pnl { border-top: 1px solid var(--line); }
-.rail-sec { color: var(--dim); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; margin: 16px 0 9px; }
+.rail-sec { color: var(--dim); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; margin: 14px -16px 0; padding: 14px 16px 9px; border-top: 1px solid var(--line); }
 .hostlist { display: flex; flex-direction: column; }
 .hl-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; color: var(--tx2); }
 .hl-host { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
