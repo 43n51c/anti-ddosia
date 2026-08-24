@@ -276,14 +276,11 @@ a:hover { text-decoration: underline; }
 .feed-pnl.collapsed .tbl-wrap { display: none; } /* collapsed = title bar + export buttons, table hidden */
 .feed-count { color: var(--tx2); font-size: 11px; letter-spacing: 0; margin-left: 2px; }
 .feed-pnl.collapsed .feed-count::after { content: " · expand"; color: var(--grn); letter-spacing: 0.04em; }
-/* feed is a framed drawer in both states: tinted strip + a pill on the toggle so the block reads the same open or closed */
-.live-cluster .feed-pnl { background: color-mix(in srgb, var(--grn) 4%, var(--bg2)); }
-.feed-pnl .feed-toggle { border: 1px solid color-mix(in srgb, var(--grn) 26%, var(--line2)); background: var(--bg1); }
-.feed-pnl .feed-toggle:hover { border-color: var(--grn); background: var(--bg2); }
-/* collapsed = a closed drawer: no dead space, the whole bar is the click target */
-.live-cluster .feed-pnl.collapsed { cursor: pointer; }
-.live-cluster .feed-pnl.collapsed:hover { background: color-mix(in srgb, var(--grn) 8%, var(--bg2)); }
-.feed-pnl.collapsed .pnl-h { margin-bottom: 0; }
+/* the drawer bar itself is one framed, tinted box holding the toggle on the left and the export controls on the right */
+.feed-pnl .pnl-h { border: 1px solid color-mix(in srgb, var(--grn) 22%, var(--line2)); border-radius: 8px; background: color-mix(in srgb, var(--grn) 4%, var(--bg2)); padding: 8px 12px; transition: background .12s, border-color .12s; }
+/* collapsed = the whole framed bar is the click target and lights up on hover */
+.feed-pnl.collapsed .pnl-h { cursor: pointer; margin-bottom: 0; }
+.feed-pnl.collapsed .pnl-h:hover { border-color: var(--grn); background: color-mix(in srgb, var(--grn) 8%, var(--bg2)); }
 .trend-pnl { margin-bottom: 16px; }
 .trend-pnl .iocs { margin: 0; }
 .trend-box { position: relative; }
@@ -352,8 +349,6 @@ a:hover { text-decoration: underline; }
 .tbl { width: 100%; border-collapse: collapse; }
 .tbl thead th { position: sticky; top: 0; background: var(--bg2); text-align: left; color: var(--tx2); font-weight: 400; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; padding: 9px 10px; cursor: pointer; white-space: nowrap; user-select: none; border-bottom: 1px solid var(--line); }
 .tbl thead th:hover { color: var(--tx); }
-/* the feed sits on a green-tinted drawer, so its sticky header uses the same tint (else it reads as a separate band) */
-.feed-pnl .tbl thead th { background: color-mix(in srgb, var(--grn) 4%, var(--bg2)); }
 .tbl thead th.sa::after { content: " ▲"; color: var(--grn); } .tbl thead th.sd::after { content: " ▼"; color: var(--grn); }
 .tbl tbody td { padding: 8px 10px; border-bottom: 1px solid #101823; font-size: 12px; white-space: nowrap; }
 .tbl tbody tr { cursor: pointer; }
