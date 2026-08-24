@@ -316,7 +316,8 @@ function buildStats() {
   const avg = trend.length ? Math.round(trend.reduce((s, d) => s + d.count, 0) / trend.length) : 0;
   const yesterdayCount = trend.length >= 2 ? trend[trend.length - 2].count : null;
 
-  // Current "wave": the day the most of today's hosts first appeared.
+  // Current "wave": the freshest notable addition — the most recent day a batch
+  // (>=2) of today's hosts first appeared (falls back to the most recent single).
   const perFirstDay = new Map(), seenHost = new Set();
   for (const x of t) {
     if (seenHost.has(x.host) || !x.hostFirstSeen) continue;
@@ -324,7 +325,10 @@ function buildStats() {
     const d = x.hostFirstSeen.slice(0, 10);
     perFirstDay.set(d, (perFirstDay.get(d) || 0) + 1);
   }
-  const waveSince = [...perFirstDay.entries()].sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0]?.[0] || null;
+  const firstDays = [...perFirstDay.entries()];
+  const batchDays = firstDays.filter(([, n]) => n >= 2).map(([d]) => d).sort();
+  const anyDays = firstDays.map(([d]) => d).sort();
+  const waveSince = (batchDays.length ? batchDays[batchDays.length - 1] : anyDays[anyDays.length - 1]) || null;
   // live distinct hosts per sector (sector inferred from the hostname)
   const secSet = new Map();
   for (const x of t) { if (!x.host) continue; const s = x.sector || sectorOf(x.host); let set = secSet.get(s); if (!set) { set = new Set(); secSet.set(s, set); } set.add(x.host); }
