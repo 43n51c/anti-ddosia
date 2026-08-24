@@ -134,8 +134,8 @@ a:hover { text-decoration: underline; }
 .pnl-h b { color: var(--tx); font-weight: 400; }
 
 /* check hero */
-.check { border: 1px solid var(--line2); background: linear-gradient(180deg, #0c141d, #0a1019); border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; }
-.check-q { color: var(--tx2); font-size: 12px; margin-bottom: 11px; }
+.check { border: 1px solid color-mix(in srgb, var(--grn) 22%, var(--line2)); background: linear-gradient(180deg, #0c141d, #0a1019); border-radius: 10px; padding: 17px 20px; margin-bottom: 16px; box-shadow: inset 3px 0 0 var(--grn); }
+.check-q { color: #eaf1fa; font-size: 15px; margin-bottom: 13px; }
 .cli { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
 .cli .prompt { color: var(--grn); font-size: 16px; }
 .cli input { flex: 1; min-width: 220px; background: #0a0f16; border: 1px solid var(--line2); border-radius: 7px; padding: 11px 13px; color: #dfe9f4; font-family: inherit; font-size: 14px; }
@@ -155,7 +155,7 @@ a:hover { text-decoration: underline; }
 /* overview */
 .overview { border: 1px solid var(--line2); background: #0c1119; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
 /* live context block: overview + map + feed merged into one card with hairline dividers */
-.live-cluster { border: 1px solid var(--line2); background: #0c1119; border-radius: 11px; margin-bottom: 16px; overflow: hidden; }
+.live-cluster { border: 1px solid color-mix(in srgb, var(--grn) 15%, var(--line2)); background: #0c1119; border-radius: 11px; margin-bottom: 16px; overflow: hidden; box-shadow: inset 0 2px 0 color-mix(in srgb, var(--grn) 45%, transparent); }
 .live-cluster > .overview, .live-cluster > .pnl { border: 0; border-radius: 0; background: none; margin: 0; }
 .live-cluster > * + * { border-top: 1px solid var(--line); }
 .live-cluster > [hidden] + * { border-top: 0; }
