@@ -563,11 +563,12 @@ function paintTrend() {
   if (trendZoom && N) { a = Math.max(0, trendZoom.a); b = Math.min(N - 1, trendZoom.b); }
   const winEl = $('#trendWin');
   if (winEl) winEl.textContent = (trendZoom && N) ? `${lastTrend[a].day} → ${lastTrend[b].day}` : 'all-time';
-  // peak/avg reflect the whole archive (all-time) for the selected metric, not the zoom slice
+  // peak/avg follow the visible window (the zoom slice), so they match the range label
   const meta = $('#trendMeta');
   if (meta) {
-    if (!N) meta.textContent = '';
-    else { const vals = lastTrend.map((d) => d[trendMetric] || 0); const pk = Math.max(...vals); const av = Math.round(vals.reduce((x, y) => x + y, 0) / N);
+    const win = lastTrend.slice(a, b + 1);
+    if (!win.length) meta.textContent = '';
+    else { const vals = win.map((d) => d[trendMetric] || 0); const pk = Math.max(...vals); const av = Math.round(vals.reduce((x, y) => x + y, 0) / win.length);
       meta.textContent = `peak ${fmt(pk)} · avg ${fmt(av)} ${METRIC_LABEL[trendMetric]}`; }
   }
   const hint = $('#trendHint');
