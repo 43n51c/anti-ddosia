@@ -187,8 +187,8 @@ function renderDashboard(rows) {
 
   renderMap(s.byCountry); // map always shows current attacks (live)
   $('#mapMeta').textContent = `${T.countries} ${T.countries === 1 ? 'country' : 'countries'} · ${T.hosts} distinct hosts now`;
-  // beside the map (WHERE) — a live ATTACK TYPES breakdown (HOW), distinct from what the map shows
-  bars($('#mapTypeBars'), (s.byType || []).slice(0, 8), (r) => esc(fmtType(r.key)), '#ff9f45', false);
+  // beside the map (WHERE) — a live TARGET PORTS breakdown (which services are hit), not shown elsewhere
+  bars($('#mapPortBars'), (s.byPort || []).slice(0, 8), (r) => `:${esc(String(r.key))}`, '#5b9df9', false);
   // BY COUNTRY / ATTACK METHODS bars are period-scoped — rendered by renderPeriodTiles
 
   renderFeed(rows);

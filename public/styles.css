@@ -225,7 +225,7 @@ a:hover { text-decoration: underline; }
 .map-pnl { margin-bottom: 16px; }
 .grid-breakdowns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; align-items: start; }
 @media (max-width: 900px) { .grid-breakdowns { grid-template-columns: 1fr; } }
-.map-row { display: grid; grid-template-columns: minmax(0, 520px) minmax(240px, 1fr); gap: 18px; align-items: start; }
+.map-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
 .map-box { position: relative; overflow: hidden; border-radius: 8px; cursor: grab; min-width: 0; }
 .map-box.grabbing { cursor: grabbing; }
 .map { width: 100%; background: #070c14; }
