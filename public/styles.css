@@ -347,6 +347,8 @@ a:hover { text-decoration: underline; }
 .tbl { width: 100%; border-collapse: collapse; }
 .tbl thead th { position: sticky; top: 0; background: var(--bg2); text-align: left; color: var(--tx2); font-weight: 400; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; padding: 9px 10px; cursor: pointer; white-space: nowrap; user-select: none; border-bottom: 1px solid var(--line); }
 .tbl thead th:hover { color: var(--tx); }
+/* the feed sits on a green-tinted drawer, so its sticky header uses the same tint (else it reads as a separate band) */
+.feed-pnl .tbl thead th { background: color-mix(in srgb, var(--grn) 4%, var(--bg2)); }
 .tbl thead th.sa::after { content: " ▲"; color: var(--grn); } .tbl thead th.sd::after { content: " ▼"; color: var(--grn); }
 .tbl tbody td { padding: 8px 10px; border-bottom: 1px solid #101823; font-size: 12px; white-space: nowrap; }
 .tbl tbody tr { cursor: pointer; }
