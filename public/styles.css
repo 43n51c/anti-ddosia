@@ -276,6 +276,12 @@ a:hover { text-decoration: underline; }
 .feed-pnl.collapsed .tbl-wrap { display: none; } /* collapsed = title bar + export buttons, table hidden */
 .feed-count { color: var(--tx2); font-size: 11px; letter-spacing: 0; margin-left: 2px; }
 .feed-pnl.collapsed .feed-count::after { content: " · expand"; color: var(--grn); letter-spacing: 0.04em; }
+/* collapsed feed reads as a closed drawer, not empty space: tinted full-width strip, the whole bar is the click target */
+.live-cluster .feed-pnl.collapsed { background: color-mix(in srgb, var(--grn) 4%, var(--bg2)); cursor: pointer; }
+.live-cluster .feed-pnl.collapsed:hover { background: color-mix(in srgb, var(--grn) 8%, var(--bg2)); }
+.feed-pnl.collapsed .pnl-h { margin-bottom: 0; }
+.feed-pnl.collapsed .feed-toggle { border: 1px solid color-mix(in srgb, var(--grn) 26%, var(--line2)); background: var(--bg1); }
+.feed-pnl.collapsed .feed-toggle:hover { border-color: var(--grn); background: var(--bg2); }
 .trend-pnl { margin-bottom: 16px; }
 .trend-pnl .iocs { margin: 0; }
 .trend-box { position: relative; }

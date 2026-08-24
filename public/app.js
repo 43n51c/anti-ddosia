@@ -1046,6 +1046,11 @@ $('#feedToggle')?.addEventListener('click', () => {
   const collapsed = $('#feedPnl').classList.toggle('collapsed');
   $('#feedToggle').setAttribute('aria-expanded', String(!collapsed));
 });
+// while collapsed the whole strip is the affordance: a click anywhere (except the export buttons / toggle itself) expands it
+$('#feedPnl')?.addEventListener('click', (e) => {
+  if (e.target.closest('#feedToggle') || e.target.closest('.ioc')) return;
+  if ($('#feedPnl').classList.contains('collapsed')) $('#feedToggle').click();
+});
 document.addEventListener('click', (e) => {
   const hm = e.target.closest('.seg[data-hostmode]'); if (hm) { e.stopPropagation(); state.hostsMode = hm.dataset.hostmode; hostsAllKey = null; render(); }
 });
