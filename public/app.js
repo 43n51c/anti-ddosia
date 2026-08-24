@@ -592,16 +592,26 @@ function renderTrend(el, trend) {
   }
   const peak = trend.reduce((m, d) => ((d[trendMetric] || 0) > (m[trendMetric] || 0) ? d : m), trend[0]);
   const px = x(trend.indexOf(peak));
+  const py = y(peak[trendMetric] || 0);
   trendGeom = { W, H, pad, bot, n: trend.length, trend, xAt: x, yAt: y, metric: trendMetric };
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" preserveAspectRatio="none">
-    <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3ddc84" stop-opacity="0.28"/><stop offset="100%" stop-color="#3ddc84" stop-opacity="0"/></linearGradient></defs>
+    <defs>
+      <linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#3ddc84" stop-opacity="0.32"/>
+        <stop offset="55%" stop-color="#2fb76e" stop-opacity="0.07"/>
+        <stop offset="100%" stop-color="#3ddc84" stop-opacity="0"/>
+      </linearGradient>
+      <filter id="tglow"><feGaussianBlur stdDeviation="2.4"/></filter>
+    </defs>
     ${yt}${xl}
     <polygon points="${area}" fill="url(#tg)"/>
-    <polyline points="${pts}" fill="none" stroke="#3ddc84" stroke-width="${many ? 1.4 : 2}"/>
-    <circle cx="${px}" cy="${y(peak[trendMetric] || 0)}" r="3" fill="#ff5566"><title>peak ${peak.day}: ${peak[trendMetric] || 0} ${METRIC_LABEL[trendMetric]}</title></circle>
+    <polyline points="${pts}" fill="none" stroke="#3ddc84" stroke-width="${many ? 2.4 : 3}" stroke-linejoin="round" stroke-linecap="round" opacity="0.42" filter="url(#tglow)"/>
+    <polyline points="${pts}" fill="none" stroke="#52e69a" stroke-width="${many ? 1.3 : 1.9}" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${px}" cy="${py}" r="6.5" fill="none" stroke="#ff5566" stroke-width="1" opacity="0.3"/>
+    <circle cx="${px}" cy="${py}" r="2.8" fill="#ff5566" stroke="#0a0f16" stroke-width="1"><title>peak ${peak.day}: ${peak[trendMetric] || 0} ${METRIC_LABEL[trendMetric]}</title></circle>
     <rect id="tBrush" x="0" y="${pad - 6}" width="0" height="${H - bot - (pad - 6)}" fill="#3ddc84" opacity="0" pointer-events="none"/>
     <line id="tCross" x1="0" y1="${pad - 6}" x2="0" y2="${H - bot}" stroke="#3ddc84" stroke-width="0.8" stroke-dasharray="2 3" opacity="0" pointer-events="none"/>
-    <circle id="tDot" r="3.2" fill="#3ddc84" stroke="#0a0f16" stroke-width="1" opacity="0" pointer-events="none"/>
+    <circle id="tDot" r="3.2" fill="#52e69a" stroke="#0a0f16" stroke-width="1" opacity="0" pointer-events="none"/>
   </svg>`;
 }
 
