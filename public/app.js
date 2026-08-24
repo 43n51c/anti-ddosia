@@ -202,10 +202,10 @@ function renderDashboard(rows) {
   ];
   $('#mapProfile').innerHTML = profile.map((x) => `<div class="sig"><div class="sig-l">${x.l}</div><div class="sig-v">${esc(String(x.v))}</div><div class="sig-d">${x.d}</div></div>`).join('');
   // rail: TOP PORTS (which services) + HOTTEST HOSTS (who's under the heaviest fire) — both live
-  bars($('#railPorts'), (s.byPort || []).slice(0, 6), (r) => { const svc = PORT_SVC[r.key]; return `:${esc(String(r.key))}${svc ? ` <span class="ps-svc">${svc}</span>` : ''}`; }, '#5b9df9', false);
+  bars($('#railPorts'), (s.byPort || []).slice(0, 5), (r) => { const svc = PORT_SVC[r.key]; return `:${esc(String(r.key))}${svc ? ` <span class="ps-svc">${svc}</span>` : ''}`; }, '#5b9df9', false);
   const hm = new Map();
   for (const t of pr) { if (!t.host) continue; let e = hm.get(t.host); if (!e) { e = { host: t.host, cc: t.countryCode, n: 0 }; hm.set(t.host, e); } e.n++; }
-  const hot = [...hm.values()].sort((a, b) => b.n - a.n).slice(0, 6);
+  const hot = [...hm.values()].sort((a, b) => b.n - a.n).slice(0, 5);
   $('#railHosts').innerHTML = hot.map((h) => `<div class="hl-row">${flag(h.cc)}<span class="hl-host" title="${esc(h.host)}">${esc(h.host)}</span><b class="hl-n">${h.n}</b></div>`).join('') || '<div class="empty">no live targets</div>';
   // BY COUNTRY / ATTACK METHODS bars are period-scoped — rendered by renderPeriodTiles
 
