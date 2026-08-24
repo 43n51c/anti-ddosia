@@ -89,7 +89,6 @@ function fmtDur(iso) {
   return (d > 0 ? d + 'd ' : '') + `${p(h)}:${p(m)}:${p(s)}`;
 }
 function tickDurations() { for (const el of document.querySelectorAll('.dur[data-since]')) el.textContent = fmtDur(el.dataset.since); }
-const dayIso = (d) => (d ? `${d}T00:00:00.000Z` : null);
 const isNew = (t) => t.hostFirstSeen && (Date.now() - new Date(t.hostFirstSeen).getTime()) < DAY;
 const typeCls = (ty) => (['http', 'http2', 'http3', 'tcp', 'udp', 'nginx_loris'].includes(ty) ? 't-' + ty : 't-default');
 // display label for an attack method (uppercase, canonical spelling) — value stays raw for filtering
@@ -254,7 +253,7 @@ function renderOverview(T, s) {
   const vecPct = topType ? Math.round(topType.count / Math.max(1, T.targets) * 100) : 0;
   const topMethods = (s.byMethod || []).slice(0, 2).map((m) => fmtMethod(m.key)).filter(Boolean).join(', ');
   const sigs = [
-    { l: 'CURRENT WAVE', v: s.waveSince ? `<span class="dur" data-since="${dayIso(s.waveSince)}"></span>` : '—', d: `since ${s.waveSince || '—'}${cc ? ' · ' + cc : ''}` },
+    { l: 'CURRENT WAVE', v: s.waveSince ? `<span class="dur" data-since="${s.waveSince}"></span>` : '—', d: `since ${s.waveSince ? s.waveSince.slice(0, 16).replace('T', ' ') + ' UTC' : '—'}${cc ? ' · ' + cc : ''}` },
     { l: 'LIVE NOW', v: `${T.targets}&nbsp;<span class="sig-sub">targets</span>`, d: `${T.hosts} hosts · ${T.ips} IPs · ${T.countries} ${T.countries === 1 ? 'country' : 'countries'}`, vc: '' },
     { l: 'TRAJECTORY', v: `${trajV}&nbsp;<span class="sig-sub">vs yday</span>&nbsp;${miniSpark(last7, 56, 16, delta > 0 ? '#ff5566' : '#3ddc84')}`, d: `${T.targets} now &larr; ${s.yesterdayCount ?? '—'} yesterday`, vc: trajCls },
     { l: 'NEW · 24H', v: `${newHosts.length}&nbsp;<span class="sig-sub">${newHosts.length === 1 ? 'host' : 'hosts'}</span>`, d: newNames, vc: newHosts.length ? 'up' : '' },
