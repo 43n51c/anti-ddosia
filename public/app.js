@@ -387,16 +387,16 @@ function renderMap(data) {
     const ce = CENTROID[cc]; if (!ce) return '';
     const [x, y] = proj(ce[0], ce[1]);
     const n = hostsOf(cc);
-    const r = 4 + Math.sqrt(n / max) * 20;
+    const r = 3 + Math.sqrt(n / max) * 13;
     const dataAttr = `class="mk" data-code="${cc}" data-country="${esc(c.key)}" data-hosts="${n}" data-targets="${c.count}"`;
-    const base = `${i === 0 ? `<circle cx="${x}" cy="${y}" r="${r}" fill="#ff5566" opacity="0.12"><animate attributeName="r" values="${r};${r + 16};${r}" dur="2.6s" repeatCount="indefinite"/></circle>` : ''}
-      <circle cx="${x}" cy="${y}" r="${Math.max(r, 9)}" fill="transparent" ${dataAttr} style="cursor:pointer"/>
+    const base = `${i === 0 ? `<circle cx="${x}" cy="${y}" r="${r}" fill="#ff5566" opacity="0.12"><animate attributeName="r" values="${r};${r + 10};${r}" dur="2.6s" repeatCount="indefinite"/></circle>` : ''}
+      <circle cx="${x}" cy="${y}" r="${Math.max(r, 8)}" fill="transparent" ${dataAttr} style="cursor:pointer"/>
       <circle cx="${x}" cy="${y}" r="${r}" fill="rgba(255,85,102,0.18)" stroke="#ff5566" stroke-width="1" pointer-events="none"/>
-      <circle cx="${x}" cy="${y}" r="2.5" fill="#ff5566" pointer-events="none"/>`;
-    const fw = 22, fh = 15;
+      <circle cx="${x}" cy="${y}" r="2" fill="#ff5566" pointer-events="none"/>`;
+    const fw = 18, fh = 13;
     const label = i < labelN ? `
       <image class="flag" href="/flags/${cc.toLowerCase()}.svg" x="${x - fw / 2}" y="${y - r - fh - 5}" width="${fw}" height="${fh}" preserveAspectRatio="xMidYMid slice"/>
-      <text x="${x + fw / 2 + 4}" y="${y - r - fh / 2 - 3}" fill="#dbe6f2" font-size="15" font-family="JetBrains Mono, monospace">${n}</text>` : '';
+      <text x="${x + fw / 2 + 4}" y="${y - r - fh / 2 - 3}" fill="#dbe6f2" font-size="12" font-family="JetBrains Mono, monospace">${n}</text>` : '';
     // wrap in a group so markers can be counter-scaled to stay constant screen size on zoom
     return `<g class="mk-g" data-x="${x.toFixed(1)}" data-y="${y.toFixed(1)}">${base}${label}</g>`;
   }).join('');
