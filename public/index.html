@@ -112,30 +112,26 @@
 
       <!-- live context block: overview + map (main) + live rail + feed, butted into one card -->
       <div class="live-cluster">
+      <div class="overview" id="overview" hidden></div>
       <div class="live-board">
-        <div class="live-main">
-          <div class="overview" id="overview" hidden></div>
-          <div class="pnl map-pnl">
-            <div class="pnl-h"><span>GLOBAL TARGET MAP <span class="live-tag">live</span></span><span class="mono" id="mapMeta"></span></div>
-            <div id="mapBox" class="map-box">
-              <div id="map" class="map"></div>
-              <div id="mapTip" class="map-tip" hidden></div>
-              <div class="map-zoom">
-                <button type="button" data-mapzoom="in" title="Zoom in">+</button>
-                <button type="button" data-mapzoom="out" title="Zoom out">−</button>
-                <button type="button" data-mapzoom="reset" title="Reset">⤢</button>
-              </div>
+        <div class="pnl map-pnl">
+          <div class="pnl-h"><span>GLOBAL TARGET MAP <span class="live-tag">live</span></span><span class="mono" id="mapMeta"></span></div>
+          <div id="mapBox" class="map-box">
+            <div id="map" class="map"></div>
+            <div id="mapTip" class="map-tip" hidden></div>
+            <div class="map-zoom">
+              <button type="button" data-mapzoom="in" title="Zoom in">+</button>
+              <button type="button" data-mapzoom="out" title="Zoom out">−</button>
+              <button type="button" data-mapzoom="reset" title="Reset">⤢</button>
             </div>
-            <div class="map-note mono">markers count hosts per country · a host hosted in several countries appears in each, so they can exceed the distinct total</div>
           </div>
+          <div class="map-note mono">markers count hosts per country · a host hosted in several countries appears in each, so they can exceed the distinct total</div>
         </div>
         <div class="live-rail">
           <div class="pnl-h"><span>ATTACK PROFILE <span class="live-tag">live</span></span></div>
           <div id="mapProfile" class="ov-grid prof-grid"></div>
           <div class="rail-sec">HOTTEST HOSTS</div>
           <div id="railHosts" class="hostlist"></div>
-          <div class="rail-sec">TOP PORTS</div>
-          <div id="railPorts" class="bars"></div>
         </div>
       </div>
 

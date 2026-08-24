@@ -157,11 +157,10 @@ a:hover { text-decoration: underline; }
 /* live context block: overview + map + feed merged into one card with hairline dividers */
 .live-cluster { border: 1px solid color-mix(in srgb, var(--grn) 15%, var(--line2)); background: #0c1119; border-radius: 11px; margin-bottom: 16px; overflow: hidden; box-shadow: inset 0 2px 0 color-mix(in srgb, var(--grn) 45%, transparent); }
 .live-cluster .overview, .live-cluster .map-pnl, .live-cluster .feed-pnl { border: 0; border-radius: 0; background: none; margin: 0; }
-/* option B: main column [overview + map] | live rail, butted with hairline dividers */
+/* live zone: full-width OVERVIEW strip, then [map | live rail], then feed — butted with dividers */
+.live-cluster > .overview { border-bottom: 1px solid var(--line); }
 .live-board { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); }
-.live-main { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
-.live-main .overview { border-bottom: 1px solid var(--line); }
-.live-main .ov-grid { grid-template-columns: repeat(3, 1fr); }
+.live-board > .map-pnl { min-width: 0; border-right: 1px solid var(--line); }
 .live-rail { min-width: 0; padding: 14px 16px; }
 .live-rail .pnl-h { margin-bottom: 11px; }
 .live-rail .bar { grid-template-columns: 78px 1fr auto; }
