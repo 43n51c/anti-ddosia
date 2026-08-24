@@ -298,10 +298,15 @@ a:hover { text-decoration: underline; }
 .trend-tip .tt-cnt { color: var(--tx); font-size: 12px; margin-top: 2px; }
 .trend-tip .tt-cnt b { color: #eaf1fa; }
 .iocs { display: flex; gap: 8px; flex-wrap: wrap; }
+/* feed export controls sit inline on one row with the toggle (they only wrap on narrow screens) */
+.feed-pnl .iocs { flex-wrap: nowrap; gap: 6px; }
+.feed-pnl .ioc { padding: 7px 10px; white-space: nowrap; }
 .ioc { background: var(--bg2); border: 1px solid var(--line2); border-radius: 7px; padding: 8px 12px; color: var(--tx2); font-family: inherit; font-size: 12px; cursor: pointer; }
 .ioc:hover { border-color: var(--grn); }
 .ioc b { color: #eaf1fa; }
 .ioc .cp { color: var(--grn); }
+/* below this width the toggle + export row can't share one line without squeezing — let the header wrap */
+@media (max-width: 1160px) { .feed-pnl .pnl-h { flex-wrap: wrap; gap: 10px; } .feed-pnl .iocs { flex-wrap: wrap; } }
 
 /* attacked resources (collapsible) */
 .res-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; padding: 6px 8px; border-radius: 7px; }
